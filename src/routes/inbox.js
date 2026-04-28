@@ -268,7 +268,10 @@ const WA_TAG_LABELS = {
 
 router.post('/inbox/:id/wa-activity', async (req, res) => {
     try {
-        const { tag } = req.body || {};
+        // Aceita deal_id explícito do body (deal picker) com fallback pra lead.crm_deal_id.
+        // Mesmo padrão do POST /api/leads/:id/notes — evita atividade ir pro deal antigo
+        // quando o SDR escolhe outro deal no picker.
+        const { tag, deal_id } = req.body || {};
         if (!VALID_WA_TAGS.includes(tag)) {
             return res.status(400).json({ error: `tag inválida. Use: ${VALID_WA_TAGS.join(', ')}` });
         }
@@ -282,8 +285,9 @@ router.post('/inbox/:id/wa-activity', async (req, res) => {
         if (convErr || !conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
         const lead = await getLeadById(conv.lead_id);
-        if (!lead?.crm_deal_id) {
-            return res.status(400).json({ error: 'Essa conversa não tem deal vinculado no Pipedrive.' });
+        const targetDealId = deal_id ? String(deal_id) : (lead?.crm_deal_id || null);
+        if (!targetDealId) {
+            return res.status(400).json({ error: 'Nenhum deal selecionado e conversa não tem deal vinculado.' });
         }
 
         // Token do user logado (fallback global) — pra atividade aparecer como criada por ele
@@ -301,7 +305,7 @@ router.post('/inbox/:id/wa-activity', async (req, res) => {
 
         const leadName = lead.name || lead.phone || 'Lead';
         const activity = await createWhatsAppActivity({
-            dealId: lead.crm_deal_id,
+            dealId: targetDealId,
             personId: lead.crm_person_id || null,
             subject: `WhatsApp ${tag} — ${leadName}`,
             transcript: '',
@@ -311,7 +315,8 @@ router.post('/inbox/:id/wa-activity', async (req, res) => {
 
         logger.info('Manual WhatsApp activity created', {
             conversation_id: conv.id,
-            deal_id: lead.crm_deal_id,
+            deal_id: targetDealId,
+            deal_id_from: deal_id ? 'body' : 'lead',
             tag,
             user_id: req.user?.id || null,
         });
@@ -321,10 +326,10 @@ router.post('/inbox/:id/wa-activity', async (req, res) => {
             user_id: req.user?.id || null,
             conversation_id: conv.id,
             lead_id: lead.id,
-            metadata: { deal_id: lead.crm_deal_id, tag },
+            metadata: { deal_id: targetDealId, tag },
         });
 
-        res.json({ success: true, tag, tag_label: WA_TAG_LABELS[tag], activity_id: activity?.id || null });
+        res.json({ success: true, tag, tag_label: WA_TAG_LABELS[tag], activity_id: activity?.id || null, deal_id: targetDealId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
