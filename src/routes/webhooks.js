@@ -123,18 +123,45 @@ router.post('/webhook/test', (req, res) => {
 // Proteção: UUID v4 (122 bits de entropia) só existe em apollo_enrichments
 // quando disparamos. Rejeitamos refs desconhecidos ou já processados.
 router.post('/webhooks/apollo', async (req, res) => {
-    const ref = req.query?.ref;
-    if (!ref) return res.status(400).json({ error: 'ref obrigatório' });
+    // DIAGNOSTIC: log toda chamada que chega aqui (Apollo está silenciosamente
+    // desistindo de chamar — precisamos ver se chega request real e em qual formato)
+    logger.info('Apollo webhook hit', {
+        query: req.query,
+        body_keys: Object.keys(req.body || {}),
+        body_preview: JSON.stringify(req.body || {}).slice(0, 500),
+        user_agent: req.headers['user-agent'],
+        ip: req.headers['x-forwarded-for'] || req.ip,
+    });
 
+    const ref = req.query?.ref;
+    // Apollo pode mandar o request_id no body em vez de usar nosso ref na query.
+    // Suportamos os dois pra cobrir qualquer formato de callback.
+    const apolloReqId =
+        req.body?.request_id
+        || req.body?.id
+        || req.body?.phone_enrichment?.request_id
+        || null;
+
+    let row = null;
     try {
-        // Busca row pending
-        const { data: row, error } = await supabase
-            .from('apollo_enrichments')
-            .select('ref, pipedrive_person_id, status')
-            .eq('ref', ref)
-            .maybeSingle();
-        if (error || !row) {
-            logger.warn('Apollo webhook: ref desconhecido', { ref });
+        if (ref) {
+            const { data } = await supabase
+                .from('apollo_enrichments')
+                .select('ref, pipedrive_person_id, status')
+                .eq('ref', ref)
+                .maybeSingle();
+            row = data;
+        }
+        if (!row && apolloReqId) {
+            const { data } = await supabase
+                .from('apollo_enrichments')
+                .select('ref, pipedrive_person_id, status')
+                .eq('apollo_request_id', apolloReqId)
+                .maybeSingle();
+            row = data;
+        }
+        if (!row) {
+            logger.warn('Apollo webhook: ref/request_id desconhecido', { ref, apolloReqId });
             return res.status(404).json({ error: 'ref não encontrado' });
         }
         if (row.status !== 'pending') {
@@ -155,15 +182,14 @@ router.post('/webhooks/apollo', async (req, res) => {
             || null;
 
         if (!phoneRaw) {
-            // Apollo entregou webhook mas sem número — marca not_found pro resultado final
             await supabase.from('apollo_enrichments')
                 .update({
                     status: 'not_found',
                     result: body,
                     completed_at: new Date().toISOString(),
                 })
-                .eq('ref', ref);
-            logger.info('Apollo webhook: reveal sem número', { ref });
+                .eq('ref', row.ref);
+            logger.info('Apollo webhook: reveal sem número', { ref: row.ref });
             return res.json({ received: true, phone: null });
         }
 
@@ -194,9 +220,9 @@ router.post('/webhooks/apollo', async (req, res) => {
                 result: body,
                 completed_at: new Date().toISOString(),
             })
-            .eq('ref', ref);
+            .eq('ref', row.ref);
 
-        logger.info('Apollo webhook: número salvo', { ref, personId, phone: phoneRaw, pdUpdated });
+        logger.info('Apollo webhook: número salvo', { ref: row.ref, personId, phone: phoneRaw, pdUpdated });
         res.json({ received: true, phone: phoneRaw, pipedrive_updated: !!pdUpdated });
     } catch (err) {
         logger.error('Apollo webhook error', { ref, error: err.message });
