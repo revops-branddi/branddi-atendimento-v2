@@ -72,7 +72,10 @@ router.post('/webhook/form', async (req, res) => {
                     `2️⃣  Recebi uma notificação da Branddi\n` +
                     `3️⃣  Sou cliente e tenho uma dúvida`;
 
-                const chatResult = await startNewChat(waPhone, welcomeMsg);
+                const chatResult = await startNewChat(waPhone, welcomeMsg, null, {
+                    leadId: lead.id,
+                    conversationId: conversation.id,
+                });
                 const chatId = chatResult.chat_id || chatResult.id || chatResult.data?.id;
 
                 if (chatId) {

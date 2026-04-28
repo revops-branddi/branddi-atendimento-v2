@@ -188,6 +188,49 @@ function brPhoneVariants(phone) {
     return [...out];
 }
 
+/** Classifica um número como 'with_9' (DDD+9+8) ou 'without_9' (DDD+8). */
+function phoneToVariant(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    const local = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+    if (local.length === 11 && local[2] === '9') return 'with_9';
+    if (local.length === 10) return 'without_9';
+    return null;
+}
+
+/** Pega a variante 'with_9'/'without_9' de um número, ou null se não aplicável. */
+function pickPhoneByVariant(phone, variant) {
+    const variants = brPhoneVariants(phone);
+    for (const v of variants) {
+        if (phoneToVariant(v) === variant) return v;
+    }
+    return null;
+}
+
+async function getLeadWorkingVariant(leadId) {
+    if (!leadId) return null;
+    try {
+        const { default: sb } = await import('./supabase.js');
+        const { data } = await sb
+            .from('leads')
+            .select('working_phone_variant')
+            .eq('id', leadId)
+            .maybeSingle();
+        return data?.working_phone_variant || null;
+    } catch { return null; }
+}
+
+async function markLeadWorkingVariant(leadId, variant) {
+    if (!leadId || !variant) return;
+    try {
+        const { default: sb } = await import('./supabase.js');
+        await sb
+            .from('leads')
+            .update({ working_phone_variant: variant })
+            .eq('id', leadId)
+            .is('working_phone_variant', null);
+    } catch { /* não crítico */ }
+}
+
 /**
  * Procura um chat já existente nessa conta cujo attendee bata com qualquer
  * uma das variantes do telefone, com mensagens RECENTES delivered=1
@@ -215,14 +258,32 @@ async function findVerifiedChatByPhone(accountId, phoneVariants) {
     return null;
 }
 
+// Janela curta pra detectar "chat fantasma" (Unipile aceita o POST mas o número
+// não existe no WhatsApp do destinatário). 20s é suficiente pra delivery normal
+// completar e ainda parecer "instantâneo" pro atendente.
+const POST_SEND_DELIVERY_CHECK_DELAY_MS = 20_000;
+
 /**
  * Inicia nova conversa pelo Unipile.
  * - Resolve a conta (com fallback se env stale)
+ * - Se o lead já tem `working_phone_variant` confirmada, usa ela direto (sem chute)
  * - Procura chat já validado pra alguma variante do telefone (com/sem 9 BR);
  *   se achar, MANDA NELE em vez de criar duplicata fantasma
- * - Senão, cria chat novo com o phone como veio
+ * - Senão, cria chat novo e agenda checagem de entrega em ~20s — se a primeira
+ *   mensagem não foi entregue (delivered=0), reenvia na variante alternativa
+ *   automaticamente. Reduz a janela de "engoliu mensagem" de 5min pra ~20s.
+ *
+ * options:
+ *   - leadId         — pra ler/gravar lead.working_phone_variant
+ *   - conversationId — pra atualizar conversation.whatsapp_chat_id se trocar
+ *                      e marcar a msg outbound como retry_attempted_at
+ *   - _isRetry       — flag interna; quando true, NÃO agenda nova checagem
+ *                      (evita loop). Usado pelo delivery check e pelo
+ *                      delivery-retry-worker.
  */
-export async function startNewChat(phoneNumber, text, accountId = null) {
+export async function startNewChat(phoneNumber, text, accountId = null, options = {}) {
+    const { leadId = null, conversationId = null, _isRetry = false } = options;
+
     let acct = accountId || await getWhatsAppAccountId();
 
     if (acct) {
@@ -245,22 +306,134 @@ export async function startNewChat(phoneNumber, text, accountId = null) {
     }
     if (!acct) throw new Error('Nenhuma conta WhatsApp conectada no Unipile');
 
+    // Camada 1 (memória): se o lead já tem variante confirmada, sobrescreve o
+    // número original com ela. Pula o palpite — vai direto na que funciona.
+    if (!_isRetry && leadId) {
+        const working = await getLeadWorkingVariant(leadId);
+        if (working) {
+            const target = pickPhoneByVariant(phoneNumber, working);
+            const currentVariant = phoneToVariant(phoneNumber);
+            if (target && currentVariant && currentVariant !== working) {
+                logger.info('startNewChat: usando working variant gravada', {
+                    lead_id: leadId, working, from: phoneNumber, to: target,
+                });
+                phoneNumber = target;
+            }
+        }
+    }
+
     // Tenta achar um chat já confirmado (delivered=1 em msg anterior) pra alguma
     // variante do número. Evita o caso clássico do "5192924470 sem 9" sendo
     // mandado como "51992924470 com 9" → chat fantasma nunca entrega.
     const variants = brPhoneVariants(phoneNumber);
     const existing = await findVerifiedChatByPhone(acct, variants);
     if (existing?.chat_id) {
-        await sendMessage(existing.chat_id, text);
-        return { id: existing.chat_id, chat_id: existing.chat_id, reused_existing: true };
+        const sendResult = await sendMessage(existing.chat_id, text);
+        return {
+            id: existing.chat_id,
+            chat_id: existing.chat_id,
+            reused_existing: true,
+            message_id: sendResult?.message_id,
+        };
     }
 
-    // Sem chat verificado existente — cria novo com o phone original
+    // Sem chat verificado existente — cria novo com o phone (já corrigido se tinha working)
     const fd = new FormData();
     fd.append('account_id', acct);
     fd.append('text',       text);
     fd.append('attendees_ids', phoneNumber);
-    return req('/chats', { method: 'POST', body: fd });
+    const result = await req('/chats', { method: 'POST', body: fd });
+    const newChatId = result?.id || result?.chat_id;
+
+    // Camada 2 (detecção rápida): se há variante alternativa plausível,
+    // checa entrega em 20s. Se ghost chat → reenvia na alternativa.
+    if (!_isRetry && newChatId && variants.length >= 2) {
+        const alternate = variants.find(v => v.replace(/\D/g, '') !== String(phoneNumber).replace(/\D/g, ''));
+        if (alternate) {
+            scheduleDeliveryCheck({
+                chatId: newChatId,
+                acct,
+                text,
+                originalPhone: phoneNumber,
+                alternatePhone: alternate,
+                leadId,
+                conversationId,
+            });
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Agenda verificação ~20s após criar chat novo. Se a 1ª msg não foi entregue,
+ * reenvia na variante alternativa (sem 9 ↔ com 9), atualiza conversation pro
+ * novo chat_id e marca a msg original como retry_attempted_at (pra não duplicar
+ * com o delivery-retry-worker dos 5min).
+ */
+function scheduleDeliveryCheck({ chatId, acct, text, originalPhone, alternatePhone, leadId, conversationId }) {
+    setTimeout(async () => {
+        try {
+            const msgs = await req(`/chats/${chatId}/messages?limit=5`).catch(() => null);
+            const items = msgs?.items || [];
+            const lastSent = items.find(m => m.is_sender);
+
+            if (lastSent && (lastSent.delivered === 1 || lastSent.seen === 1)) {
+                // Entrega ok — registra a variante que funcionou
+                const variant = phoneToVariant(originalPhone);
+                if (leadId && variant) await markLeadWorkingVariant(leadId, variant);
+                return;
+            }
+
+            logger.info('Delivery check: ghost chat detectado, reenviando na alternativa', {
+                chat_id: chatId, original: originalPhone, alternate: alternatePhone,
+                lead_id: leadId, conversation_id: conversationId,
+            });
+
+            const altResult = await startNewChat(alternatePhone, text, acct, {
+                leadId, conversationId, _isRetry: true,
+            }).catch(err => {
+                logger.warn('Delivery check: alt send falhou', { error: err.message });
+                return null;
+            });
+            const altChatId = altResult?.id || altResult?.chat_id;
+
+            if (conversationId && altChatId && altChatId !== chatId) {
+                try {
+                    const { default: sb } = await import('./supabase.js');
+                    await sb
+                        .from('conversations')
+                        .update({ whatsapp_chat_id: altChatId })
+                        .eq('id', conversationId);
+                } catch { /* não crítico */ }
+            }
+
+            // Marca a msg outbound original (a que ficou no ghost chat) como já
+            // retentada — evita o worker dos 5min disparar uma terceira tentativa.
+            if (conversationId) {
+                try {
+                    const { default: sb } = await import('./supabase.js');
+                    const { data: orig } = await sb
+                        .from('messages')
+                        .select('id')
+                        .eq('conversation_id', conversationId)
+                        .eq('direction', 'outbound')
+                        .is('retry_attempted_at', null)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (orig?.id) {
+                        await sb
+                            .from('messages')
+                            .update({ retry_attempted_at: new Date().toISOString() })
+                            .eq('id', orig.id);
+                    }
+                } catch { /* não crítico */ }
+            }
+        } catch (err) {
+            logger.warn('Delivery check failed', { chat_id: chatId, error: err.message });
+        }
+    }, POST_SEND_DELIVERY_CHECK_DELAY_MS);
 }
 
 export function getAttachmentUrl(uri) {
@@ -490,6 +663,41 @@ async function processChat(chat) {
             await updateConversation(conversation.id, {
                 last_message_at: new Date().toISOString(),
             });
+        }
+
+        // Camada 1 (memória, lado polling): se este chat tem msg outbound entregue
+        // e o lead ainda não tem working_phone_variant gravada, descobre qual
+        // variante o WhatsApp do destinatário tem registrada (com/sem 9) e grava.
+        // Funciona pra conversas iniciadas fora do startNewChat (SDR mandou do
+        // celular, contato direto, etc).
+        const leadForVariant = conversation.leads;
+        const hasDeliveredOutbound = newMsgs.some(m => {
+            const norm = whatsapp.normalizeMessage(m);
+            return norm.direction === 'outbound' && norm.delivered;
+        });
+        if (hasDeliveredOutbound && leadForVariant?.id && leadForVariant.phone
+            && !leadForVariant.working_phone_variant) {
+            try {
+                const att = await getChatAttendees(chat.id).catch(() => null);
+                const recipient = (att?.items || []).find(a => !a.is_self);
+                const recipientPhone = recipient?.specifics?.phone_number
+                    || recipient?.phone_number
+                    || recipient?.public_identifier
+                    || null;
+                if (recipientPhone) {
+                    const variant = phoneToVariant(recipientPhone);
+                    const leadVariants = brPhoneVariants(leadForVariant.phone).map(v => v.replace(/\D/g, ''));
+                    const recipientDigits = String(recipientPhone).replace(/\D/g, '');
+                    if (variant && leadVariants.some(v => v === recipientDigits)) {
+                        await markLeadWorkingVariant(leadForVariant.id, variant);
+                        logger.info('working_phone_variant gravada via polling', {
+                            lead_id: leadForVariant.id, variant, recipient: recipientDigits,
+                        });
+                    }
+                }
+            } catch (err) {
+                logger.warn('Falha ao gravar working_phone_variant', { chat_id: chat.id, error: err.message });
+            }
         }
     } catch (err) {
         logger.warn('Erro ao processar chat', { chat_id: chat.id, error: err.message });

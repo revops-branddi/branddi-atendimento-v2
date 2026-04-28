@@ -61,7 +61,10 @@ router.post('/messages/:conversationId/send', async (req, res) => {
                         sendAccountId = req.user.permissions.whatsapp_accounts[0];
                     }
 
-                    const chatResult = await startNewChat(whatsappPhone, text, sendAccountId);
+                    const chatResult = await startNewChat(whatsappPhone, text, sendAccountId, {
+                        leadId: lead.id,
+                        conversationId: req.params.conversationId,
+                    });
                     chatId = chatResult?.id || chatResult?.chat_id;
                     if (chatId) {
                         // Marca a conta usada na conversa pra próximas msgs
