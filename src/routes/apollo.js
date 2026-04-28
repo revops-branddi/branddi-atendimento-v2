@@ -84,7 +84,12 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
             return res.status(500).json({ error: 'Falha ao registrar enriquecimento.' });
         }
         const ref = row.ref;
-        const webhookUrl = `${baseUrl}/api/webhooks/apollo?ref=${ref}`;
+        // Apollo doc avisa: "If phone numbers are not delivered, try applying
+        // UTF-8 encoding to the webhook URL." Por garantia, mandamos URL LIMPA
+        // sem query string. A correlação no callback usa o request_id que o
+        // Apollo retorna (gravamos em apollo_request_id e fazemos lookup por
+        // ele no webhook handler).
+        const webhookUrl = `${baseUrl}/api/webhooks/apollo`;
 
         // 2. Dispara match no Apollo — reveal_phone_number só se o Pipedrive NÃO tem número
         const hasPhone = (current.phone || []).some(p => p.value && String(p.value).length > 5);
