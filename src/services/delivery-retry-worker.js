@@ -109,7 +109,12 @@ async function tryRetry(msg) {
             original, alternative,
         });
 
-        const result = await startNewChat(alternative, msg.content, conv.whatsapp_account_id);
+        // _isRetry: true → não agendar novo delivery check (evita loop com a Camada 2 do startNewChat)
+        const result = await startNewChat(alternative, msg.content, conv.whatsapp_account_id, {
+            leadId: lead.id,
+            conversationId: conv.id,
+            _isRetry: true,
+        });
         const newChatId = result?.id || result?.chat_id;
         if (newChatId && newChatId !== conv.whatsapp_chat_id) {
             // Liga a conversa ao chat verificado, se ainda não estava
