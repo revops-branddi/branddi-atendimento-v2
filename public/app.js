@@ -3345,7 +3345,7 @@ async function apolloEnrichPerson(personId, personName, btnEl) {
     const card = btnEl?.closest('.deal-contact-item');
     const actionsEl = btnEl?.closest('.deal-contact-actions');
     try {
-        if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '⏳ Garimpando...'; }
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Garimpando...'; }
         const res = await apiFetch('/api/apollo/enrich-and-save/' + personId, { method: 'POST' });
 
         if (!res.matched) {
@@ -3355,37 +3355,35 @@ async function apolloEnrichPerson(personId, personName, btnEl) {
             return;
         }
 
-        // Se o contato já tinha telefone, Apollo não dispara reveal — só enriquece sync
-        const syncTitle = res.sync_updated?.job_title || null;
-        if (!res.phone_pending) {
-            const parts = [];
-            if (syncTitle) parts.push(`cargo: ${syncTitle}`);
-            if (res.sync_updated?.email) parts.push('email');
-            if (parts.length > 0) {
-                toast(`Apollo atualizou ${parts.join(', ')} ✓`, 'success');
-            } else {
-                toast('Apollo encontrou, mas não havia campos vazios para atualizar.', 'info');
-            }
+        // Backend devolve phone_outcome explícito. Fallback pra compat com deploy antigo:
+        const outcome = res.phone_outcome
+            || (res.phone_pending ? 'reveal_pending' : 'had_in_pipedrive');
+
+        if (outcome === 'had_in_pipedrive') {
+            toastSyncEnrichment(res.sync_updated, { hadPhone: true });
             replaceCardActions(actionsEl, '<span class="deal-contact-nophone">Já tinha número</span>');
             return;
         }
 
-        // Phone reveal é async — polling no endpoint /enrichment/:ref
-        if (btnEl) btnEl.innerHTML = '⏳ Aguardando Apollo...';
+        if (outcome === 'unavailable') {
+            toastSyncEnrichment(res.sync_updated, { hadPhone: false });
+            replaceCardActions(actionsEl, '<span class="deal-contact-nophone">Apollo não tem número</span>');
+            if (card) card.classList.add('deal-contact-apollo-miss');
+            return;
+        }
+
+        if (outcome === 'sync_returned' && res.phone) {
+            renderPhoneFoundOnCard(card, actionsEl, res.phone);
+            toast(`Número encontrado: ${res.phone} ✓`, 'success');
+            return;
+        }
+
+        // reveal_pending — espera webhook via polling
+        if (btnEl) btnEl.textContent = '⏳ Aguardando Apollo...';
         const phone = await pollApolloEnrichment(res.ref, 45_000);
 
         if (phone) {
-            if (card) {
-                card.classList.remove('deal-contact-no-phone');
-                card.classList.add('deal-contact-clickable');
-                card.dataset.phone = phone;
-                const emptyEl = card.querySelector('.deal-contact-phone-empty');
-                if (emptyEl) {
-                    emptyEl.className = 'deal-contact-phone';
-                    emptyEl.textContent = phone;
-                }
-                replaceCardActions(actionsEl, '<span class="deal-result-action">Iniciar →</span>');
-            }
+            renderPhoneFoundOnCard(card, actionsEl, phone);
             toast(`Número encontrado: ${phone} ✓`, 'success');
         } else {
             replaceCardActions(actionsEl, '<span class="deal-contact-nophone">Apollo sem número</span>');
@@ -3394,8 +3392,37 @@ async function apolloEnrichPerson(personId, personName, btnEl) {
         }
     } catch (err) {
         toast('Erro Apollo: ' + err.message, 'error');
-        if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = '🔍 Tentar novamente'; }
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔍 Tentar novamente'; }
     }
+}
+
+// Mostra toast contextual sobre os campos sync que Apollo trouxe (cargo/email).
+// hadPhone indica se Pipedrive já tinha número (muda a frase de fallback).
+function toastSyncEnrichment(syncUpdated, { hadPhone }) {
+    const parts = [];
+    if (syncUpdated?.job_title) parts.push(`cargo: ${syncUpdated.job_title}`);
+    if (syncUpdated?.email) parts.push('email');
+    if (parts.length > 0) {
+        toast(`Apollo atualizou ${parts.join(', ')} ✓`, 'success');
+    } else if (hadPhone) {
+        toast('Apollo encontrou, mas não havia campos vazios para atualizar.', 'info');
+    } else {
+        toast('Apollo achou o contato, mas não tem o telefone dele.', 'warning');
+    }
+}
+
+// Atualiza o card pra ficar clicável com o phone novo (compartilhado entre sync e async).
+function renderPhoneFoundOnCard(card, actionsEl, phone) {
+    if (!card) return;
+    card.classList.remove('deal-contact-no-phone');
+    card.classList.add('deal-contact-clickable');
+    card.dataset.phone = phone;
+    const emptyEl = card.querySelector('.deal-contact-phone-empty');
+    if (emptyEl) {
+        emptyEl.className = 'deal-contact-phone';
+        emptyEl.textContent = phone;
+    }
+    replaceCardActions(actionsEl, '<span class="deal-result-action">Iniciar →</span>');
 }
 
 async function pollApolloEnrichment(ref, timeoutMs = 45_000) {
