@@ -144,37 +144,71 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
         // 5. Sync Supabase lead (name/company) com o que veio síncrono
         await syncLeadFromApollo(personId, current, person, { includePhone: false });
 
-        // 6. Guarda apollo_request_id pra correlacionar webhook (se tem reveal pendente)
+        // 6. Classifica desfecho do telefone — frontend usa pra mostrar mensagem certa.
+        //    Quatro estados mutuamente exclusivos:
+        //      had_in_pipedrive → Pipedrive já tinha phone, nem pedimos reveal
+        //      reveal_pending   → Apollo enfileirou, webhook chega depois
+        //      sync_returned    → Apollo devolveu phone direto na resposta sync (cache)
+        //      unavailable      → Apollo achou a pessoa mas não tem phone dela
         const apolloReqId = apolloResp.phone_enrichment?.request_id || null;
         const phoneStatus = apolloResp.phone_enrichment?.status || null;
-        const finalStatus = wantsPhone && phoneStatus === 'pending'
-            ? 'pending'   // espera webhook
-            : 'completed'; // nada mais a esperar (já tinha phone OU não pediu reveal)
+        const syncPhone = (person.phone_numbers || []).find(p => p && String(p).length > 5) || null;
+
+        let phoneOutcome;
+        if (!wantsPhone) {
+            phoneOutcome = 'had_in_pipedrive';
+        } else if (phoneStatus === 'pending') {
+            phoneOutcome = 'reveal_pending';
+        } else if (syncPhone) {
+            phoneOutcome = 'sync_returned';
+        } else {
+            phoneOutcome = 'unavailable';
+        }
+
+        // sync_returned: Apollo já devolveu o número — grava no Pipedrive + Supabase agora
+        let syncPhoneSaved = false;
+        if (phoneOutcome === 'sync_returned') {
+            try {
+                await pdPut(`/persons/${personId}`, {
+                    phone: [{ value: syncPhone, primary: true, label: 'mobile' }],
+                });
+                syncPhoneSaved = true;
+                await syncLeadFromApollo(personId, current, person, { includePhone: true, phone: syncPhone });
+            } catch (err) {
+                logger.warn('Apollo sync_returned: erro gravando phone no Pipedrive', { personId, error: err.message });
+            }
+        }
+
+        const finalStatus = phoneOutcome === 'reveal_pending' ? 'pending' : 'completed';
 
         await supabase.from('apollo_enrichments')
             .update({
                 status: finalStatus,
                 apollo_request_id: apolloReqId,
-                result: { person, pipedrive_updated: updates },
+                phone: phoneOutcome === 'sync_returned' ? syncPhone : null,
+                result: { person, pipedrive_updated: updates, phone_outcome: phoneOutcome },
                 completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
             })
             .eq('ref', ref);
 
         logger.info('Apollo enrich dispatched', {
-            ref, personId, wantsPhone, phoneStatus,
+            ref, personId, phone_outcome: phoneOutcome,
             sync_fields: Object.keys(updates),
+            sync_phone_saved: syncPhoneSaved,
         });
 
         await logCommercialEvent('apollo_enrich_triggered', {
             user_id: req.user?.id || null,
-            metadata: { person_id: personId, wants_phone: wantsPhone, matched: true },
+            metadata: { person_id: personId, phone_outcome: phoneOutcome, matched: true },
         });
 
         res.json({
             ref,
             matched: true,
             sync_updated: updates,
-            phone_pending: wantsPhone && phoneStatus === 'pending',
+            phone_outcome: phoneOutcome,
+            phone_pending: phoneOutcome === 'reveal_pending', // mantido pra compat
+            phone: phoneOutcome === 'sync_returned' ? syncPhone : null,
             person: { title: person.title, email: person.email, name: person.name },
         });
     } catch (err) {
