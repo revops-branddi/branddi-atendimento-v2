@@ -119,12 +119,16 @@ router.post('/webhook/test', (req, res) => {
 });
 
 // ─── Webhook Apollo: recebe número revelado (reveal_phone_number async) ─
-// URL: /api/webhooks/apollo?ref=<uuid>
-// Proteção: UUID v4 (122 bits de entropia) só existe em apollo_enrichments
-// quando disparamos. Rejeitamos refs desconhecidos ou já processados.
+// URL: /api/webhooks/apollo
+//
+// Apollo manda dois formatos:
+//
+//  (a) BULK (atual, 2026): { status, total_requested_enrichments, people: [{id, phone_numbers, ...}] }
+//      → correlacionamos pelo apollo_id (people[].id) com result->person->>apollo_id
+//
+//  (b) LEGACY (antigo): { request_id, sanitized_number, ... } ou ?ref=<uuid> na query
+//      → correlacionamos pelo apollo_request_id ou pelo ref direto
 router.post('/webhooks/apollo', async (req, res) => {
-    // DIAGNOSTIC: log toda chamada que chega aqui (Apollo está silenciosamente
-    // desistindo de chamar — precisamos ver se chega request real e em qual formato)
     logger.info('Apollo webhook hit', {
         query: req.query,
         body_keys: Object.keys(req.body || {}),
@@ -133,13 +137,28 @@ router.post('/webhooks/apollo', async (req, res) => {
         ip: req.headers['x-forwarded-for'] || req.ip,
     });
 
+    const body = req.body || {};
+
+    // ── Caminho A: bulk format (people[]) ─────────────────────────────
+    if (Array.isArray(body.people) && body.people.length > 0) {
+        const results = [];
+        for (const person of body.people) {
+            try {
+                results.push(await processBulkPerson(person));
+            } catch (err) {
+                logger.error('Apollo bulk: erro processando person', { error: err.message, apolloId: person?.id });
+                results.push({ apollo_id: person?.id, error: err.message });
+            }
+        }
+        return res.json({ received: true, count: results.length, results });
+    }
+
+    // ── Caminho B: legacy single-payload ──────────────────────────────
     const ref = req.query?.ref;
-    // Apollo pode mandar o request_id no body em vez de usar nosso ref na query.
-    // Suportamos os dois pra cobrir qualquer formato de callback.
     const apolloReqId =
-        req.body?.request_id
-        || req.body?.id
-        || req.body?.phone_enrichment?.request_id
+        body.request_id
+        || body.id
+        || body?.phone_enrichment?.request_id
         || null;
 
     let row = null;
@@ -169,8 +188,6 @@ router.post('/webhooks/apollo', async (req, res) => {
             return res.json({ already_processed: true });
         }
 
-        // Extrai número do payload (Apollo schema)
-        const body = req.body || {};
         const phoneRaw =
             body.sanitized_number
             || body.phone_number
@@ -183,51 +200,101 @@ router.post('/webhooks/apollo', async (req, res) => {
 
         if (!phoneRaw) {
             await supabase.from('apollo_enrichments')
-                .update({
-                    status: 'not_found',
-                    result: body,
-                    completed_at: new Date().toISOString(),
-                })
+                .update({ status: 'not_found', result: body, completed_at: new Date().toISOString() })
                 .eq('ref', row.ref);
             logger.info('Apollo webhook: reveal sem número', { ref: row.ref });
             return res.json({ received: true, phone: null });
         }
 
-        // Salva no Pipedrive (se vazio) e no Supabase lead (se vazio)
-        const personId = row.pipedrive_person_id;
-        let pdUpdated = null;
-        try {
-            const pd = await pdGet(`/persons/${personId}`);
-            const person = pd?.data;
-            if (person) {
-                const hasPhone = (person.phone || []).some(p => p.value && String(p.value).length > 5);
-                if (!hasPhone) {
-                    await pdPut(`/persons/${personId}`, {
-                        phone: [{ value: phoneRaw, primary: true, label: 'mobile' }],
-                    });
-                    pdUpdated = true;
-                }
-                await syncLeadFromApollo(personId, person, null, { includePhone: true, phone: phoneRaw });
-            }
-        } catch (err) {
-            logger.warn('Apollo webhook: erro salvando no Pipedrive', { ref, personId, error: err.message });
-        }
-
+        const pdUpdated = await persistApolloPhone(row.pipedrive_person_id, phoneRaw);
         await supabase.from('apollo_enrichments')
-            .update({
-                status: 'completed',
-                phone: phoneRaw,
-                result: body,
-                completed_at: new Date().toISOString(),
-            })
+            .update({ status: 'completed', phone: phoneRaw, result: body, completed_at: new Date().toISOString() })
             .eq('ref', row.ref);
 
-        logger.info('Apollo webhook: número salvo', { ref: row.ref, personId, phone: phoneRaw, pdUpdated });
+        logger.info('Apollo webhook: número salvo (legacy)', { ref: row.ref, phone: phoneRaw, pdUpdated });
         res.json({ received: true, phone: phoneRaw, pipedrive_updated: !!pdUpdated });
     } catch (err) {
         logger.error('Apollo webhook error', { ref, error: err.message });
         res.status(500).json({ error: err.message });
     }
 });
+
+// Processa uma entrada do array people[] do payload bulk Apollo.
+// Match: result->person->>apollo_id (gravado no momento do match) com person.id do webhook.
+async function processBulkPerson(apolloPerson) {
+    const apolloId = apolloPerson?.id;
+    if (!apolloId) return { error: 'apollo person sem id' };
+
+    // Pode haver várias linhas pending pro mesmo apollo_id (re-disparos manuais).
+    // Pegamos a mais antiga ainda pending → cada webhook resolve uma; webhooks
+    // subsequentes vão consumir as próximas em ordem.
+    const { data: row } = await supabase
+        .from('apollo_enrichments')
+        .select('ref, pipedrive_person_id, status')
+        .eq('result->person->>apollo_id', apolloId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+    if (!row) {
+        logger.warn('Apollo bulk: apollo_id sem row pending', { apolloId });
+        return { apollo_id: apolloId, status: 'no_pending_row' };
+    }
+
+    const phoneRaw =
+        apolloPerson?.phone_numbers?.[0]?.sanitized_number
+        || apolloPerson?.phone_numbers?.[0]?.raw_number
+        || null;
+
+    if (!phoneRaw || apolloPerson.status === 'failure') {
+        await supabase.from('apollo_enrichments')
+            .update({
+                status: 'not_found',
+                result: { ...apolloPerson, _bulk: true },
+                completed_at: new Date().toISOString(),
+            })
+            .eq('ref', row.ref);
+        logger.info('Apollo bulk: reveal sem número', { ref: row.ref, apolloId });
+        return { apollo_id: apolloId, ref: row.ref, status: 'no_phone' };
+    }
+
+    const pdUpdated = await persistApolloPhone(row.pipedrive_person_id, phoneRaw);
+
+    await supabase.from('apollo_enrichments')
+        .update({
+            status: 'completed',
+            phone: phoneRaw,
+            result: { ...apolloPerson, _bulk: true },
+            completed_at: new Date().toISOString(),
+        })
+        .eq('ref', row.ref);
+
+    logger.info('Apollo bulk: número salvo', { ref: row.ref, apolloId, phone: phoneRaw, pdUpdated });
+    return { apollo_id: apolloId, ref: row.ref, status: 'completed', phone: phoneRaw, pipedrive_updated: !!pdUpdated };
+}
+
+// Salva phone no Pipedrive (só se vazio) + sync Supabase lead. Retorna true se Pipedrive foi atualizado.
+async function persistApolloPhone(pipedrivePersonId, phoneRaw) {
+    try {
+        const pd = await pdGet(`/persons/${pipedrivePersonId}`);
+        const person = pd?.data;
+        if (!person) return false;
+
+        const hasPhone = (person.phone || []).some(p => p.value && String(p.value).length > 5);
+        let updated = false;
+        if (!hasPhone) {
+            await pdPut(`/persons/${pipedrivePersonId}`, {
+                phone: [{ value: phoneRaw, primary: true, label: 'mobile' }],
+            });
+            updated = true;
+        }
+        await syncLeadFromApollo(pipedrivePersonId, person, null, { includePhone: true, phone: phoneRaw });
+        return updated;
+    } catch (err) {
+        logger.warn('Apollo: erro salvando phone no Pipedrive', { pipedrivePersonId, error: err.message });
+        return false;
+    }
+}
 
 export default router;
