@@ -26,10 +26,14 @@ import logger from '../services/logger.js';
 
 const router = Router();
 
+// Webhook base URL para callbacks externos (Apollo). Ordem importa:
+// 1. PUBLIC_URL — override explícito quando precisamos forçar
+// 2. RAILWAY_PUBLIC_DOMAIN — domínio da própria service (sempre aponta pra cá)
+// 3. FRONTEND_URL — fallback; pode legitimamente apontar pra outro service
 function getPublicBaseUrl() {
     return process.env.PUBLIC_URL
-        || process.env.FRONTEND_URL
-        || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+        || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
+        || process.env.FRONTEND_URL;
 }
 
 async function ensureEnabled(req, res) {
