@@ -1707,7 +1707,7 @@ async function createWaTagActivity(conv, tag, btnEl) {
     try {
         const res = await apiFetch(`/api/inbox/${conv.id}/wa-activity`, {
             method: 'POST',
-            body: JSON.stringify({ tag }),
+            body: JSON.stringify({ tag, deal_id: selectedDealId }),
         });
         toast(`Atividade WhatsApp ${res.tag_label || label} criada ✓`, 'success');
     } catch (err) {
