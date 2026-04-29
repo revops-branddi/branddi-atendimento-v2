@@ -358,18 +358,21 @@ export async function saveMessage(data) {
 }
 
 export async function getMessages(conversationId, { limit = 50, before } = {}) {
+    // DESC + LIMIT pega as N msgs mais recentes (ASC pegaria as N mais antigas, escondendo
+    // o que foi enviado/recebido em conversas com mais de N mensagens). Revertemos no fim
+    // para devolver em ordem cronológica, que é o que o front espera.
     let query = supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
     if (before) query = query.lt('created_at', before);
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    return (data || []).reverse();
 }
 
 export async function markMessagesRead(conversationId) {
