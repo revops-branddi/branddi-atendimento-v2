@@ -122,6 +122,17 @@ export function requireRole(...roles) {
     };
 }
 
+/** Exige permissions.site_access === true. Admin passa direto. */
+export function requireSiteAccess(req, res, next) {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Não autenticado.' });
+    }
+    if (req.user.role === 'Admin' || req.user.permissions?.site_access === true) {
+        return next();
+    }
+    return res.status(403).json({ error: 'Acesso negado ao Atendimento Site.' });
+}
+
 function extractToken(req) {
     const auth = req.headers.authorization;
     if (auth?.startsWith('Bearer ')) return auth.slice(7);

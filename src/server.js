@@ -26,7 +26,8 @@ import authRouter              from './routes/auth.js';
 import usersRouter             from './routes/users.js';
 import pipedriveIntRouter      from './routes/pipedrive-integration.js';
 import apolloRouter            from './routes/apollo.js';
-import { requireAuth }         from './middleware/auth.js';
+import siteRouter               from './site/routes/index.js';
+import { requireAuth, requireSiteAccess } from './middleware/auth.js';
 
 import { startPolling }            from './services/unipile.js';
 import { startCrmSyncWorker }      from './services/crm-sync.js';
@@ -170,9 +171,15 @@ app.use('/api', usersRouter);
 app.use('/api', pipedriveIntRouter);
 app.use('/api', apolloRouter);
 
+// ─── Rotas do fluxo Site (isoladas, requer permissions.site_access) ──
+app.use('/api/site', requireSiteAccess, siteRouter);
+
 // ─── SPA Fallback — serve index.html para rotas não-API ──────────────
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/site')) {
+        return res.sendFile(join(__dirname, '..', 'public', 'site', 'index.html'));
+    }
     res.sendFile(join(__dirname, '..', 'public', 'index.html'));
 });
 
