@@ -43,6 +43,10 @@
         .badge-resolved      { background: #e5e7eb; color: #374151; }
 
         .site-main { display: flex; flex-direction: column; min-height: 0; }
+        /* Estado "loaded" do viewer: flex column ocupando todo o main, pra
+           que o msg-list (flex:1) tenha contexto pra crescer. Substitui o
+           .site-empty quando uma conversa é selecionada. */
+        .conv-view { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
         .site-empty { color: #9ca3af; text-align: center; margin: 80px 16px; font-size: 14px; }
 
         .conv-header { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
