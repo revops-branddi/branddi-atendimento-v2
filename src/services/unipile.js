@@ -5,7 +5,7 @@
 import 'dotenv/config';
 import {
     findConversationByChat, createConversation, updateConversation,
-    findLeadByPhone, createLead, updateLead, saveMessage, normalizePhone
+    findLeadByPhone, findLeadByPhoneFuzzy, createLead, updateLead, saveMessage, normalizePhone
 } from './supabase.js';
 import { onInboundMessage } from './auto-activities.js';
 import { findPersonByPhone, findPersonByEmail, findPersonByExactName, getDealsForPerson } from './pipedrive.js';
@@ -485,14 +485,32 @@ async function processChat(chat) {
             // Normalize via provider abstraction
             const contact = whatsapp.normalizeContact(rawContact);
             const phone = normalizePhone(contact.phone);
-            let lead = phone ? await findLeadByPhone(phone) : null;
+            // Contatos @lid (LID = Linked Identifier do WhatsApp) trazem phone
+            // derivado e às vezes inexato — usar fuzzy match (last 8 digits)
+            // pra evitar duplicar leads que já existem com o mesmo número real.
+            const isLidAttendee = String(contact.providerId || '').endsWith('@lid');
+            let lead = null;
+            if (phone) {
+                lead = isLidAttendee
+                    ? await findLeadByPhoneFuzzy(phone)
+                    : await findLeadByPhone(phone);
+            }
 
             if (!lead) {
+                if (isLidAttendee) {
+                    logger.info('Criando lead via attendee @lid sem match', {
+                        attendee_id: contact.providerId, phone,
+                    });
+                }
                 lead = await createLead({
                     name:   contact.name || phone || 'Desconhecido',
                     phone,
                     origin: 'whatsapp_direct',
                     origin_metadata: { attendee_id: contact.providerId },
+                });
+            } else if (isLidAttendee && lead.phone !== phone) {
+                logger.info('Match fuzzy de lead via @lid', {
+                    attendee_id: contact.providerId, attendee_phone: phone, lead_phone: lead.phone, lead_id: lead.id,
                 });
             }
 
