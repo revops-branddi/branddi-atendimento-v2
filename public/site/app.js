@@ -172,6 +172,12 @@ document.getElementById('filters').addEventListener('click', (e) => {
 async function openConversation(id) {
     state.activeConvId = id;
     document.querySelectorAll('.conv-item').forEach(it => it.classList.toggle('active', it.dataset.id === id));
+    // Tira o estado vazio do viewer: a classe `site-empty` herda text-align:center
+    // e o style inline `margin:auto` quebra o flex da thread. Trocamos pra
+    // `conv-view` (flex column) só quando há conversa selecionada.
+    const viewer = document.getElementById('conv-viewer');
+    viewer.className = 'conv-view';
+    viewer.removeAttribute('style');
     await renderConversation({ initial: true });
 }
 
