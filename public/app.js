@@ -2396,6 +2396,11 @@ function setupCurrentUser() {
     // Visibilidade por role: Dashboard só para Admin
     const dashTab = document.getElementById('tab-dashboard');
     if (dashTab) dashTab.style.display = isAdmin ? '' : 'none';
+
+    // Acesso ao Atendimento Site: admin sempre, outros se permissions.site_access
+    const hasSiteAccess = isAdmin || currentUser?.permissions?.site_access === true;
+    const siteBtn = document.getElementById('btn-site');
+    if (siteBtn) siteBtn.style.display = hasSiteAccess ? '' : 'none';
 }
 
 
