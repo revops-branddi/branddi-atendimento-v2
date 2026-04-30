@@ -44,6 +44,36 @@ export async function findLeadByPhone(phone) {
     return data || null;
 }
 
+/**
+ * Lookup tolerante: tenta match exato primeiro; se falhar, tenta pelos
+ * últimos 8 dígitos (núcleo do número que raramente muda — DDI/DDD/9 podem
+ * variar sem alterar a identidade do assinante).
+ *
+ * Usar APENAS quando a fonte do phone é confiável só "morally" (ex: contatos
+ * @lid do WhatsApp, onde Unipile às vezes deriva um phone aproximado).
+ *
+ * Retorna o lead apenas se houver UM ÚNICO match no fallback — se houver
+ * 0 ou 2+ candidatos, retorna null pra forçar criação de novo lead.
+ */
+export async function findLeadByPhoneFuzzy(phone) {
+    const exact = await findLeadByPhone(phone);
+    if (exact) return exact;
+
+    const normalized = normalizePhone(phone);
+    if (!normalized || normalized.length < 8) return null;
+    const tail = normalized.slice(-8);
+
+    const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .like('phone', `%${tail}`)
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+    if (!data || data.length !== 1) return null;
+    return data[0];
+}
+
 export async function updateLead(id, updates) {
     const { data, error } = await supabase
         .from('leads')
