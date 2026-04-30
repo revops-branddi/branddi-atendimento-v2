@@ -28,11 +28,8 @@ import pipedriveIntRouter      from './routes/pipedrive-integration.js';
 import apolloRouter            from './routes/apollo.js';
 import { requireAuth }         from './middleware/auth.js';
 
-import chatbotRouter               from './routes/chatbot.js';
-import simulateRouter              from './routes/simulate.js';
 import { startPolling }            from './services/unipile.js';
 import { startCrmSyncWorker }      from './services/crm-sync.js';
-import { startChatbotWorkers }     from './services/chatbot-workers.js';
 import { startDeliveryRetryWorker } from './services/delivery-retry-worker.js';
 import { getPipedriveCircuitStatus } from './services/pipedrive.js';
 
@@ -162,7 +159,6 @@ app.use('/api', webhooksRouter);
 app.use('/api', requireAuth);
 
 // ─── Rotas protegidas ─────────────────────────────────────────────────
-app.use('/api', simulateRouter);  // Simulador do bot (agora protegido)
 app.use('/api', inboxRouter);
 app.use('/api', messagesRouter);
 app.use('/api', leadsRouter);
@@ -173,7 +169,6 @@ app.use('/api', settingsRouter);
 app.use('/api', usersRouter);
 app.use('/api', pipedriveIntRouter);
 app.use('/api', apolloRouter);
-app.use('/api', chatbotRouter);
 
 // ─── SPA Fallback — serve index.html para rotas não-API ──────────────
 app.use((req, res, next) => {
@@ -190,8 +185,6 @@ app.listen(PORT, () => {
     }
 
     startCrmSyncWorker();
-    // Auto-reply workers (away/nudge/followup) desativados — nenhuma mensagem automática por inatividade.
-    // startChatbotWorkers();
     // Delivery retry worker DESATIVADO — bug de loop: o retry cria chat novo no
     // Unipile, polling importa a msg de volta como nova outbound, worker pega
     // de novo → enviou várias cópias da mesma msg pra leads (caso Jéssica/inFlux).

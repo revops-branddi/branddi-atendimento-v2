@@ -2393,11 +2393,9 @@ function setupCurrentUser() {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
     }
 
-    // Visibilidade por role: Dashboard e Simulador só para Admin
+    // Visibilidade por role: Dashboard só para Admin
     const dashTab = document.getElementById('tab-dashboard');
     if (dashTab) dashTab.style.display = isAdmin ? '' : 'none';
-    const simBtn = document.getElementById('btn-simulator');
-    if (simBtn) simBtn.style.display = isAdmin ? '' : 'none';
 }
 
 
