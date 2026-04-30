@@ -7,8 +7,6 @@ import {
     findConversationByChat, createConversation, updateConversation,
     findLeadByPhone, createLead, updateLead, saveMessage, normalizePhone
 } from './supabase.js';
-import { processChatbotMessage } from './chatbot-engine.js';
-import { isLLMBotAvailable } from './llm-bot.js';
 import { onInboundMessage } from './auto-activities.js';
 import { findPersonByPhone, findPersonByEmail, findPersonByExactName, getDealsForPerson } from './pipedrive.js';
 import { isApolloConfigured, matchPerson } from './apollo.js';
@@ -543,11 +541,8 @@ async function processChat(chat) {
             const firstMsg = initItems[0];
             const weStarted = firstMsg ? firstMsg.is_sender : false;
 
-            // Se LLM disponível, ativa bot para TODOS os inbound (inclusive contatos diretos)
-            // Sem LLM: só ativa para leads do site (origin=form)
-            const botStage = weStarted ? 'human'
-                : isLLMBotAvailable() ? 'qualifying'
-                : (lead.origin === 'form' ? 'welcome' : 'human');
+            // Auto-replies eliminados — toda conversa entra direto em estágio humano.
+            const botStage = 'human';
 
             // Tipo da conversa vem do default da conta WhatsApp.
             // Ex: número da Harylanne (5511999802791) é prospecting; outros 'inbound'.
@@ -651,11 +646,6 @@ async function processChat(chat) {
             // Auto-create Reply activity in Pipedrive (fire and forget)
             if (msg.direction === 'inbound') {
                 onInboundMessage(conversation.id).catch(() => {});
-            }
-
-            // Processa chatbot apenas para mensagens inbound
-            if (msg.direction === 'inbound' && conversation.chatbot_stage !== 'human') {
-                await processChatbotMessage(conversation, msg.text || '', chat.id, msg.attachments || []);
             }
         }
 
