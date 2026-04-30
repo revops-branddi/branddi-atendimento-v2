@@ -5,7 +5,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { getMessages, saveMessage, markMessagesRead, updateConversation, getLeadById } from '../services/supabase.js';
 import { sendMessage, startNewChat, getAttachmentUrl, isAvailable as unipileAvailable } from '../services/unipile.js';
-import { applyScriptVariables } from '../services/chatbot-engine.js';
+import { applyScriptVariables } from '../services/script-variables.js';
 import { onOutboundMessage } from '../services/auto-activities.js';
 import supabase from '../services/supabase.js';
 
