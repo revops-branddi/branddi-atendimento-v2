@@ -4,9 +4,24 @@
  */
 const API = '/api/site';
 
+function getToken() {
+    return localStorage.getItem('ba_token');
+}
+
 async function api(path) {
-    const res = await fetch(`${API}${path}`, { credentials: 'include' });
-    if (res.status === 401) { window.location.href = '/login.html'; throw new Error('unauthorized'); }
+    const token = getToken();
+    if (!token) { window.location.href = '/login.html'; throw new Error('unauthenticated'); }
+
+    const res = await fetch(`${API}${path}`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) {
+        localStorage.removeItem('ba_token');
+        localStorage.removeItem('ba_user');
+        window.location.href = '/login.html';
+        throw new Error('unauthorized');
+    }
     if (res.status === 403) {
         document.body.replaceChildren(el('div', { style: 'padding:40px;text-align:center;color:#6b7280' }, 'Você não tem acesso ao Atendimento Site.'));
         throw new Error('forbidden');
