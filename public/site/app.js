@@ -1,20 +1,37 @@
 /**
- * Site Inbox — Fase 2 (read-only)
- * Lista conversas + viewer de mensagens. Sem envio nesta fase.
+ * Site Inbox — atendimento humano (sem bot).
+ *
+ * Polling: lista de conversas a cada 8s, thread aberta a cada 5s. Mantém UX
+ * aceitável sem precisar de WebSocket nesta fase. Quando o volume justificar,
+ * a troca pra Realtime do Supabase é local (este arquivo).
  */
 const API = '/api/site';
+const LIST_POLL_MS = 8_000;
+const THREAD_POLL_MS = 5_000;
+
+// ─── Auth + fetch helpers ────────────────────────────────────────────
 
 function getToken() {
     return localStorage.getItem('ba_token');
 }
 
-async function api(path) {
+function getUser() {
+    try { return JSON.parse(localStorage.getItem('ba_user') || '{}'); }
+    catch { return {}; }
+}
+
+async function api(path, options = {}) {
     const token = getToken();
     if (!token) { window.location.href = '/login.html'; throw new Error('unauthenticated'); }
 
     const res = await fetch(`${API}${path}`, {
         credentials: 'include',
-        headers: { Authorization: `Bearer ${token}` },
+        ...options,
+        headers: {
+            Authorization: `Bearer ${token}`,
+            ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+            ...(options.headers || {}),
+        },
     });
     if (res.status === 401) {
         localStorage.removeItem('ba_token');
@@ -26,7 +43,12 @@ async function api(path) {
         document.body.replaceChildren(el('div', { style: 'padding:40px;text-align:center;color:#6b7280' }, 'Você não tem acesso ao Atendimento Site.'));
         throw new Error('forbidden');
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { msg = (await res.json()).error || msg; } catch {}
+        throw new Error(msg);
+    }
+    if (res.status === 204) return null;
     return res.json();
 }
 
@@ -34,13 +56,16 @@ function fmtTime(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     const today = new Date();
-    if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === today.toDateString()) {
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 function el(tag, props = {}, ...children) {
     const node = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
+        if (v == null || v === false) continue;
         if (k === 'class') node.className = v;
         else if (k === 'style') node.setAttribute('style', v);
         else if (k === 'dataset') Object.assign(node.dataset, v);
@@ -48,77 +73,273 @@ function el(tag, props = {}, ...children) {
         else node.setAttribute(k, v);
     }
     for (const c of children.flat()) {
-        if (c == null) continue;
+        if (c == null || c === false) continue;
         node.append(c instanceof Node ? c : document.createTextNode(String(c)));
     }
     return node;
 }
 
-let activeConvId = null;
+function toast(msg, kind = 'info') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast show ${kind === 'error' ? 'error' : ''}`;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+const STATUS_LABEL = {
+    waiting_human: 'Aguardando',
+    in_progress:   'Em andamento',
+    resolved:      'Resolvida',
+};
+
+// ─── State ───────────────────────────────────────────────────────────
+
+const state = {
+    activeConvId: null,
+    activeConv:   null,
+    filter:       'all',
+    convs:        [],
+    me:           getUser(),
+};
+
+let listPollHandle  = null;
+let threadPollHandle = null;
+
+// ─── List rendering ──────────────────────────────────────────────────
 
 function emptyMsg(text) {
     return el('div', { class: 'site-empty' }, text);
 }
 
-async function loadConversations() {
+function buildListQuery() {
+    const params = new URLSearchParams();
+    if (state.filter === 'mine')          params.set('mine', '1');
+    else if (state.filter === 'waiting_human' || state.filter === 'in_progress' || state.filter === 'resolved') {
+        params.set('status', state.filter);
+    }
+    const qs = params.toString();
+    return qs ? `/conversations?${qs}` : '/conversations';
+}
+
+async function loadConversations({ silent = false } = {}) {
     const list = document.getElementById('conv-list');
-    list.replaceChildren(emptyMsg('Carregando…'));
+    if (!silent) list.replaceChildren(emptyMsg('Carregando…'));
     try {
-        const convs = await api('/conversations');
+        const convs = await api(buildListQuery());
+        state.convs = convs;
         if (!convs.length) {
-            list.replaceChildren(emptyMsg('Sem conversas ainda'));
+            list.replaceChildren(emptyMsg('Sem conversas'));
             return;
         }
-        list.replaceChildren(...convs.map(c => {
-            const item = el('div',
-                { class: 'conv-item', dataset: { id: c.id }, onclick: () => openConversation(c.id) },
-                el('div', { class: 'name' }, c.leads?.name || c.leads?.phone || 'Sem nome'),
-                el('div', { class: 'preview' }, c.leads?.company_name || c.leads?.email || ''),
-                el('div', { class: 'meta' },
-                    el('span', { class: `badge badge-${c.status}` }, c.status),
-                    el('span', {}, fmtTime(c.last_message_at || c.created_at)),
-                ),
-            );
-            return item;
-        }));
+        list.replaceChildren(...convs.map(renderConvItem));
     } catch (err) {
-        list.replaceChildren(emptyMsg(`Erro: ${err.message}`));
+        if (!silent) list.replaceChildren(emptyMsg(`Erro: ${err.message}`));
     }
 }
+
+function renderConvItem(c) {
+    const isMine = c.assigned_user_id && c.assigned_user_id === state.me.id;
+    return el('div', {
+        class: `conv-item ${c.id === state.activeConvId ? 'active' : ''}`,
+        dataset: { id: c.id },
+        onclick: () => openConversation(c.id),
+    },
+        el('div', { class: 'name' },
+            el('span', {}, c.leads?.name || c.leads?.phone || 'Sem nome'),
+            el('time', {}, fmtTime(c.last_message_at || c.created_at)),
+        ),
+        el('div', { class: 'preview' }, c.leads?.company_name || c.leads?.email || c.leads?.phone || ''),
+        el('div', { class: 'meta' },
+            el('span', { class: `badge badge-${c.status}` }, STATUS_LABEL[c.status] || c.status),
+            isMine && el('span', { class: 'status-pill' }, 'minha'),
+        ),
+    );
+}
+
+// ─── Filters ─────────────────────────────────────────────────────────
+
+document.getElementById('filters').addEventListener('click', (e) => {
+    const btn = e.target.closest('.filter-btn');
+    if (!btn) return;
+    state.filter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+    loadConversations();
+});
+
+// ─── Conversation viewer ─────────────────────────────────────────────
 
 async function openConversation(id) {
-    activeConvId = id;
+    state.activeConvId = id;
     document.querySelectorAll('.conv-item').forEach(it => it.classList.toggle('active', it.dataset.id === id));
+    await renderConversation({ initial: true });
+}
+
+async function renderConversation({ initial = false } = {}) {
+    const id = state.activeConvId;
+    if (!id) return;
     const viewer = document.getElementById('conv-viewer');
-    viewer.replaceChildren(emptyMsg('Carregando…'));
+    if (initial) viewer.replaceChildren(emptyMsg('Carregando…'));
+
+    let conv, msgs;
     try {
-        const [conv, msgs] = await Promise.all([api(`/conversations/${id}`), api(`/messages/${id}`)]);
-
-        const header = el('div', { style: 'padding-bottom:8px;border-bottom:1px solid #e5e7eb;margin-bottom:8px' },
-            el('strong', {}, conv.leads?.name || 'Sem nome'),
-            el('span', { style: 'color:#6b7280;margin-left:8px' }, conv.leads?.phone || ''),
-            el('span', { class: `badge badge-${conv.status}`, style: 'margin-left:8px' }, conv.status),
-            el('span', { style: 'margin-left:8px;font-size:12px;color:#6b7280' }, `bot: ${conv.bot_stage || ''}`),
-        );
-
-        const msgList = el('div', { class: 'msg-list' });
-        if (msgs.length) {
-            msgs.forEach(m => msgList.append(
-                el('div', { class: `msg ${m.direction}` },
-                    el('div', { class: 'who' }, `${m.sender_name || m.sender_type || ''} · ${fmtTime(m.created_at)}`),
-                    el('div', {}, m.text || ''),
-                ),
-            ));
-        } else {
-            msgList.append(emptyMsg('Sem mensagens'));
-        }
-
-        const stub = el('div', { class: 'stub' }, 'Envio de mensagens chega na Fase 3+. Por enquanto só leitura.');
-
-        viewer.replaceChildren(header, msgList, stub);
+        [conv, msgs] = await Promise.all([api(`/conversations/${id}`), api(`/messages/${id}`)]);
     } catch (err) {
-        viewer.replaceChildren(emptyMsg(`Erro: ${err.message}`));
+        if (initial) viewer.replaceChildren(emptyMsg(`Erro: ${err.message}`));
+        return;
+    }
+    state.activeConv = conv;
+
+    const header = renderHeader(conv);
+    const list   = renderMessages(msgs);
+    const composer = renderComposer(conv);
+
+    // Reusa o nó composer se possível pra preservar foco/digitação durante poll.
+    const existing = viewer.querySelector('.composer textarea');
+    const draft = existing && existing.value;
+    const hasFocus = existing && document.activeElement === existing;
+
+    viewer.replaceChildren(header, list, composer);
+
+    // Auto-scroll para o fim das mensagens.
+    const msgListEl = viewer.querySelector('.msg-list');
+    msgListEl.scrollTop = msgListEl.scrollHeight;
+
+    // Restaura rascunho.
+    if (draft) {
+        const ta = composer.querySelector('textarea');
+        ta.value = draft;
+        if (hasFocus) ta.focus();
     }
 }
 
-loadConversations();
+function renderHeader(conv) {
+    const lead = conv.leads || {};
+    const isMine = conv.assigned_user_id === state.me.id;
+
+    const statusSel = el('select', {
+        title: 'Status', onchange: (e) => patchConv({ status: e.target.value }),
+    },
+        ...['waiting_human', 'in_progress', 'resolved'].map(s =>
+            el('option', { value: s, selected: conv.status === s }, STATUS_LABEL[s])
+        ),
+    );
+
+    const claimBtn = isMine
+        ? el('button', { onclick: () => patchConv({ assigned_user_id: null }) }, 'Liberar')
+        : el('button', { class: 'primary', onclick: () => patchConv({ assigned_user_id: 'me' }) }, 'Atender');
+
+    const assignedLabel = conv.assigned_user_id
+        ? (isMine ? 'atribuída a mim' : 'atribuída a outro')
+        : 'sem atribuição';
+
+    return el('div', { class: 'conv-header' },
+        el('div', { class: 'info' },
+            el('div', { class: 'name' }, lead.name || lead.phone || 'Sem nome'),
+            el('div', { class: 'sub' },
+                lead.phone ? `${lead.phone} · ` : '',
+                lead.company_name || lead.email || '',
+                ` · ${assignedLabel}`,
+            ),
+        ),
+        el('div', { class: 'conv-actions' },
+            statusSel,
+            claimBtn,
+        ),
+    );
+}
+
+function renderMessages(msgs) {
+    const list = el('div', { class: 'msg-list' });
+    if (!msgs.length) {
+        list.append(emptyMsg('Sem mensagens ainda'));
+        return list;
+    }
+    msgs.forEach(m => list.append(
+        el('div', { class: `msg ${m.direction}` },
+            el('div', { class: 'who' }, m.sender_name || (m.sender_type === 'human' ? 'Atendente' : 'Lead')),
+            el('div', {}, m.text || ''),
+            el('div', { class: 'when' }, fmtTime(m.created_at)),
+        ),
+    ));
+    return list;
+}
+
+function renderComposer(conv) {
+    const isResolved = conv.status === 'resolved';
+    const ta = el('textarea', {
+        placeholder: isResolved ? 'Conversa resolvida — reabra pra responder' : 'Escreva uma mensagem…',
+        rows: '2',
+        disabled: isResolved,
+        onkeydown: (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        },
+    });
+    const btn = el('button', { onclick: send, disabled: isResolved }, 'Enviar');
+
+    async function send() {
+        const text = ta.value.trim();
+        if (!text) return;
+        btn.disabled = true; ta.disabled = true;
+        try {
+            await api(`/messages/${conv.id}`, {
+                method: 'POST',
+                body: JSON.stringify({ text }),
+            });
+            ta.value = '';
+            await renderConversation();
+            await loadConversations({ silent: true });
+        } catch (err) {
+            toast(err.message, 'error');
+        } finally {
+            btn.disabled = false; ta.disabled = isResolved;
+            ta.focus();
+        }
+    }
+
+    return el('div', { class: `composer ${isResolved ? 'disabled' : ''}` }, ta, btn);
+}
+
+async function patchConv(patch) {
+    const id = state.activeConvId;
+    if (!id) return;
+    try {
+        await api(`/conversations/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        });
+        await Promise.all([renderConversation(), loadConversations({ silent: true })]);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+// ─── Polling ─────────────────────────────────────────────────────────
+
+function startPolling() {
+    listPollHandle = setInterval(() => loadConversations({ silent: true }), LIST_POLL_MS);
+    threadPollHandle = setInterval(() => {
+        if (state.activeConvId) renderConversation();
+    }, THREAD_POLL_MS);
+    // Pausa quando aba some de foco pra economizar requests.
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearInterval(listPollHandle); listPollHandle = null;
+            clearInterval(threadPollHandle); threadPollHandle = null;
+        } else if (!listPollHandle) {
+            loadConversations({ silent: true });
+            if (state.activeConvId) renderConversation();
+            listPollHandle   = setInterval(() => loadConversations({ silent: true }), LIST_POLL_MS);
+            threadPollHandle = setInterval(() => {
+                if (state.activeConvId) renderConversation();
+            }, THREAD_POLL_MS);
+        }
+    });
+}
+
+// ─── Boot ────────────────────────────────────────────────────────────
+
+loadConversations().then(startPolling);

@@ -11,31 +11,80 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; color: #111827; }
         body { display: flex; height: 100vh; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
-        .site-shell { display: grid; grid-template-columns: 320px 1fr; width: 100%; height: 100%; }
-        .site-sidebar { border-right: 1px solid var(--border, #e5e7eb); background: #f9fafb; padding: 16px; overflow-y: auto; }
-        .site-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-        .site-header h1 { font-size: 18px; margin: 0; }
+
+        .site-shell { display: grid; grid-template-columns: 340px 1fr; width: 100%; height: 100%; }
+
+        .site-sidebar { border-right: 1px solid #e5e7eb; background: #f9fafb; display: flex; flex-direction: column; min-height: 0; }
+        .site-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; }
+        .site-header h1 { font-size: 16px; margin: 0; font-weight: 600; }
         .site-back { color: #6b7280; text-decoration: none; font-size: 13px; }
         .site-back:hover { color: #111827; }
-        .conv-item { padding: 12px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; border: 1px solid transparent; }
+
+        .site-filters { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .filter-btn {
+            background: #fff; border: 1px solid #e5e7eb; border-radius: 999px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #374151;
+        }
+        .filter-btn:hover { background: #f3f4f6; }
+        .filter-btn.active { background: #111827; color: #fff; border-color: #111827; }
+
+        .conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
         .conv-item:hover { background: #f3f4f6; }
         .conv-item.active { background: #eef2ff; border-color: #6366f1; }
-        .conv-item .name { font-weight: 600; font-size: 14px; }
-        .conv-item .preview { font-size: 12px; color: #6b7280; margin-top: 2px; }
-        .conv-item .meta { font-size: 11px; color: #9ca3af; margin-top: 4px; display: flex; gap: 8px; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
-        .badge-bot { background: #dbeafe; color: #1e40af; }
-        .badge-waiting { background: #fef3c7; color: #92400e; }
-        .badge-in_progress { background: #d1fae5; color: #065f46; }
-        .badge-resolved { background: #e5e7eb; color: #374151; }
-        .site-main { display: flex; flex-direction: column; padding: 16px; overflow: hidden; }
-        .site-empty { color: #9ca3af; text-align: center; margin-top: 80px; font-size: 14px; }
-        .msg-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 60%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; }
-        .msg.inbound { align-self: flex-start; background: #f3f4f6; }
-        .msg.outbound { align-self: flex-end; background: #6366f1; color: white; }
-        .msg .who { font-size: 11px; opacity: 0.6; margin-bottom: 2px; }
-        .stub { padding: 12px; background: #fef3c7; border: 1px dashed #f59e0b; border-radius: 8px; font-size: 13px; color: #78350f; margin-top: 12px; }
+        .conv-item .name { font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
+        .conv-item .preview { font-size: 12px; color: #6b7280; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conv-item .meta { font-size: 11px; color: #9ca3af; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+        .conv-item time { color: #9ca3af; font-size: 11px; font-weight: 400; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; line-height: 1.4; }
+        .badge-waiting_human { background: #fef3c7; color: #92400e; }
+        .badge-in_progress   { background: #d1fae5; color: #065f46; }
+        .badge-resolved      { background: #e5e7eb; color: #374151; }
+
+        .site-main { display: flex; flex-direction: column; min-height: 0; }
+        .site-empty { color: #9ca3af; text-align: center; margin: 80px 16px; font-size: 14px; }
+
+        .conv-header { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .conv-header .info { flex: 1; min-width: 200px; }
+        .conv-header .name { font-weight: 600; font-size: 15px; }
+        .conv-header .sub  { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .conv-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .conv-actions select, .conv-actions button {
+            font-family: inherit; font-size: 12px; padding: 5px 10px;
+            border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer;
+        }
+        .conv-actions button.primary { background: #111827; color: #fff; border-color: #111827; }
+        .conv-actions button:hover:not(:disabled) { background: #f3f4f6; }
+        .conv-actions button.primary:hover:not(:disabled) { background: #1f2937; }
+        .conv-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .msg-list { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: #f9fafb; }
+        .msg { max-width: 65%; padding: 8px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+        .msg.inbound  { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; }
+        .msg.outbound { align-self: flex-end; background: #6366f1; color: #fff; }
+        .msg .who   { font-size: 11px; opacity: 0.7; margin-bottom: 2px; }
+        .msg .when  { font-size: 10px; opacity: 0.55; margin-top: 4px; text-align: right; }
+        .msg.outbound .when { color: #e0e7ff; }
+
+        .composer { padding: 12px 16px; border-top: 1px solid #e5e7eb; background: #fff; display: flex; gap: 8px; }
+        .composer textarea {
+            flex: 1; resize: none; min-height: 40px; max-height: 140px;
+            padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px;
+            font-family: inherit; font-size: 14px;
+        }
+        .composer textarea:focus { outline: none; border-color: #6366f1; }
+        .composer button {
+            background: #6366f1; color: #fff; border: none; border-radius: 8px;
+            padding: 8px 16px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .composer button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .composer.disabled { opacity: 0.6; }
+
+        .status-pill { font-size: 11px; color: #6b7280; padding: 2px 8px; background: #f3f4f6; border-radius: 999px; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.2s; }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #b91c1c; }
     </style>
 </head>
 <body>
@@ -45,14 +94,22 @@
             <h1>Atendimento Site</h1>
             <a href="/" class="site-back">← Voltar</a>
         </div>
-        <div id="conv-list">
+        <div class="site-filters" id="filters">
+            <button class="filter-btn active" data-filter="all">Todas</button>
+            <button class="filter-btn" data-filter="waiting_human">Aguardando</button>
+            <button class="filter-btn" data-filter="mine">Minhas</button>
+            <button class="filter-btn" data-filter="in_progress">Em andamento</button>
+            <button class="filter-btn" data-filter="resolved">Resolvidas</button>
+        </div>
+        <div id="conv-list" class="conv-list">
             <div class="site-empty">Carregando…</div>
         </div>
     </aside>
     <main class="site-main">
-        <div id="conv-viewer" class="site-empty">Selecione uma conversa</div>
+        <div id="conv-viewer" class="site-empty" style="margin: auto;">Selecione uma conversa</div>
     </main>
 </div>
+<div id="toast" class="toast"></div>
 <script src="app.js" type="module"></script>
 </body>
 </html>

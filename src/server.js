@@ -33,6 +33,7 @@ import { startPolling }            from './services/unipile.js';
 import { startCrmSyncWorker }      from './services/crm-sync.js';
 import { startDeliveryRetryWorker } from './services/delivery-retry-worker.js';
 import { getPipedriveCircuitStatus } from './services/pipedrive.js';
+import { startSitePolling }        from './site/services/ingest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -189,6 +190,10 @@ app.listen(PORT, () => {
 
     try { startPolling(); } catch (err) {
         logger.warn('WhatsApp polling não iniciado', { error: err.message });
+    }
+
+    try { startSitePolling(); } catch (err) {
+        logger.warn('Site WhatsApp polling não iniciado', { error: err.message });
     }
 
     startCrmSyncWorker();
