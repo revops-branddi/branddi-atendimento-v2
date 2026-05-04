@@ -75,6 +75,10 @@ export async function requireAuth(req, res, next) {
     // Webhooks e simulador passam direto
     if (req.path.startsWith('/webhooks')) return next();
     if (req.path.startsWith('/simulate')) return next();
+    // /api/attachments/:msgId/:attId — img/audio/video tags não conseguem
+    // mandar Authorization header. A URL já é gated por dois ids opacos
+    // do Unipile (~20+ chars random), então é seguro liberar.
+    if (req.path.startsWith('/attachments/')) return next();
 
     const token = extractToken(req);
     if (!token) {
