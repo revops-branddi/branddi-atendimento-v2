@@ -1621,6 +1621,24 @@ async function loadDealsForLead(lead, conv) {
         // Renderiza labels do person (primeiro person encontrado)
         renderPersonLabels(lead, persons, labelOptions);
 
+        // Cargo: se Pipedrive tem job_title, ele é a fonte da verdade.
+        // Atualiza display e persiste no lead se mudou.
+        const pdJobTitle = persons.find(p => p.job_title)?.job_title || null;
+        if (pdJobTitle) {
+            const jobEl = document.getElementById('lp-job-title');
+            if (jobEl) {
+                jobEl.textContent = pdJobTitle;
+                jobEl.classList.remove('lp-muted');
+            }
+            if (pdJobTitle !== lead.job_title) {
+                lead.job_title = pdJobTitle;
+                apiFetch(`/api/leads/${lead.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ job_title: pdJobTitle }),
+                }).catch(() => { /* não bloqueia UI */ });
+            }
+        }
+
         if (deals.length === 0) {
             if (notfound) notfound.style.display = '';
             return;
