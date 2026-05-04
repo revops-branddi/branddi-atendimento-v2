@@ -2448,3 +2448,339 @@ body {
   background: var(--accent-50) !important;
   color: var(--accent-700) !important;
 }
+
+/* ============================================================
+   v2 §5 — Settings modal (light theme + radio cards + role badges)
+   ============================================================ */
+
+/* Modal shell — override do escuro legacy */
+#modal-settings.modal-overlay,
+#modal-script.modal-overlay,
+#modal-wa-connect.modal-overlay,
+#modal-history-msgs.modal-overlay,
+#modal-delete-conv.modal-overlay {
+  background: rgba(15, 22, 32, 0.45) !important;
+  backdrop-filter: blur(2px);
+}
+#modal-settings .modal,
+#modal-script .modal,
+#modal-wa-connect .modal,
+#modal-history-msgs .modal,
+#modal-delete-conv .modal {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-lg) !important;
+  color: var(--text-1) !important;
+  box-shadow: var(--sh-lg) !important;
+}
+#modal-settings .modal-header,
+#modal-script .modal-header,
+#modal-wa-connect .modal-header,
+#modal-history-msgs .modal-header,
+#modal-delete-conv .modal-header {
+  background: var(--bg-elev-1) !important;
+  border-bottom: 1px solid var(--border-md) !important;
+  color: var(--text-1) !important;
+  padding: 16px 20px;
+}
+#modal-settings .modal-header h3,
+#modal-script .modal-header h3,
+#modal-wa-connect .modal-header h3,
+#modal-history-msgs .modal-header h3,
+#modal-delete-conv .modal-header h3 {
+  color: var(--text-1) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin: 0;
+}
+.modal-close {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-2) !important;
+  font-size: 18px !important;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+}
+.modal-close:hover { background: var(--bg-hover) !important; color: var(--text-1) !important; }
+
+/* Tabs — underline 2px accent (SPEC §5.1) */
+.settings-tabs {
+  display: flex !important;
+  background: var(--bg-elev-1) !important;
+  border-bottom: 1px solid var(--border-md) !important;
+  padding: 0 20px;
+  gap: 4px;
+}
+.settings-tab {
+  padding: 12px 14px !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  color: var(--text-2) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+}
+.settings-tab:hover { color: var(--text-1) !important; }
+.settings-tab.active {
+  border-bottom-color: var(--accent) !important;
+  color: var(--accent-700) !important;
+  font-weight: 600 !important;
+}
+.settings-tab-panel {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+}
+
+/* Section blocks */
+#modal-settings .settings-section {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  padding: 18px 0 !important;
+  border-bottom: 1px solid var(--border-sm) !important;
+}
+#modal-settings .settings-section:last-child { border-bottom: none !important; }
+#modal-settings .settings-section-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-1) !important;
+  margin: 0 0 12px !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent !important;
+}
+#modal-settings .form-group { margin-bottom: 12px; }
+#modal-settings .form-group label {
+  display: block;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-2) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  background: transparent !important;
+}
+
+/* Inputs — light theme */
+#modal-settings .settings-input,
+#modal-settings .settings-input:focus,
+.settings-input {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 8px 10px !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  width: 100%;
+}
+.settings-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+}
+textarea.settings-input { min-height: 60px; resize: vertical; }
+select.settings-input { appearance: auto; padding-right: 28px; }
+
+.settings-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.settings-field-group { flex: 1; min-width: 180px; }
+
+/* Bot mode radio cards (SPEC §5.2) */
+.bot-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bot-mode-option {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.bot-mode-option:hover { background: var(--bg-elev-2) !important; }
+/* Selected: border 2px accent + bg accent-50 */
+.bot-mode-option:has(input:checked) {
+  border: 2px solid var(--accent) !important;
+  background: var(--accent-50) !important;
+  padding: 13px 15px !important; /* compensa 1px da border extra */
+}
+.bot-mode-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.bot-mode-option .bot-mode-text { flex: 1; }
+.bot-mode-option .bot-mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 2px;
+}
+.bot-mode-option .bot-mode-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* Photo upload preview */
+.settings-photo-upload {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-elev-2) !important;
+  border: 1px dashed var(--border-lg) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--text-3) !important;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.settings-photo-upload:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-50) !important;
+}
+
+/* Modal footer (Cancelar / Salvar) */
+#modal-settings .modal-footer,
+#modal-script .modal-footer,
+#modal-wa-connect .modal-footer,
+#modal-delete-conv .modal-footer {
+  background: var(--bg-elev-2) !important;
+  border-top: 1px solid var(--border-md) !important;
+  padding: 14px 20px !important;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn-secondary {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  padding: 8px 14px !important;
+  border-radius: var(--r-md) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-secondary:hover { background: var(--bg-elev-2) !important; }
+#modal-settings .btn-primary,
+#modal-script .btn-primary,
+#modal-wa-connect .btn-primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 8px 16px !important;
+  border-radius: var(--r-md) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  font-family: inherit;
+}
+#modal-settings .btn-primary:hover { background: var(--accent-700) !important; border-color: var(--accent-700) !important; }
+
+/* Settings users list */
+#users-list { padding: 0 !important; }
+.user-row {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 !important;
+  border-bottom: 1px solid var(--border-sm) !important;
+  background: transparent !important;
+}
+.user-row:last-child { border-bottom: none !important; }
+
+/* Role badge (SPEC §5.4) — classes vêm do JS: u.role = 'Admin' ou 'Usuario' */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.role-badge.Admin {
+  background: var(--accent-100) !important;
+  color: var(--accent-700) !important;
+}
+.role-badge.Usuario {
+  background: var(--bg-elev-3) !important;
+  color: var(--text-2) !important;
+}
+
+/* Permission checkboxes */
+.perm-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent !important;
+}
+.perm-check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px !important;
+  color: var(--text-1) !important;
+  cursor: pointer;
+  background: transparent !important;
+}
+.perm-check input { accent-color: var(--accent); }
+
+/* Settings checkbox row */
+.settings-checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px !important;
+  color: var(--text-1) !important;
+  cursor: pointer;
+  background: transparent !important;
+}
+.settings-checkbox-row input { accent-color: var(--accent); }
+
+/* === Aparência section (Bonus — toggles de UI) === */
+#section-appearance .pref-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#section-appearance .pref-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#section-appearance .pref-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}

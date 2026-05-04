@@ -358,6 +358,30 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
+// e aplica em <html data-*>. Selects com [data-pref] disparam change.
+function syncAppearanceSelectsFromPrefs() {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    document.querySelectorAll('[data-pref]').forEach(sel => {
+        const key = sel.dataset.pref;
+        const current = prefs[key] || document.documentElement.dataset[key] || sel.options[0]?.value;
+        if (current && sel.value !== current) sel.value = current;
+    });
+}
+document.addEventListener('change', function (e) {
+    const sel = e.target.closest('[data-pref]');
+    if (!sel) return;
+    const key = sel.dataset.pref;
+    const value = sel.value;
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    prefs[key] = value;
+    try { localStorage.setItem('atd:prefs', JSON.stringify(prefs)); } catch(_) {}
+    document.documentElement.dataset[key] = value;
+});
+// (Sync ao abrir o modal acontece em openSettingsModal — chamada direta)
+
 // SPEC v2 §2 — Chat header overflow menu (⋯) — agrupa ações secundárias
 function toggleOverflowMenu() {
     const wrap = document.querySelector('.ch-overflow');
@@ -2809,6 +2833,11 @@ let _settingsData = null;
 async function openSettingsModal() {
     const modal = document.getElementById('modal-settings');
     if (modal) modal.style.display = 'flex';
+
+    // Sync selects de Aparência com prefs salvas (SPEC v2 §5)
+    if (typeof syncAppearanceSelectsFromPrefs === 'function') {
+        syncAppearanceSelectsFromPrefs();
+    }
 
     const isAdmin = currentUser?.role === 'Admin';
 

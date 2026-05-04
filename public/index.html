@@ -13,6 +13,17 @@
     <link rel="stylesheet" href="style.css" />
     <!-- Redesign v2 (Remix). Comente a linha abaixo para rollback instantaneo. -->
     <link rel="stylesheet" href="style-v2.css" />
+    <!-- v2 §5 — FOUC-safe: aplica prefs de aparência ANTES do CSS render -->
+    <script>
+      (function () {
+        try {
+          var prefs = JSON.parse(localStorage.getItem("atd:prefs") || "{}");
+          var d = document.documentElement.dataset;
+          if (prefs.messageStyle) d.messageStyle = prefs.messageStyle;
+          if (prefs.density) d.density = prefs.density;
+        } catch (e) {}
+      })();
+    </script>
 </head>
 <body>
 <!-- ─── Side Nav ─────────────────────────────────────────────── -->
@@ -768,6 +779,28 @@
                             <label>Meu nome</label>
                             <input type="text" id="settings-my-name" class="settings-input" placeholder="Seu nome" />
                             <span style="font-size:11px;color:var(--text-muted)">Aparece como remetente nas mensagens enviadas por voce</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SPEC v2 — Aparência (todos users; persistido em localStorage["atd:prefs"]) -->
+                <div class="settings-section" id="section-appearance">
+                    <h4 class="settings-section-title">🎨 Aparência</h4>
+                    <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Preferências locais de visualização. Salvas neste navegador.</p>
+                    <div class="pref-grid">
+                        <div class="pref-field">
+                            <label for="pref-message-style">Estilo de mensagens</label>
+                            <select id="pref-message-style" class="settings-input" data-pref="messageStyle">
+                                <option value="bubbles">Bolhas (WhatsApp)</option>
+                                <option value="tabular">Tabular (denso)</option>
+                            </select>
+                        </div>
+                        <div class="pref-field">
+                            <label for="pref-density">Densidade</label>
+                            <select id="pref-density" class="settings-input" data-pref="density">
+                                <option value="compact">Compacta</option>
+                                <option value="comfortable">Confortável</option>
+                            </select>
                         </div>
                     </div>
                 </div>
