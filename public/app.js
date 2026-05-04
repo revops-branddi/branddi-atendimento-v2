@@ -358,6 +358,54 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// SPEC v2 §8 — Topbar: breadcrumb + WA pill + user chip
+const TOPBAR_TITLES = {
+    inbox:     { title: 'Inbox',     sub: 'Conversas WhatsApp' },
+    deals:     { title: 'Deals',     sub: 'Pipedrive' },
+    leads:     { title: 'Leads',     sub: 'Base completa' },
+    scripts:   { title: 'Scripts',   sub: 'Templates de atendimento' },
+    history:   { title: 'Histórico', sub: 'Conversas anteriores' },
+    dashboard: { title: 'Dashboard', sub: 'Métricas comerciais' },
+};
+function updateTopbarCrumb(tab) {
+    const t = TOPBAR_TITLES[tab];
+    if (!t) return;
+    const titleEl = document.getElementById('crumb-title');
+    const subEl = document.getElementById('crumb-sub');
+    if (titleEl) titleEl.textContent = t.title;
+    if (subEl) subEl.textContent = t.sub;
+}
+function updateTopbarUser() {
+    if (!currentUser) return;
+    const avatar = document.getElementById('topbar-user-avatar');
+    const name = document.getElementById('topbar-user-name');
+    const role = document.getElementById('topbar-user-role');
+    if (avatar) avatar.textContent = (currentUser.name || '?').split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+    if (name) name.textContent = currentUser.name || currentUser.email || '—';
+    if (role) role.textContent = currentUser.role || '—';
+}
+function updateTopbarWaPill() {
+    const dot = document.getElementById('status-dot');
+    const pill = document.getElementById('topbar-wa-status');
+    if (!dot || !pill) return;
+    const offline = dot.classList.contains('offline');
+    pill.classList.toggle('offline', offline);
+    const txt = pill.querySelector('.status-pill-text');
+    if (txt) txt.textContent = offline ? 'WA desconectado' : 'WA conectado';
+}
+function setupTopbarObservers() {
+    const dot = document.getElementById('status-dot');
+    if (dot) {
+        updateTopbarWaPill();
+        new MutationObserver(updateTopbarWaPill).observe(dot, { attributes: true, attributeFilter: ['class'] });
+    }
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupTopbarObservers);
+} else {
+    setupTopbarObservers();
+}
+
 // SPEC v2 §6 — WA disconnected banner: sincroniza visibilidade com
 // #status-dot.offline via MutationObserver. Single source of truth: o
 // dot. Nenhum dos 5+ pontos onde dot.className é setado precisa
@@ -605,6 +653,7 @@ function switchTab(tab) {
     const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
     if (btn) btn.classList.add('active');
     document.getElementById(`panel-${tab}`)?.classList.add('active');
+    if (typeof updateTopbarCrumb === 'function') updateTopbarCrumb(tab);
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'scripts') loadScripts();
     if (tab === 'leads') loadLeads();
@@ -2605,6 +2654,9 @@ function setupCurrentUser() {
         <span class="user-role-dot" style="color:${roleColor}">${currentUser.role}</span>
         <button class="btn-logout" data-action="logout" title="Sair">&#x2715;</button>
     `;
+
+    // SPEC v2 §8 — preenche o user chip do topbar
+    if (typeof updateTopbarUser === 'function') updateTopbarUser();
 
     const isAdmin = currentUser.role === 'Admin';
 

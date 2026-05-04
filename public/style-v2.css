@@ -2927,6 +2927,105 @@ select.settings-input { appearance: auto; padding-right: 28px; }
    — herda .empty-state-pro acima, sem custom CSS adicional */
 
 /* ============================================================
+   v2 §8 — Topbar (breadcrumb + WA pill + user chip)
+   ============================================================ */
+.app-topbar {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--bg-elev-1);
+  border-bottom: 1px solid var(--border-md);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.app-topbar .crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-1);
+  font-weight: 500;
+}
+.app-topbar .crumb-sep {
+  color: var(--text-3);
+  font-weight: 400;
+}
+.app-topbar .crumb-sub {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.app-topbar .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.status-pill.offline {
+  background: rgba(225, 29, 72, 0.10);
+  color: #BE123C;
+}
+.status-pill.offline .dot { background: var(--danger); }
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-chip-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-50);
+  color: var(--accent-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.user-chip-meta { display: flex; flex-direction: column; line-height: 1.2; }
+.user-chip-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.user-chip-role {
+  font-size: 10px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ============================================================
    v2 §7 — Light shell completo (overrides do legacy dark)
    ============================================================
    Cobre: body/side-nav/inbox-sidebar/conversation-list e seus

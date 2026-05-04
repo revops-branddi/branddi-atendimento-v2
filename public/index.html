@@ -87,6 +87,27 @@
 
 <!-- ─── Main Layout ────────────────────────────────────────── -->
 <main class="app-layout">
+<!-- v2 §8 — Topbar (breadcrumb + WA pill + user chip) -->
+<header class="app-topbar" id="app-topbar">
+    <div class="crumb">
+        <span id="crumb-title">Inbox</span>
+        <span class="crumb-sep">/</span>
+        <span class="crumb-sub" id="crumb-sub">Conversas WhatsApp</span>
+    </div>
+    <div class="topbar-actions">
+        <span class="status-pill" id="topbar-wa-status" aria-label="Status WhatsApp">
+            <span class="dot"></span>
+            <span class="status-pill-text">WA conectado</span>
+        </span>
+        <div class="user-chip" id="topbar-user-chip">
+            <div class="user-chip-avatar" id="topbar-user-avatar">—</div>
+            <div class="user-chip-meta">
+                <div class="user-chip-name" id="topbar-user-name">—</div>
+                <div class="user-chip-role" id="topbar-user-role">—</div>
+            </div>
+        </div>
+    </div>
+</header>
 
 <!-- ════════════ INBOX TAB ════════════ -->
 <section class="tab-panel active" id="panel-inbox">
