@@ -3273,13 +3273,23 @@ body.app-body, body, .app-layout {
   background: var(--bg-elev-1) !important;
 }
 
-/* Chat-area frame (padrão sem dot pattern) */
+/* Chat-area com Branddi watermark pattern (estilo WhatsApp Web) */
 .chat-area {
-  background: var(--bg-base) !important;
+  background-color: var(--bg-base) !important;
+  background-image: url('/branddi-mark.svg') !important;
+  background-repeat: repeat;
+  background-size: 90px 135px;  /* mantém a proporção 135:203 do SVG */
+  background-position: 0 0;
+  position: relative;
 }
 .chat-area::before,
 .chat-area::after {
   display: none !important;
+}
+/* Messages-wrap: bg semi-transparente pra deixar o pattern aparecer
+   sutilmente atrás das bolhas, sem prejudicar legibilidade */
+.messages-wrap {
+  background: transparent !important;
 }
 
 /* Composer / input */
