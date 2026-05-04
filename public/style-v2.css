@@ -3273,6 +3273,311 @@ body.app-body, body, .app-layout {
   background: transparent !important;
 }
 
+/* ============================================================
+   v2 §12 — Páginas não-inbox (Deals/Leads/Scripts/History/
+   Dashboard): panel-header light + tabelas + filtros
+   ============================================================ */
+
+/* Tab panels (containers das outras páginas) */
+.tab-panel {
+  background: var(--bg-base) !important;
+  color: var(--text-1) !important;
+}
+
+/* Panel header (banner do topo de cada página) */
+.panel-header {
+  background: var(--bg-elev-1) !important;
+  border-bottom: 1px solid var(--border-md) !important;
+  padding: 18px 24px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.panel-title {
+  color: var(--text-1) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+.panel-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Search input + filter selects nos panel-actions */
+.search-input,
+.filter-select,
+.deals-search-input {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  outline: none;
+}
+.search-input::placeholder,
+.deals-search-input::placeholder {
+  color: var(--text-3) !important;
+}
+.search-input:focus,
+.filter-select:focus,
+.deals-search-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+}
+
+/* Botões dos panel-actions (btn-primary, btn-outline) */
+.panel-actions .btn-primary,
+.panel-header .btn-primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: var(--r-md) !important;
+  cursor: pointer;
+}
+.panel-actions .btn-primary:hover,
+.panel-header .btn-primary:hover {
+  background: var(--accent-700) !important;
+}
+.panel-actions .btn-outline,
+.panel-header .btn-outline,
+.btn-sm.btn-outline {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: var(--r-md) !important;
+  cursor: pointer;
+}
+.panel-actions .btn-outline:hover { background: var(--bg-elev-2) !important; }
+
+/* Tables (Leads / Histórico / Dashboard / Settings users) */
+.leads-table-wrap,
+.dash-table-wrap {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md);
+  margin: 16px 24px !important;
+  overflow: hidden;
+}
+.leads-table,
+.table-pro {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-elev-1) !important;
+}
+.leads-table thead,
+.table-pro thead {
+  background: var(--bg-elev-2) !important;
+}
+.leads-table thead th,
+.table-pro thead th {
+  background: var(--bg-elev-2) !important;
+  color: var(--text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-align: left;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border-md) !important;
+}
+.leads-table tbody td,
+.table-pro tbody td {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  font-size: 13px !important;
+  padding: 12px 14px !important;
+  border-bottom: 1px solid var(--border-sm) !important;
+}
+.leads-table tbody tr:hover td,
+.table-pro tbody tr:hover td {
+  background: var(--bg-hover) !important;
+}
+.leads-table tbody tr:last-child td,
+.table-pro tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* Tags genéricas inline em tabelas (origem WhatsApp, classificação Comercial, CRM ✅) */
+.tab-panel .tag,
+.tab-panel .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px !important;
+  font-weight: 500;
+  background: var(--bg-elev-2) !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border-md) !important;
+}
+
+/* Sync button na tabela leads */
+.leads-table tbody td .btn-sm,
+.table-pro tbody td .btn-sm {
+  background: var(--bg-elev-2) !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border-md) !important;
+}
+.leads-table tbody td .btn-sm:hover,
+.table-pro tbody td .btn-sm:hover {
+  background: var(--accent-50) !important;
+  color: var(--accent-700) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Deals search wrap */
+.deals-search-wrap {
+  margin: 16px 24px;
+  background: var(--bg-elev-1) !important;
+  padding: 16px;
+  border: 1px solid var(--border-md);
+  border-radius: var(--r-md);
+}
+.deals-results {
+  background: transparent !important;
+  margin-top: 10px;
+}
+.deals-results-empty {
+  text-align: center;
+  color: var(--text-3) !important;
+  padding: 32px 16px;
+  font-size: 13px;
+}
+
+/* Scripts grid */
+.scripts-categories {
+  margin: 16px 24px 0 !important;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.script-cat-btn {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-pill) !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  cursor: pointer;
+}
+.script-cat-btn:hover { background: var(--bg-elev-2) !important; color: var(--text-1) !important; }
+.script-cat-btn.active {
+  background: var(--accent-50) !important;
+  color: var(--accent-700) !important;
+  border-color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+.scripts-grid {
+  margin: 16px 24px !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.script-card {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 14px !important;
+  color: var(--text-1) !important;
+  transition: all 0.15s;
+}
+.script-card:hover {
+  border-color: var(--accent-300) !important;
+  box-shadow: var(--sh-md);
+}
+
+/* Dash KPIs */
+.dash-section-title {
+  color: var(--text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 20px 24px 10px !important;
+  background: transparent !important;
+}
+.kpi-grid {
+  margin: 0 24px !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.kpi-card {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 14px !important;
+  color: var(--text-1) !important;
+}
+.kpi-label {
+  color: var(--text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.kpi-value {
+  color: var(--text-1) !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  margin-top: 4px;
+}
+.kpi-card.kpi-accent .kpi-value { color: var(--accent-700) !important; }
+.kpi-card.kpi-green .kpi-value { color: #047857 !important; }
+.kpi-card.kpi-amber .kpi-value { color: #92400E !important; }
+.kpi-sub { color: var(--text-3) !important; font-size: 11px !important; margin-top: 2px; }
+.charts-grid {
+  margin: 16px 24px !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+.chart-card {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 16px !important;
+}
+.chart-title {
+  color: var(--text-1) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  margin-bottom: 12px;
+}
+
+/* Importar histórico WhatsApp button (deals tab) */
+#btn-import-history {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+}
+#btn-import-history:hover { background: var(--bg-elev-2) !important; }
+
+/* Tooltip nativo (title attr) — não dá pra estilar via CSS;
+   mas escondemos os nav-label antigos que apareciam como pseudo
+   tooltip (texto "Histórico" sobreposto ao ícone via JS legacy) */
+.nav-btn .nav-label {
+  /* Mantém visível no nav-btn vertical (Inbox/DEALS/LEADS labels) */
+  font-size: 9px !important;
+  color: inherit !important;
+}
+
 /* Composer / input */
 .chat-input-wrap,
 .chat-input-tabs {
