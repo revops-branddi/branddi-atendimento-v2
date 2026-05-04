@@ -868,25 +868,17 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // Avatar do lead — iniciais (até 2 letras) — SPEC mock §9
-        const initials = (name || '?').split(/\s+/).filter(Boolean).slice(0, 2)
-            .map(w => w[0]).join('').toUpperCase() || '?';
-
-        // Classificação inline (Comercial / OPEC) — SPEC mock §9
-        const cls = (lead.classification || '').toLowerCase();
-        const clsTag = cls === 'comercial' ? '<span class="tag tag-comercial">Comercial</span>'
-                     : cls === 'opec'      ? '<span class="tag tag-opec">OPEC</span>'
-                     : '';
-
-        // WA tag — derivado do account_owner_name (label/sigla do WA account)
-        // No mock: "WA BB" / "WA FR" / "WA VM". No app real, usa o owner_name
-        // como sigla curta (até 6 chars) prefixado com "WA ".
-        const ownerLabel = (Array.isArray(conv.account_owner_names) && conv.account_owner_names.length)
-            ? conv.account_owner_names[0]
-            : (conv.account_owner_name || '');
-        const waTag = ownerLabel
-            ? `<span class="tag tag-wa">${escHtml(ownerLabel.slice(0, 14))}</span>`
-            : '';
+        // Atendente — paleta determinística pelo nome.
+        // 1 owner = pill simples; 2+ owners = empilha tags (raro).
+        // Tag com nome > círculo com inicial: "S" pode ser Sergio OU Stephanie,
+        // mas "SERGIO" é inequívoco.
+        const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
+            ? conv.account_owner_names
+            : (conv.account_owner_name ? [conv.account_owner_name] : []);
+        const ownerTags = ownerNames
+            .slice(0, 3) // até 3 tags inline; depois corta (raro)
+            .map(n => `<span class="tag tag-owner" data-color="${ownerColorClass(n)}">${escHtml(n.slice(0, 14))}</span>`)
+            .join('');
 
         const company = lead.company_name || '';
         const isArchived = !!conv.archived_at;
@@ -902,14 +894,13 @@ function renderConversationList() {
             : '';
 
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
-            <div class="conv-avatar" data-color="${ownerColorClass(name)}">${escHtml(initials)}</div>
             <div class="conv-main">
                 <div class="conv-item-top">
-                    <span class="conv-name">${escHtml(name)}</span>${clsTag}
+                    <span class="conv-name">${escHtml(name)}</span>
                     <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
                 </div>
                 <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
-                ${(company || waTag) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${waTag}</div>` : ''}
+                ${(company || ownerTags) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerTags}</div>` : ''}
             </div>
             ${unreadHtml}
         </div>`;
