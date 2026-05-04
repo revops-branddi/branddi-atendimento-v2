@@ -740,28 +740,31 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // 1+ etiquetas de atendente, cada uma com cor própria derivada do nome
+        // 1+ etiquetas de atendente — SPEC v2 §1.2: AvatarStack 22px (max 3 + "+N")
         const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
             ? conv.account_owner_names
             : (conv.account_owner_name ? [conv.account_owner_name] : []);
-        const ownerBadge = ownerNames.length > 0
-            ? ownerNames.map(n =>
-                `<span class="conv-owner-badge" data-color="${ownerColorClass(n)}" title="Atendente responsável">${escHtml(n)}</span>`
-              ).join('')
-            : '';
+        const ownerStack = renderAvatarStack(ownerNames);
+
+        // 3ª linha: empresa + owners (esconde quando ambos vazios — SPEC §6)
+        const company = lead.company_name || '';
+        const isArchived = !!conv.archived_at;
 
         const klass = ['conv-item'];
         if (isActive)            klass.push('active');
         if (hasUnread)           klass.push('unread');
         if (lastFromLead)        klass.push('lead-replied');
+        if (isArchived)          klass.push('archived');
 
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
-            <div class="conv-item-top">
-                <span class="conv-name">${escHtml(name)}${ownerBadge}</span>
-                <span class="conv-time">${time}</span>
+            <div class="conv-main">
+                <div class="conv-item-top">
+                    <span class="conv-name">${escHtml(name)}</span>
+                    <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
+                </div>
+                <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
+                ${(company || ownerStack) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerStack}</div>` : ''}
             </div>
-            <div class="conv-preview">${escHtml(preview)}</div>
-            ${hasUnread ? `<div class="conv-tags"><span class="tag tag-unread">${conv.unread_count} nova${conv.unread_count > 1 ? 's' : ''}</span></div>` : ''}
         </div>`;
     }).join('');
 }
@@ -773,6 +776,23 @@ function ownerColorClass(name) {
     let h = 0;
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
     return 'c' + (Math.abs(h) % 6);
+}
+
+// Render AvatarStack de owners — SPEC v2 §1.2:
+// avatares circulares 22px, overlap -8px, max 3 visíveis + "+N".
+function renderAvatarStack(names) {
+    if (!Array.isArray(names) || names.length === 0) return '';
+    const visible = names.slice(0, 3);
+    const more = names.length - visible.length;
+    const stack = visible.map(n => {
+        const init = String(n).split(/\s+/).filter(Boolean).slice(0, 2)
+            .map(w => w[0]).join('').toUpperCase() || '?';
+        return `<span class="avatar" data-color="${ownerColorClass(n)}" title="${escHtml(n)}">${escHtml(init)}</span>`;
+    }).join('');
+    const moreHtml = more > 0
+        ? `<span class="avatar avatar-more" title="+${more} mais">+${more}</span>`
+        : '';
+    return `<div class="avatar-stack">${stack}${moreHtml}</div>`;
 }
 
 function updateInboxBadge() {
