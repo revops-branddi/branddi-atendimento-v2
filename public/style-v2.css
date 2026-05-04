@@ -1463,3 +1463,80 @@ body {
 @media (min-resolution: 2dppx) {
     .chat-area::before { background-size: 30px 30px; }
 }
+
+/* ============================================================
+   Redesign v2 — tokens da Section 0 do SPECS_V2_INBOX.md
+   ============================================================
+   Defaults: light · compact · tabular · drawer.
+   Override no final do arquivo: source-order wins entre :root
+   selectors de mesma especificidade.
+   Aditivo: nenhum token antigo é removido (rollback fica
+   trivial comentando este bloco).
+   ============================================================ */
+:root {
+  /* === Backgrounds (light theme — SPEC Section 0) === */
+  --bg-base:    #F6F7F8;   /* página */
+  --bg-elev-1:  #FFFFFF;   /* superfície (cards, sidebar, panels) */
+  --bg-elev-2:  #F1F3F5;   /* superfície hover/raised */
+  --bg-elev-3:  #E6E9EC;   /* tracks (progress, scrollbars, avatar fallback) */
+  --bg-hover:   #F1F3F5;
+  --bg-active:  rgba(15, 157, 143, 0.10);
+
+  /* === Borders === */
+  --border-sm:  #EEF1F4;
+  --border-md:  #E4E7EB;
+  --border-lg:  #D1D6DB;
+
+  /* === Texto === */
+  --text-1:     #0E1620;   /* primary */
+  --text-2:     #5A6672;   /* secondary */
+  --text-3:     #8A95A0;   /* tertiary */
+  --text-muted: #8A95A0;
+
+  /* === Accent (Branddi teal — light theme) === */
+  --accent:      #0F9D8F;
+  --accent-50:   #E6F6F4;
+  --accent-100:  #BFE7E2;
+  --accent-300:  #6BC8BC;
+  --accent-600:  #0F9D8F;
+  --accent-700:  #0B7A6F;
+
+  /* === Mensagens (5 tipos) === */
+  --msg-inbound:  #8A95A0;   /* cinza neutro */
+  --msg-outbound: #0F9D8F;   /* teal accent */
+  --msg-bot:      #8B5CF6;   /* violeta */
+  --msg-note:     #F59E0B;   /* âmbar */
+  --msg-system:   transparent;
+
+  /* === Status semânticos (usados em status-dot etc) === */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger:  #E11D48;
+
+  /* === Spacing scale (4-base) === */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+
+  /* === Radii === */
+  --r-sm:   6px;
+  --r-md:   8px;
+  --r-lg:   12px;
+  --r-pill: 999px;
+
+  /* === Shadows === */
+  --sh-sm: 0 1px 2px rgba(15,22,32,0.04);
+  --sh-md: 0 4px 12px rgba(15,22,32,0.06);
+  --sh-lg: 0 12px 32px rgba(15,22,32,0.10);
+}
+
+/* Body adopta o bg-base novo */
+body {
+  background: var(--bg-base);
+  color: var(--text-1);
+}
