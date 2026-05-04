@@ -1669,6 +1669,64 @@ body {
 .avatar-stack .avatar[data-color="c5"] { background: #60A5FA; }
 
 /* ============================================================
+   v2 §9 — ConvRow match mock (avatar lead esquerda + tags inline)
+   ============================================================ */
+
+/* Avatar do lead à ESQUERDA da conv-row (substitui avatar-stack
+   de owners que estava na conv-meta-row à direita) */
+.conv-item .conv-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+  background: var(--bg-elev-3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+/* Paleta determinística pelo nome do lead */
+.conv-item .conv-avatar[data-color="c0"] { background: var(--accent); }
+.conv-item .conv-avatar[data-color="c1"] { background: #A78BFA; color: #fff; }
+.conv-item .conv-avatar[data-color="c2"] { background: #F59E0B; color: #fff; }
+.conv-item .conv-avatar[data-color="c3"] { background: #34D399; color: #fff; }
+.conv-item .conv-avatar[data-color="c4"] { background: #F472B6; color: #fff; }
+.conv-item .conv-avatar[data-color="c5"] { background: #60A5FA; color: #fff; }
+
+/* Tags inline com nome (Comercial / OPEC + WA tag na 3ª linha) */
+.conv-item .tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.conv-item .tag.tag-comercial {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+.conv-item .tag.tag-opec {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400E;
+}
+.conv-item .tag.tag-wa {
+  background: var(--accent-50);
+  color: var(--accent-700);
+  font-size: 10px;
+}
+/* conv-name-text continua truncando, mas tags ficam visíveis pq flex-shrink: 0 */
+
+/* ============================================================
    v2 §2 — Chat header (split inline + overflow menu)
    ============================================================ */
 .chat-header {

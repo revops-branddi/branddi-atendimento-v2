@@ -868,13 +868,26 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // 1+ etiquetas de atendente — SPEC v2 §1.2: AvatarStack 22px (max 3 + "+N")
-        const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
-            ? conv.account_owner_names
-            : (conv.account_owner_name ? [conv.account_owner_name] : []);
-        const ownerStack = renderAvatarStack(ownerNames);
+        // Avatar do lead — iniciais (até 2 letras) — SPEC mock §9
+        const initials = (name || '?').split(/\s+/).filter(Boolean).slice(0, 2)
+            .map(w => w[0]).join('').toUpperCase() || '?';
 
-        // 3ª linha: empresa + owners (esconde quando ambos vazios — SPEC §6)
+        // Classificação inline (Comercial / OPEC) — SPEC mock §9
+        const cls = (lead.classification || '').toLowerCase();
+        const clsTag = cls === 'comercial' ? '<span class="tag tag-comercial">Comercial</span>'
+                     : cls === 'opec'      ? '<span class="tag tag-opec">OPEC</span>'
+                     : '';
+
+        // WA tag — derivado do account_owner_name (label/sigla do WA account)
+        // No mock: "WA BB" / "WA FR" / "WA VM". No app real, usa o owner_name
+        // como sigla curta (até 6 chars) prefixado com "WA ".
+        const ownerLabel = (Array.isArray(conv.account_owner_names) && conv.account_owner_names.length)
+            ? conv.account_owner_names[0]
+            : (conv.account_owner_name || '');
+        const waTag = ownerLabel
+            ? `<span class="tag tag-wa">${escHtml(ownerLabel.slice(0, 14))}</span>`
+            : '';
+
         const company = lead.company_name || '';
         const isArchived = !!conv.archived_at;
 
@@ -884,15 +897,21 @@ function renderConversationList() {
         if (lastFromLead)        klass.push('lead-replied');
         if (isArchived)          klass.push('archived');
 
+        const unreadHtml = hasUnread
+            ? `<span class="conv-unread">${conv.unread_count}</span>`
+            : '';
+
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
+            <div class="conv-avatar" data-color="${ownerColorClass(name)}">${escHtml(initials)}</div>
             <div class="conv-main">
                 <div class="conv-item-top">
-                    <span class="conv-name">${escHtml(name)}</span>
+                    <span class="conv-name">${escHtml(name)}</span>${clsTag}
                     <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
                 </div>
                 <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
-                ${(company || ownerStack) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerStack}</div>` : ''}
+                ${(company || waTag) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${waTag}</div>` : ''}
             </div>
+            ${unreadHtml}
         </div>`;
     }).join('');
 }
