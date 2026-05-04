@@ -211,26 +211,14 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         // GET /messages/:id e normalizamos os attachments. Best-effort: se
         // falhar (ex: Unipile ainda não indexou), caímos pro metadado básico
         // e o polling reconcilia depois.
-        let attachments = [];
-        if (file) {
-            const fallback = { name: file.originalname, mime_type: file.mimetype, size: file.size };
-            attachments = [fallback];
-            // Unipile leva ~1–2s pra indexar a msg recém-enviada. Tentamos com
-            // backoff curto pra capturar att.id (renderiza preview imediato).
-            // Se mesmo com retries não vier, o polling reconcilia depois.
-            if (realUnipileId) {
-                const delays = [400, 900, 1500];
-                for (const wait of delays) {
-                    await new Promise(r => setTimeout(r, wait));
-                    try {
-                        const detail = await getMessageById(realUnipileId);
-                        const norm = detail ? whatsapp.normalizeMessage(detail) : null;
-                        const hasId = norm?.attachments?.some(a => a.id);
-                        if (hasId) { attachments = norm.attachments; break; }
-                    } catch { /* tenta de novo */ }
-                }
-            }
-        }
+        // Save com fallback de attachments. O attachment id real vem do Unipile
+        // de forma assíncrona (>3s pra indexar), então kickamos um backfill em
+        // background que atualiza a row quando o att.id estiver disponível.
+        const attachments = file ? [{
+            name: file.originalname,
+            mime_type: file.mimetype,
+            size: file.size,
+        }] : [];
 
         const msg = await saveMessage({
             conversation_id:    req.params.conversationId,
@@ -252,6 +240,28 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         });
 
         onOutboundMessage(req.params.conversationId, req.user?.id).catch(() => {});
+
+        // Background: assim que o Unipile indexar a msg, baixa attachments[].id
+        // do detalhe e atualiza a row local. Tenta a cada 2s por até 20s.
+        if (msg && file && realUnipileId) {
+            (async () => {
+                for (let i = 0; i < 10; i++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    try {
+                        const detail = await getMessageById(realUnipileId);
+                        const norm = detail ? whatsapp.normalizeMessage(detail) : null;
+                        const enriched = norm?.attachments?.find(a => a.id);
+                        if (enriched) {
+                            await supabase
+                                .from('messages')
+                                .update({ attachments: norm.attachments })
+                                .eq('id', msg.id);
+                            return;
+                        }
+                    } catch { /* retry */ }
+                }
+            })();
+        }
 
         res.json({ success: true, message: msg });
     } catch (err) {
