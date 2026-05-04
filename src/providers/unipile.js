@@ -80,7 +80,12 @@ class UnipileProvider extends WhatsAppProvider {
             const enriched = enrichUnsupportedMessage(raw.original);
             if (enriched) {
                 text = enriched.text;
-                if (enriched.meta) {
+                if (enriched.attachments?.length) {
+                    attachments = enriched.attachments.map(a => ({
+                        ...a,
+                        uri: a.uri === '__att_index_0__' ? `att://_/${raw.id}/0` : a.uri,
+                    }));
+                } else if (enriched.meta) {
                     attachments = [{ type: 'native_meta', kind: enriched.kind, meta: enriched.meta }];
                 }
             }
@@ -155,7 +160,14 @@ function enrichUnsupportedMessage(originalStr) {
         };
     }
     if (m.stickerMessage) {
-        return { text: '🌟 Figurinha (visualizar no WhatsApp)', kind: 'sticker', meta: {} };
+        return {
+            text: '',
+            kind: 'sticker',
+            meta: {},
+            // Unipile mantém o binário acessível via /messages/:id/attachments/0,
+            // mesmo quando o tipo é "unsupported". O front renderiza como imagem.
+            attachments: [{ uri: '__att_index_0__', mime_type: 'image/webp', name: 'sticker.webp' }],
+        };
     }
     if (m.audioMessage) {
         const seconds = m.audioMessage.seconds || null;
