@@ -1067,6 +1067,31 @@ function setupFileAttachment() {
         _pendingFile = file;
         showAttachPreview(file);
     });
+
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput && !chatInput.dataset.pasteBound) {
+        chatInput.dataset.pasteBound = '1';
+        chatInput.addEventListener('paste', (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+                const blob = item.getAsFile();
+                if (!blob) continue;
+                e.preventDefault();
+                if (blob.size > 16 * 1024 * 1024) {
+                    toast('Imagem muito grande (máx 16MB)', 'error');
+                    return;
+                }
+                const ext = (blob.type.split('/')[1] || 'png').split(';')[0];
+                const file = new File([blob], `pasted-${Date.now()}.${ext}`, { type: blob.type });
+                _pendingFile = file;
+                showAttachPreview(file);
+                toast('Imagem colada — pressione Enviar', 'success');
+                return;
+            }
+        });
+    }
 }
 
 function showAttachPreview(file) {
@@ -1277,6 +1302,11 @@ function renderLeadPanel(conv) {
         compEl.textContent = lead.company_name || '';
         compEl.style.display = lead.company_name ? '' : 'none';
     }
+    const jobEl = document.getElementById('lp-job-title');
+    if (jobEl) {
+        jobEl.textContent = lead.job_title || 'Adicionar cargo';
+        jobEl.classList.toggle('lp-muted', !lead.job_title);
+    }
 
     // Badge de tipo — clicável para Admin (alterna inbound/prospecting)
     const typeBadge = document.getElementById('lp-type-badge');
@@ -1381,8 +1411,9 @@ function setupInlineEdit(lead, conv) {
             const field = btn.dataset.field;
             const wrap = btn.parentElement;
             const span = wrap.querySelector('span');
-            const currentVal = field === 'phone' ? (lead.phone || '') :
-                               field === 'name' ? (lead.name || '') :
+            const currentVal = field === 'phone'        ? (lead.phone || '') :
+                               field === 'name'         ? (lead.name || '') :
+                               field === 'job_title'    ? (lead.job_title || '') :
                                (lead.company_name || '');
 
             const input = document.createElement('input');
@@ -1392,6 +1423,7 @@ function setupInlineEdit(lead, conv) {
             if (field === 'phone') input.placeholder = '31971335127';
             if (field === 'name') input.placeholder = 'Nome do contato';
             if (field === 'company_name') input.placeholder = 'Empresa';
+            if (field === 'job_title') input.placeholder = 'Cargo (ex: CMO)';
 
             span.style.display = 'none';
             btn.style.display = 'none';

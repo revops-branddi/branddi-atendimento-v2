@@ -61,7 +61,7 @@ router.get('/leads/:id', async (req, res) => {
 // ─── PUT /api/leads/:id — Atualiza dados do lead ──────────────────────
 router.put('/leads/:id', async (req, res) => {
     try {
-        const allowed = ['name', 'phone', 'email', 'company_name', 'classification'];
+        const allowed = ['name', 'phone', 'email', 'company_name', 'classification', 'job_title'];
         const updates = {};
         for (const key of allowed) {
             if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -78,6 +78,7 @@ router.put('/leads/:id', async (req, res) => {
             email:          { maxLength: 200, type: 'string' },
             company_name:   { maxLength: 200, type: 'string' },
             classification: { maxLength: 200, type: 'string' },
+            job_title:      { maxLength: 200, type: 'string' },
         });
         if (err) return res.status(400).json({ error: err });
 
