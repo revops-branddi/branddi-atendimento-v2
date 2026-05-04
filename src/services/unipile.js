@@ -607,9 +607,33 @@ async function processChat(chat) {
         const msgs  = await getMessages(chat.id, { limit: fetchLimit });
         const allMsgs = msgs.items || [];
 
+        // Janela do polling. Também inclui msgs outbound dentro do limit cujos
+        // attachments locais ainda não têm att.id — caso típico: imagem enviada
+        // pela UI antes do fix da reconciliação. Sem isso, ela nunca fica com
+        // preview porque já passou da janela de 5s.
+        let recentOutboundIdsMissingAtt = new Set();
+        if (!isNewConversation) {
+            try {
+                const { default: sb } = await import('./supabase.js');
+                const { data: brokenOut = [] } = await sb
+                    .from('messages')
+                    .select('unipile_message_id, attachments')
+                    .eq('conversation_id', conversation.id)
+                    .eq('direction', 'outbound')
+                    .gte('created_at', new Date(Date.now() - 24 * 3600_000).toISOString());
+                recentOutboundIdsMissingAtt = new Set(
+                    brokenOut
+                        .filter(m => (m.attachments || []).length && !(m.attachments || []).some(a => a.id))
+                        .map(m => m.unipile_message_id)
+                );
+            } catch { /* não crítico */ }
+        }
         const newMsgs = isNewConversation
-            ? allMsgs  // Conversa nova: importa todas as mensagens disponíveis
-            : allMsgs.filter(m => new Date(m.timestamp) > new Date(_lastPollTime - 5_000));
+            ? allMsgs
+            : allMsgs.filter(m =>
+                new Date(m.timestamp) > new Date(_lastPollTime - 5_000)
+                || recentOutboundIdsMissingAtt.has(m.id)
+            );
 
         // Descobre quem é o dono da conta WhatsApp (pra gravar nome real em msgs outbound
         // que chegam pelo polling — ex: SDR enviando do celular, não da UI).
