@@ -626,6 +626,40 @@ async function processChat(chat) {
 
             const isOutbound = msg.direction === 'outbound';
             const outboundName = accountOwner?.user_name || 'Atendente';
+
+            // Reconcilia mensagens que enviamos com ID sintético (script_/media_/human_).
+            // Quando o polling traz a mesma msg com o ID real do Unipile, achar a
+            // linha "placeholder" pelo conteúdo + janela de 5 min e adotar o ID real,
+            // pra evitar duplicata.
+            if (isOutbound && msg.id) {
+                try {
+                    const { default: sb } = await import('./supabase.js');
+                    const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+                    const { data: placeholders } = await sb
+                        .from('messages')
+                        .select('id, unipile_message_id, content, attachments')
+                        .eq('conversation_id', conversation.id)
+                        .eq('direction', 'outbound')
+                        .gte('created_at', cutoff)
+                        .or('unipile_message_id.like.media_%,unipile_message_id.like.script_%,unipile_message_id.like.human_%');
+                    const sameAttachName = (a, b) => {
+                        const an = a?.[0]?.name; const bn = b?.[0]?.name;
+                        return an && bn && an === bn;
+                    };
+                    const match = (placeholders || []).find(p =>
+                        (p.content && msg.text && p.content.trim() === msg.text.trim())
+                        || sameAttachName(p.attachments, msg.attachments)
+                    );
+                    if (match && match.unipile_message_id !== msg.id) {
+                        await sb
+                            .from('messages')
+                            .update({ unipile_message_id: msg.id, delivered: !!msg.delivered, seen: !!msg.seen })
+                            .eq('id', match.id);
+                        continue; // já reconciliado, não insere
+                    }
+                } catch { /* não crítico */ }
+            }
+
             const saved = await saveMessage({
                 conversation_id:    conversation.id,
                 direction:          msg.direction,

@@ -202,13 +202,17 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
 
         // Envia via Unipile com attachment e captura ID real
         const mediaResult = await sendMessage(chatId, text || null, file?.buffer, file?.originalname);
-        const mediaMsgId = mediaResult?.message_id || mediaResult?.id || `media_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const realUnipileId = mediaResult?.message_id || mediaResult?.id || null;
+        const mediaMsgId = realUnipileId || `media_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-        // Monta metadados do attachment para salvar no banco
+        // Monta metadados do attachment. Quando temos o id real do Unipile,
+        // já gravamos a uri pro proxy /api/attachments/:id/0 servir a preview
+        // imediatamente (sem precisar esperar o polling).
         const attachments = file ? [{
             name: file.originalname,
             mime_type: file.mimetype,
             size: file.size,
+            uri: realUnipileId ? `att://_/${realUnipileId}/0` : null,
         }] : [];
 
         const msg = await saveMessage({
@@ -218,7 +222,7 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
             sender_name:        req.user?.name || 'Atendente',
             sent_by_user_id:    req.user?.id || null,
             sent_by_name:       req.user?.name || null,
-            content:            text || (file ? `📎 ${file.originalname}` : ''),
+            content:            text || (file && !file.mimetype?.startsWith('image/') ? `📎 ${file.originalname}` : ''),
             attachments,
             unipile_message_id: mediaMsgId,
         });
