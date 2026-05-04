@@ -2052,3 +2052,399 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* ============================================================
+   v2 §4 — Lead Panel 2 abas (Atividade | Detalhes)
+   ============================================================ */
+.lead-panel {
+  background: var(--bg-elev-1);
+  border-left: 1px solid var(--border-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lp-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-md);
+  background: var(--bg-elev-2);
+  flex-shrink: 0;
+  /* Stacking context: garante que dropdowns dentro de tabs ficam acima
+     do conteúdo do panel (consistente com chat-header) */
+  position: relative;
+  z-index: 5;
+}
+.lp-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+}
+.lp-tab:hover { color: var(--text-1); }
+.lp-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-700);
+  font-weight: 600;
+}
+
+.lp-tab-panel {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.lp-tab-panel.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Detalhes tab — sections sem o wrapper .lp-collapsible que tinha
+   chevron + toggle button (agora a aba É o toggle) */
+.lp-tab-panel#lp-panel-detalhes .lp-detail-group {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-sm);
+}
+.lp-tab-panel#lp-panel-detalhes .lp-detail-group:last-child {
+  border-bottom: none;
+}
+
+/* ============================================================
+   v2 §4 — overrides de seções/botões legacy do lead-panel pra
+   usar tokens light theme. Sem isso, .lp-contact-header e
+   .btn-wa-tag herdam bg dark blue hardcoded do style-v2.css
+   antigo (cores #1e3248 etc), que ficam ilegíveis no light.
+   ============================================================ */
+
+/* Container do lead-panel */
+.lead-panel,
+.lead-panel-content {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1);
+}
+
+/* Sections em geral: bg branco, separador suave */
+.lead-panel .lp-section {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-sm);
+}
+.lead-panel .lp-section:last-child { border-bottom: none; }
+
+/* Header do contato (avatar + nome + telefone + empresa + cargo + tags) */
+.lp-contact-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 22px 16px 18px !important;
+  gap: 4px;
+}
+.lp-contact-header .lp-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-50) !important;
+  color: var(--accent-700) !important;
+  border: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  box-shadow: 0 0 0 4px rgba(15, 157, 143, 0.08);
+}
+.lp-contact-header .lp-name {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--text-1) !important;
+  background: transparent !important;
+}
+.lp-contact-header .lp-phone {
+  font-size: 13px !important;
+  color: var(--text-2) !important;
+  font-family: var(--font-mono, ui-monospace, SF Mono, Menlo, monospace);
+  background: transparent !important;
+}
+.lp-contact-header .lp-company {
+  font-size: 13px !important;
+  color: var(--text-1) !important;
+  background: transparent !important;
+}
+.lp-contact-header .lp-job-title {
+  font-size: 11px !important;
+  color: var(--text-3) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: transparent !important;
+}
+
+/* Editable fields wrapper — hover descobre o ✏️ */
+.lp-editable-field {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  cursor: text;
+  background: transparent !important;
+  border: none !important;
+  max-width: 100%;
+}
+.lp-editable-field:hover { background: var(--bg-hover); }
+.lp-edit-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: transparent !important;
+  border: none;
+  padding: 2px;
+  color: var(--text-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.lp-editable-field:hover .lp-edit-btn { opacity: 1; }
+.lp-edit-btn:hover { color: var(--accent); }
+
+.lp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+/* Section title (uppercase pequeno) */
+.lead-panel .lp-section-title {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-3) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent !important;
+}
+
+/* WA BB/FR/VM buttons — light style */
+.lp-wa-tag-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.btn-wa-tag {
+  padding: 8px 6px !important;
+  height: auto !important;
+  background: var(--bg-elev-2) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+.btn-wa-tag:hover {
+  background: var(--accent-50) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-700) !important;
+}
+
+/* Salvar transcrição button */
+.btn-act-note,
+#btn-act-note {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  margin-top: 8px;
+}
+.btn-act-note:hover,
+#btn-act-note:hover {
+  background: var(--bg-elev-2) !important;
+  border-color: var(--accent-300) !important;
+}
+
+/* Deal picker items — full light styling pra todos os elementos internos */
+.deal-picker-item {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  color: var(--text-1) !important;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.12s;
+}
+.deal-picker-item:hover {
+  background: var(--bg-elev-2) !important;
+  border-color: var(--accent-300) !important;
+}
+.deal-picker-item.selected {
+  background: var(--accent-50) !important;
+  border-color: var(--accent) !important;
+}
+.deal-picker-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-lg);
+  flex-shrink: 0;
+  margin-top: 2px;
+  background: var(--bg-elev-1);
+  position: relative;
+}
+.deal-picker-item.selected .deal-picker-radio {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--bg-elev-1);
+}
+.deal-picker-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deal-picker-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-1) !important;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.deal-picker-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.deal-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-2) !important;
+  color: var(--text-2) !important;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.deal-status-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.deal-status-badge.deal-open {
+  background: var(--accent-50) !important;
+  color: var(--accent-700) !important;
+}
+.deal-status-badge.deal-won {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #047857 !important;
+}
+.deal-status-badge.deal-lost {
+  background: rgba(225, 29, 72, 0.10) !important;
+  color: #BE123C !important;
+}
+.deal-picker-person {
+  font-size: 11px !important;
+  color: var(--text-3) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.deal-picker-link {
+  color: var(--accent-700) !important;
+  font-size: 14px !important;
+  text-decoration: none !important;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+}
+.deal-picker-link:hover {
+  background: var(--accent-50) !important;
+}
+
+/* Conversa info grid */
+.lp-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.lp-info-item {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.lp-info-label {
+  color: var(--text-3) !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+  background: transparent !important;
+}
+.lp-info-value {
+  color: var(--text-1) !important;
+  background: transparent !important;
+}
+
+/* Histórico item */
+.lp-history-item {
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md) !important;
+  color: var(--text-1) !important;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+.lp-history-item:hover { background: var(--bg-hover) !important; }
+.lp-history-item:last-child { margin-bottom: 0; }
+
+/* Lp-muted helper */
+.lp-muted {
+  color: var(--text-3) !important;
+  font-size: 12px;
+  background: transparent !important;
+}
+
+/* Conv-type-badge */
+.conv-type-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--accent-50) !important;
+  color: var(--accent-700) !important;
+}

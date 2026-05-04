@@ -175,6 +175,13 @@ function setupEventDelegation() {
             case 'toggle-lp-details':
                 el.closest('.lp-collapsible')?.classList.toggle('open');
                 break;
+            case 'lp-tab': {
+                // SPEC v2 §4 — alterna aba Atividade | Detalhes no lead-panel
+                const target = el.dataset.tab; // 'atividade' | 'detalhes'
+                document.querySelectorAll('.lp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
+                document.querySelectorAll('.lp-tab-panel').forEach(p => p.classList.toggle('active', p.id === `lp-panel-${target}`));
+                break;
+            }
             case 'route-dropdown':
                 toggleRouteDropdown();
                 break;
