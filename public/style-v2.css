@@ -1841,3 +1841,214 @@ body {
 }
 .ch-menu-item .icon { color: var(--text-2); }
 .ch-menu-item:hover .icon { color: var(--text-1); }
+
+/* ============================================================
+   v2 §3 — Mensagens (default = bolhas; tabular opt-in)
+   ============================================================
+   Default: bolhas estilo WhatsApp (alinhadas direita/esquerda,
+   bg sólido, cantos arredondados).
+   Opt-in: data-message-style="tabular" no <html> ou <body>.
+   ============================================================ */
+
+/* Mensagens-wrap: column flex (bolhas se alinham via align-self) */
+.messages-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 20px;
+  background: var(--bg-base);
+  position: relative;
+  z-index: 1;
+}
+
+/* === DEFAULT: BOLHAS === */
+.msg-bubble.msg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 72%;
+  padding: 8px 12px 6px;
+  border-radius: 14px;
+  background: var(--bg-elev-1);
+  border: 1px solid var(--border-md);
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  box-shadow: 0 1px 2px rgba(15, 22, 32, 0.04);
+  margin: 0;
+  position: relative;
+}
+
+/* Inbound (lead) — esquerda, fundo branco */
+.msg-bubble.msg-row.msg-inbound {
+  align-self: flex-start;
+  background: var(--bg-elev-1);
+  border-bottom-left-radius: 4px; /* tail visual */
+}
+/* Outbound (atendente) — direita, fundo accent claro */
+.msg-bubble.msg-row.msg-outbound {
+  align-self: flex-end;
+  background: var(--accent-50);
+  border-color: var(--accent-100);
+  border-bottom-right-radius: 4px;
+}
+/* Bot — direita, fundo violeta claro */
+.msg-bubble.msg-row.msg-bot {
+  align-self: flex-end;
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.20);
+  border-bottom-right-radius: 4px;
+}
+/* Note (nota interna) — full width centralizada, fundo âmbar */
+.msg-bubble.msg-row.msg-note {
+  align-self: stretch;
+  max-width: 100%;
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.30);
+  border-radius: 8px;
+}
+/* System — linha centralizada italic dim */
+.msg-bubble.msg-row.msg-system {
+  align-self: center;
+  max-width: 100%;
+  background: transparent;
+  border: none;
+  font-style: italic;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  box-shadow: none;
+  text-align: center;
+}
+
+/* Estrutura interna em modo bolha: stack vertical */
+.msg-row .msg-meta {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+  /* Garante que o flex grid antigo não influencia */
+  background: transparent;
+  padding: 0;
+}
+/* Type label: esconde no modo bolha (a cor da bolha já indica) */
+.msg-row .msg-type { display: none; }
+
+/* Author name: visível como header pequeno */
+.msg-row .msg-author {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.msg-bubble.msg-row.msg-outbound .msg-author { color: var(--accent-700); }
+.msg-bubble.msg-row.msg-bot      .msg-author { color: #6D28D9; }
+.msg-bubble.msg-row.msg-note     .msg-author { color: #B45309; }
+
+/* Conteúdo: ocupa toda largura disponível */
+.msg-row .msg-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.msg-row .msg-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text-1);
+}
+.msg-row .msg-text a {
+  color: var(--accent-700);
+  text-decoration: underline;
+}
+
+/* Anexos */
+.msg-row .msg-attachment img,
+.msg-row .msg-attachment video {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 8px;
+  display: block;
+}
+.msg-row .msg-attachment.msg-sticker img {
+  max-width: 140px;
+  max-height: 140px;
+  background: transparent;
+}
+.msg-row .msg-attachment .file-link {
+  color: var(--accent-700);
+  text-decoration: none;
+  font-size: 13px;
+}
+.msg-row .msg-attachment .file-link:hover { text-decoration: underline; }
+
+/* Status col: time + check no canto inferior direito da bolha */
+.msg-row .msg-status-col {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.msg-row .msg-time {
+  font-family: var(--font-mono, ui-monospace, SF Mono, Menlo, monospace);
+}
+.msg-row .msg-check {
+  font-family: var(--font-mono, ui-monospace, SF Mono, Menlo, monospace);
+}
+.msg-row .msg-check.read       { color: var(--accent); }
+.msg-row .msg-check.delivered  { color: var(--text-muted); }
+.msg-row .msg-check.sent       { color: var(--text-3); }
+
+/* === OPT-IN: TABULAR === */
+[data-message-style="tabular"] .msg-bubble.msg-row {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  gap: 12px;
+  max-width: none;
+  padding: 8px 12px 8px 9px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  align-self: stretch;
+}
+[data-message-style="tabular"] .msg-bubble.msg-row.msg-inbound  { border-left-color: var(--msg-inbound); align-self: stretch; }
+[data-message-style="tabular"] .msg-bubble.msg-row.msg-outbound { border-left-color: var(--msg-outbound); background: rgba(15, 157, 143, 0.04); align-self: stretch; }
+[data-message-style="tabular"] .msg-bubble.msg-row.msg-bot      { border-left-color: var(--msg-bot); background: rgba(139, 92, 246, 0.04); align-self: stretch; }
+[data-message-style="tabular"] .msg-bubble.msg-row.msg-note     { border-left-color: var(--msg-note); background: rgba(245, 158, 11, 0.06); align-self: stretch; border-radius: 0; }
+[data-message-style="tabular"] .msg-bubble.msg-row.msg-system   { display: block; align-self: center; }
+
+[data-message-style="tabular"] .msg-row .msg-meta {
+  flex-direction: column;
+  align-items: flex-start;
+}
+[data-message-style="tabular"] .msg-row .msg-type {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+[data-message-style="tabular"] .msg-row.msg-inbound  .msg-type { color: var(--msg-inbound); }
+[data-message-style="tabular"] .msg-row.msg-outbound .msg-type { color: var(--msg-outbound); }
+[data-message-style="tabular"] .msg-row.msg-bot      .msg-type { color: var(--msg-bot); }
+[data-message-style="tabular"] .msg-row.msg-note     .msg-type { color: var(--msg-note); }
+
+[data-message-style="tabular"] .msg-row .msg-status-col {
+  margin-top: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}

@@ -1026,13 +1026,19 @@ async function loadMessages(convId, chatId) {
 }
 
 function renderMessage(msg) {
+    // SPEC v2 §3 — 5 tipos: inbound, outbound, bot, note, system
+    const isSystem = msg.sender_type === 'system';
     const isBot    = msg.sender_type === 'bot';
     const isNote   = msg.sender_type === 'note';
     const isOut    = msg.direction === 'outbound';
-    const cls      = isNote ? 'note' : isBot ? 'bot' : (isOut ? 'outbound' : 'inbound');
+    const cls      = isSystem ? 'system'
+                   : isNote   ? 'note'
+                   : isBot    ? 'bot'
+                   : isOut    ? 'outbound'
+                              : 'inbound';
     const time     = formatTime(msg.created_at);
 
-    // Nome do remetente
+    // Nome do remetente — preenche apenas pra in/out/bot/note (system não tem)
     let sender = '';
     if (isNote) {
         sender = msg.sent_by_name || msg.sender_name || 'Nota interna';
@@ -1040,7 +1046,14 @@ function renderMessage(msg) {
         sender = '🤖 Bot';
     } else if (isOut) {
         sender = msg.sent_by_name || msg.sender_name || 'Equipe';
+    } else if (!isSystem) {
+        // inbound — autor é o lead (preenchido pelo conversation lead)
+        sender = msg.sender_name || (currentConversation?.leads?.name) || '';
     }
+
+    // Type label da coluna esquerda (SPEC §3)
+    const typeLabels = { inbound: 'Lead', outbound: 'Atendente', bot: 'Bot', note: 'Nota interna' };
+    const typeLabel = typeLabels[cls] || '';
 
     // Renderiza attachments (imagens, vídeos, documentos).
     // Espelha o approach do v3: usa msg.unipile_message_id + att.id direto
@@ -1099,17 +1112,28 @@ function renderMessage(msg) {
         const seen = !!msg.seen;
         const delivered = !!msg.delivered;
         let icon, label, klass;
-        if (seen)            { icon = '✓✓'; label = 'Lido';      klass = 'msg-status seen'; }
-        else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-status delivered'; }
-        else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-status sent'; }
+        if (seen)            { icon = '✓✓'; label = 'Lido';      klass = 'msg-check read'; }
+        else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-check delivered'; }
+        else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-check sent'; }
         deliveryHtml = `<span class="${klass}" title="${label}">${icon}</span>`;
     }
 
-    return `<div class="msg-bubble ${cls}">
-        ${attachmentsHtml}
-        ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
+    // System messages: linha centralizada simples (SPEC §3)
+    if (isSystem) {
+        return `<div class="msg-bubble msg-row msg-system system">${textContent}</div>`;
+    }
+
+    // Demais tipos: grid 88px meta + 1fr content + auto status (SPEC §3)
+    return `<div class="msg-bubble msg-row msg-${cls} ${cls}">
         <div class="msg-meta">
-            ${sender ? `<span class="msg-sender${isBot ? ' bot-label' : ''}">${escHtml(sender)}</span>` : ''}
+            ${typeLabel ? `<div class="msg-type">${typeLabel}</div>` : ''}
+            ${sender ? `<div class="msg-author" title="${escHtml(sender)}">${escHtml(sender)}</div>` : ''}
+        </div>
+        <div class="msg-content">
+            ${attachmentsHtml}
+            ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
+        </div>
+        <div class="msg-status-col">
             <span class="msg-time">${time}</span>
             ${deliveryHtml}
         </div>
