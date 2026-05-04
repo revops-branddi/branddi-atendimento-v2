@@ -205,14 +205,13 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         const realUnipileId = mediaResult?.message_id || mediaResult?.id || null;
         const mediaMsgId = realUnipileId || `media_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-        // Monta metadados do attachment. Quando temos o id real do Unipile,
-        // já gravamos a uri pro proxy /api/attachments/:id/0 servir a preview
-        // imediatamente (sem precisar esperar o polling).
+        // Sem o attachment id real (o Unipile só devolve o message_id na resposta
+        // do send), não temos como montar uri renderizável aqui. O polling
+        // reconcilia em segundos e popula attachments com uri proper.
         const attachments = file ? [{
             name: file.originalname,
             mime_type: file.mimetype,
             size: file.size,
-            uri: realUnipileId ? `att://_/${realUnipileId}/0` : null,
         }] : [];
 
         const msg = await saveMessage({
@@ -266,27 +265,23 @@ router.post('/messages/:conversationId/note', async (req, res) => {
     }
 });
 
-// ─── GET /api/attachments/:messageId/:index — Proxy para mídia do Unipile
-router.get('/attachments/:messageId/:index', async (req, res) => {
+// ─── GET /api/attachments/:messageId/:attId — Proxy para mídia do Unipile
+// Usa o endpoint message-scoped /api/v1/messages/:msgId/attachments/:attId
+// (suporta sticker/image/video/audio que vêm como attachments[] em raw,
+// mesmo quando Unipile diz "cannot display this type" no campo text).
+router.get('/attachments/:messageId/:attId', async (req, res) => {
     try {
         if (!unipileAvailable()) return res.status(503).json({ error: 'Unipile não configurado' });
+        const dsn = process.env.UNIPILE_DSN;
+        const key = process.env.UNIPILE_API_KEY;
+        const url = `https://${dsn}/api/v1/messages/${encodeURIComponent(req.params.messageId)}/attachments/${encodeURIComponent(req.params.attId)}`;
 
-        const attPath = `${req.params.messageId}/${req.params.index}`;
-        if (!attPath) return res.status(400).json({ error: 'Attachment path obrigatório' });
-
-        const url = getAttachmentUrl(`att://_/${attPath}`);
-        if (!url) return res.status(404).json({ error: 'URL não encontrada' });
-
-        const upstream = await fetch(url);
+        const upstream = await fetch(url, { headers: { 'X-API-KEY': key } });
         if (!upstream.ok) return res.status(upstream.status).json({ error: 'Falha ao buscar attachment' });
 
-        // Repassa content-type e corpo
-        const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'private, max-age=86400'); // cache 24h
-
-        const buffer = await upstream.arrayBuffer();
-        res.send(Buffer.from(buffer));
+        res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'private, max-age=86400');
+        res.send(Buffer.from(await upstream.arrayBuffer()));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

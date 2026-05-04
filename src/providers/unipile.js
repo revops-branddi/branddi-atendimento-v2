@@ -70,23 +70,26 @@ class UnipileProvider extends WhatsAppProvider {
 
     normalizeMessage(raw) {
         let text = raw.text || '';
-        let attachments = raw.attachments || [];
+        // Sempre que o Unipile entrega um array de attachments com id+type
+        // (sticker, image, audio, video, file), convertemos em formato
+        // renderizável pelo front: uri `att://_/msgId/attId`, mime_type
+        // sintetizado do tipo Unipile (image/sticker → image/webp, etc).
+        let attachments = (raw.attachments || []).map(a => normalizeAttachment(a, raw.id));
 
-        // Unipile devolve "cannot display this type" pra vCard / sticker / áudio /
-        // vídeo / localização — mas o conteúdo nativo do WhatsApp vem em raw.original.
-        // Aqui parseamos e substituímos por uma label útil + metadata pro front
-        // renderizar adequadamente.
+        // Unipile devolve "cannot display this type" pra vCard / localização /
+        // contatos — quando NÃO temos attachments renderizáveis, fazemos um
+        // fallback amigável a partir de raw.original. Quando JÁ temos
+        // attachments (sticker, áudio, etc.), só limpamos o texto placeholder.
         if (text.includes('Unipile cannot display this type')) {
-            const enriched = enrichUnsupportedMessage(raw.original);
-            if (enriched) {
-                text = enriched.text;
-                if (enriched.attachments?.length) {
-                    attachments = enriched.attachments.map(a => ({
-                        ...a,
-                        uri: a.uri === '__att_index_0__' ? `att://_/${raw.id}/0` : a.uri,
-                    }));
-                } else if (enriched.meta) {
-                    attachments = [{ type: 'native_meta', kind: enriched.kind, meta: enriched.meta }];
+            if (attachments.length) {
+                text = '';
+            } else {
+                const enriched = enrichUnsupportedMessage(raw.original);
+                if (enriched) {
+                    text = enriched.text;
+                    if (enriched.meta) {
+                        attachments = [{ type: 'native_meta', kind: enriched.kind, meta: enriched.meta }];
+                    }
                 }
             }
         }
@@ -129,6 +132,31 @@ class UnipileProvider extends WhatsAppProvider {
 }
 
 /**
+ * Normaliza um attachment do Unipile pra um shape estável usado pelo front.
+ * - uri: `att://_/<msgId>/<attId>` → o proxy /api/attachments/:msgId/:attId
+ *   resolve pra `https://<dsn>/api/v1/messages/:msgId/attachments/:attId`.
+ * - mime_type: derivado do `type`/`mimetype` do Unipile. Stickers viram
+ *   image/webp. Image/img vira image/jpeg quando não há mime explícito.
+ */
+function normalizeAttachment(att, msgId) {
+    if (!att || typeof att !== 'object') return att;
+    const type = String(att.type || '').toLowerCase();
+    const mime = att.mimetype || att.mime_type
+        || (type === 'img_sticker' || type === 'sticker' ? 'image/webp' : null)
+        || (type === 'img' || type === 'image' ? 'image/jpeg' : null)
+        || (type === 'video' ? 'video/mp4' : null)
+        || (type === 'audio' ? 'audio/ogg' : null)
+        || 'application/octet-stream';
+    const uri = att.id && msgId ? `att://_/${msgId}/${att.id}` : (att.uri || att.url || null);
+    return {
+        ...att,
+        uri,
+        mime_type: mime,
+        sticker:   type.includes('sticker') || mime === 'image/webp',
+    };
+}
+
+/**
  * Quando Unipile diz "cannot display this type", o JSON nativo do WhatsApp
  * vem em raw.original. Detecta o tipo e devolve uma label útil em pt-BR.
  */
@@ -160,6 +188,8 @@ function enrichUnsupportedMessage(originalStr) {
         };
     }
     if (m.stickerMessage) {
+        // Sticker geralmente tem raw.attachments válido. Esse fallback só é
+        // usado se o Unipile não entregou attachments — então mostramos label.
         return { text: '🌟 Figurinha (visualizar no WhatsApp)', kind: 'sticker', meta: {} };
     }
     if (m.audioMessage) {

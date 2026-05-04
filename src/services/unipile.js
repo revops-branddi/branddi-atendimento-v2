@@ -651,10 +651,15 @@ async function processChat(chat) {
                         || sameAttachName(p.attachments, msg.attachments)
                     );
                     if (match && match.unipile_message_id !== msg.id) {
-                        await sb
-                            .from('messages')
-                            .update({ unipile_message_id: msg.id, delivered: !!msg.delivered, seen: !!msg.seen })
-                            .eq('id', match.id);
+                        // Atualiza id real + adota attachments do Unipile (que
+                        // têm id real → uri renderizável) pra preview aparecer.
+                        const updates = {
+                            unipile_message_id: msg.id,
+                            delivered: !!msg.delivered,
+                            seen: !!msg.seen,
+                        };
+                        if (msg.attachments?.length) updates.attachments = msg.attachments;
+                        await sb.from('messages').update(updates).eq('id', match.id);
                         continue; // já reconciliado, não insere
                     }
                 } catch { /* não crítico */ }
