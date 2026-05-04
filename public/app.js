@@ -358,6 +358,28 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// SPEC v2 §6 — WA disconnected banner: sincroniza visibilidade com
+// #status-dot.offline via MutationObserver. Single source of truth: o
+// dot. Nenhum dos 5+ pontos onde dot.className é setado precisa
+// chamar nada — o observer reage automaticamente.
+function setupWaDisconnectedBanner() {
+    const dot = document.getElementById('status-dot');
+    const banner = document.getElementById('wa-disconnected-banner');
+    if (!dot || !banner) return;
+    const sync = () => {
+        const offline = dot.classList.contains('offline');
+        banner.style.display = offline ? '' : 'none';
+    };
+    sync();
+    new MutationObserver(sync).observe(dot, { attributes: true, attributeFilter: ['class'] });
+}
+// Boot: registra o observer assim que DOM estiver pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupWaDisconnectedBanner);
+} else {
+    setupWaDisconnectedBanner();
+}
+
 // SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
 // e aplica em <html data-*>. Selects com [data-pref] disparam change.
 function syncAppearanceSelectsFromPrefs() {

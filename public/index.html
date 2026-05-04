@@ -26,6 +26,13 @@
     </script>
 </head>
 <body>
+<!-- v2 §6 — WA desconectado banner (auto-sync via #status-dot MutationObserver em app.js) -->
+<div id="wa-disconnected-banner" class="wa-banner" style="display:none" role="alert" aria-live="polite">
+    <span class="wa-banner-icon">⚠</span>
+    <span class="wa-banner-text">WhatsApp desconectado.</span>
+    <button class="wa-banner-cta" type="button" onclick="openWaConnect()">→ Conectar agora</button>
+</div>
+
 <!-- ─── Side Nav ─────────────────────────────────────────────── -->
 <nav class="side-nav">
     <div class="side-nav-brand" title="Branddi Atendimento v2">

@@ -2784,3 +2784,144 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
+
+/* ============================================================
+   v2 §6 — Edge cases
+   ============================================================ */
+
+/* WA desconectado banner — topo full-width, amarelo warning.
+   Visibilidade controlada pelo MutationObserver em app.js que
+   observa #status-dot.offline. */
+.wa-banner {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(245, 158, 11, 0.12);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.30);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #92400E;
+  animation: wa-banner-slide 0.3s ease;
+}
+@keyframes wa-banner-slide {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+.wa-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.wa-banner-text {
+  flex: 1;
+  font-weight: 500;
+}
+.wa-banner-cta {
+  background: #92400E;
+  color: #FFFBEB;
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.wa-banner-cta:hover { background: #78350F; }
+
+/* Empty state pro — light theme refinement (Section §6: Lista vazia,
+   "Selecione conversa", "Sem mensagens", etc) */
+.empty-state-pro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-2);
+  background: var(--bg-base) !important;
+  min-height: 280px;
+}
+.empty-state-pro .empty-illustration {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bg-elev-2) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.empty-state-pro .empty-illustration .icon,
+.empty-state-pro .empty-illustration svg {
+  width: 28px;
+  height: 28px;
+  color: var(--text-3) !important;
+  stroke: var(--text-3) !important;
+}
+.empty-state-pro h3,
+.empty-state-pro h4,
+.empty-state-pro .empty-title {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--text-1) !important;
+  margin: 0 0 6px !important;
+  background: transparent !important;
+}
+.empty-state-pro p,
+.empty-state-pro .empty-desc {
+  font-size: 13px !important;
+  color: var(--text-2) !important;
+  margin: 0 !important;
+  max-width: 320px;
+  background: transparent !important;
+  line-height: 1.5;
+}
+
+/* "Sem deal vinculado" — light styling (#lp-deal-notfound) */
+#lp-deal-notfound {
+  padding: 12px 0;
+  background: transparent !important;
+}
+#lp-deal-notfound p,
+#lp-deal-notfound .lp-muted {
+  color: var(--text-2) !important;
+  font-size: 12px !important;
+  margin: 0 0 12px !important;
+  background: transparent !important;
+}
+#btn-create-deal-lp,
+#btn-link-deal-lp {
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+#btn-link-deal-lp {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+}
+#btn-link-deal-lp:hover {
+  background: var(--bg-elev-2) !important;
+  border-color: var(--accent-300) !important;
+}
+
+/* Lp-link-deal-search input + results */
+#lp-link-deal-input {
+  background: var(--bg-elev-1) !important;
+  color: var(--text-1) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: var(--r-md) !important;
+  padding: 8px 10px !important;
+  font-size: 13px;
+}
+#lp-link-deal-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+}
+
+/* Filtered empty state (renderConversationList → "Nenhuma conversa")
+   — herda .empty-state-pro acima, sem custom CSS adicional */
