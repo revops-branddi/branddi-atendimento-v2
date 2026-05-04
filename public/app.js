@@ -2283,7 +2283,18 @@ async function loadDashboard() {
         renderDashTables(data);
     } catch (err) {
         console.error('Dashboard error:', err);
-        toast(`Dashboard: ${err.message}`, 'error');
+        // Reset KPIs pra "—" pra não ficar com dados velhos
+        ['kpi-sent','kpi-received','kpi-reply-rate','kpi-first-resp',
+         'kpi-total','kpi-comercial','kpi-opec','kpi-convs',
+         'kpi-comercial-pct','kpi-opec-pct',
+         'kpi-act-bb','kpi-act-fr','kpi-act-vm','kpi-transcripts','kpi-apollo'
+        ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+        // Mensagem inline em vez de toast cruel — possíveis causas:
+        // - sem dados no período (filtro muito restrito)
+        // - bug backend conhecido: data=null em query supabase quando não há msgs
+        const apolloSubEl = document.getElementById('kpi-apollo-sub');
+        if (apolloSubEl) apolloSubEl.textContent = 'Sem dados no período';
+        toast('Sem dados disponíveis no período selecionado', 'warn');
     }
 }
 

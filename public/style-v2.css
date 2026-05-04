@@ -3466,9 +3466,10 @@ body.app-body, body, .app-layout {
   border-bottom: none !important;
 }
 
-/* Tags genéricas inline em tabelas (origem WhatsApp, classificação Comercial, CRM ✅) */
-.tab-panel .tag,
-.tab-panel .badge {
+/* Tags genéricas inline em tabelas (origem WhatsApp, classificação Comercial, CRM ✅).
+   Exclui .tag-owner pra preservar a paleta determinística (Passo 11). */
+.tab-panel .tag:not(.tag-owner):not([data-color]),
+.tab-panel .badge:not([data-color]) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
