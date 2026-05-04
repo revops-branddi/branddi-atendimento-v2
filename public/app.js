@@ -972,36 +972,41 @@ function renderMessage(msg) {
         sender = msg.sent_by_name || msg.sender_name || 'Equipe';
     }
 
-    // Renderiza attachments (imagens, vídeos, documentos)
+    // Renderiza attachments (imagens, vídeos, documentos).
+    // Espelha o approach do v3: usa msg.unipile_message_id + att.id direto
+    // pra montar /api/attachments/:msgId/:attId. Detecta imagem por
+    // att.type ('image'/'img'/'sticker') OU mime_type 'image/...'.
     let attachmentsHtml = '';
     const atts = msg.attachments || [];
     for (const att of atts) {
-        const uri = att.uri || att.url || '';
-        const mime = (att.mime_type || att.type || '').toLowerCase();
-        const name = att.name || att.filename || 'arquivo';
+        const t = String(att.type || '').toLowerCase();
+        const mime = (att.mime_type || att.mimetype || '').toLowerCase();
+        const isImg = t === 'image' || t === 'img' || t.includes('sticker') || mime.startsWith('image/');
+        const isVideo = t === 'video' || mime.startsWith('video/');
+        const isAudio = t === 'audio' || mime.startsWith('audio/');
+        const isSticker = !!att.sticker || t.includes('sticker') || mime === 'image/webp';
+        const name = att.name || att.filename || (isSticker ? 'Sticker' : isImg ? 'Imagem' : 'arquivo');
 
-        // Monta URL do proxy
+        // Proxy URL: precisa do unipile_message_id da msg + att.id.
         let proxyUrl = '';
-        if (uri.startsWith('att://')) {
-            const path = uri.replace('att://', '').split('/').slice(1).join('/');
-            proxyUrl = `/api/attachments/${path}`;
-        } else if (uri.startsWith('http')) {
-            proxyUrl = uri;
+        if (msg.unipile_message_id && att.id) {
+            proxyUrl = `/api/attachments/${encodeURIComponent(msg.unipile_message_id)}/${encodeURIComponent(att.id)}`;
+        } else if ((att.uri || '').startsWith('http')) {
+            proxyUrl = att.uri;
         }
 
         if (!proxyUrl) continue;
 
-        if (mime.startsWith('image/')) {
-            const isSticker = !!att.sticker || mime === 'image/webp';
+        if (isImg) {
             const styleAttr = isSticker ? ' style="max-width:140px;max-height:140px;background:transparent"' : '';
             attachmentsHtml += `<div class="msg-attachment msg-image${isSticker ? ' msg-sticker' : ''}">
                 <img src="${proxyUrl}" alt="${escHtml(name)}" loading="lazy"${styleAttr} onclick="window.open(this.src,'_blank')">
             </div>`;
-        } else if (mime.startsWith('video/')) {
+        } else if (isVideo) {
             attachmentsHtml += `<div class="msg-attachment msg-video">
                 <video src="${proxyUrl}" controls preload="metadata" style="max-width:100%;border-radius:8px;"></video>
             </div>`;
-        } else if (mime.startsWith('audio/') || mime === 'audio/ogg; codecs=opus') {
+        } else if (isAudio) {
             attachmentsHtml += `<div class="msg-attachment msg-audio">
                 <audio src="${proxyUrl}" controls preload="metadata" style="width:100%;"></audio>
             </div>`;
@@ -1128,13 +1133,24 @@ function removeAttachment() {
     if (fileInput) fileInput.value = '';
 }
 
+let _sending = false;
 async function sendMsg() {
+    if (_sending) return; // lock: evita duplo envio (Enter + clique)
     const input = document.getElementById('chat-input');
     const text  = (input?.value || '').trim();
     if (!text && !_pendingFile) return;
     if (!currentConversation) return;
 
     const chatId = currentConversation.whatsapp_chat_id || null;
+    _sending = true;
+    const sendBtn = document.querySelector('[data-action="send-msg"]');
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Snapshot do file e limpa imediatamente: o upload vai usar a referência
+    // local (fileToSend), e qualquer Enter/clique extra cai no lock acima.
+    const fileToSend = _pendingFile;
+    _pendingFile = null;
+    if (fileToSend) removeAttachment();
 
     input.value = '';
     input.style.height = '';
@@ -1142,10 +1158,10 @@ async function sendMsg() {
     try {
         let res;
 
-        if (_pendingFile) {
+        if (fileToSend) {
             // Envia com mídia via FormData
             const fd = new FormData();
-            fd.append('file', _pendingFile);
+            fd.append('file', fileToSend);
             if (text) fd.append('text', text);
             if (chatId) fd.append('chatId', chatId);
 
@@ -1159,7 +1175,6 @@ async function sendMsg() {
                 throw new Error(err.error || 'Erro ao enviar mídia');
             }
             res = await response.json();
-            removeAttachment();
         } else {
             // Envio de texto normal
             res = await apiFetch(`/api/messages/${currentConversation.id}/send`, {
@@ -1177,6 +1192,9 @@ async function sendMsg() {
         await loadMessages(currentConversation.id);
     } catch (err) {
         toast(`Erro ao enviar: ${err.message}`, 'error');
+    } finally {
+        _sending = false;
+        if (sendBtn) sendBtn.disabled = false;
     }
 }
 
