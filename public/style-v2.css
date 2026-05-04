@@ -2926,40 +2926,47 @@ select.settings-input { appearance: auto; padding-right: 28px; }
 }
 .wa-banner-cta:hover { background: #78350F; }
 
-/* Empty state pro — light theme refinement (Section §6: Lista vazia,
-   "Selecione conversa", "Sem mensagens", etc) */
+/* Empty state pro — card centralizado por cima do watermark Branddi.
+   Fica destacado (bg branco + border + sh-md) e o pattern segue
+   visível ao redor sem ser "cortado" como antes. */
 .empty-state-pro {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 32px 28px;
   text-align: center;
   color: var(--text-2);
-  background: var(--bg-base) !important;
-  min-height: 280px;
+  background: var(--bg-elev-1) !important;
+  border: 1px solid var(--border-md);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-md);
+  min-height: 0;
+  max-width: 360px;
+  margin: auto;        /* centraliza horizontalmente no flex parent */
+  align-self: center;  /* centraliza verticalmente em flex column */
 }
 .empty-state-pro .empty-illustration {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: var(--bg-elev-2) !important;
+  background: var(--accent-50) !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 .empty-state-pro .empty-illustration .icon,
 .empty-state-pro .empty-illustration svg {
-  width: 28px;
-  height: 28px;
-  color: var(--text-3) !important;
-  stroke: var(--text-3) !important;
+  width: 26px;
+  height: 26px;
+  color: var(--accent) !important;
+  stroke: var(--accent) !important;
 }
 .empty-state-pro h3,
 .empty-state-pro h4,
 .empty-state-pro .empty-title {
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   color: var(--text-1) !important;
   margin: 0 0 6px !important;
@@ -2970,9 +2977,22 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   font-size: 13px !important;
   color: var(--text-2) !important;
   margin: 0 !important;
-  max-width: 320px;
+  max-width: 280px;
   background: transparent !important;
   line-height: 1.5;
+}
+
+/* Garante que o chat-area (que recebe o empty state via innerHTML)
+   é flex column centralizado, pra o card ficar no meio do espaço */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* Quando há mensagens, messages-wrap toma espaço (não centraliza) */
+.chat-area:has(.messages-wrap),
+.chat-area:has(.chat-header) {
+  justify-content: flex-start;
 }
 
 /* "Sem deal vinculado" — light styling (#lp-deal-notfound) */
