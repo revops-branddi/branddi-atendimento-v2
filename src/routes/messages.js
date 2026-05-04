@@ -4,7 +4,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getMessages, saveMessage, markMessagesRead, updateConversation, getLeadById } from '../services/supabase.js';
-import { sendMessage, startNewChat, getAttachmentUrl, isAvailable as unipileAvailable } from '../services/unipile.js';
+import { sendMessage, startNewChat, getAttachmentUrl, getMessageById, isAvailable as unipileAvailable } from '../services/unipile.js';
+import whatsapp from '../providers/unipile.js';
 import { applyScriptVariables } from '../services/script-variables.js';
 import { onOutboundMessage } from '../services/auto-activities.js';
 import supabase from '../services/supabase.js';
@@ -205,14 +206,30 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         const realUnipileId = mediaResult?.message_id || mediaResult?.id || null;
         const mediaMsgId = realUnipileId || `media_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-        // Sem o attachment id real (o Unipile só devolve o message_id na resposta
-        // do send), não temos como montar uri renderizável aqui. O polling
-        // reconcilia em segundos e popula attachments com uri proper.
-        const attachments = file ? [{
-            name: file.originalname,
-            mime_type: file.mimetype,
-            size: file.size,
-        }] : [];
+        // O POST /messages só devolve o message_id. Pra resgatar att.id (e
+        // habilitar a preview imediatamente), buscamos a msg completa via
+        // GET /messages/:id e normalizamos os attachments. Best-effort: se
+        // falhar (ex: Unipile ainda não indexou), caímos pro metadado básico
+        // e o polling reconcilia depois.
+        let attachments = [];
+        if (file) {
+            const fallback = { name: file.originalname, mime_type: file.mimetype, size: file.size };
+            if (realUnipileId) {
+                try {
+                    const detail = await getMessageById(realUnipileId);
+                    const norm = detail ? whatsapp.normalizeMessage(detail) : null;
+                    if (norm?.attachments?.length) {
+                        attachments = norm.attachments;
+                    } else {
+                        attachments = [fallback];
+                    }
+                } catch {
+                    attachments = [fallback];
+                }
+            } else {
+                attachments = [fallback];
+            }
+        }
 
         const msg = await saveMessage({
             conversation_id:    req.params.conversationId,

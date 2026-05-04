@@ -161,6 +161,18 @@ export async function getMessages(chatId, { limit = 50, cursor } = {}) {
     return req(`/chats/${chatId}/messages${qs}`);
 }
 
+// Busca uma mensagem específica via id do Unipile. Útil pra resgatar
+// attachments[].id logo após enviar mídia (a resposta do POST /messages
+// devolve só o message_id, sem o attachment id).
+export async function getMessageById(messageId) {
+    if (!isAvailable() || !messageId) return null;
+    try {
+        return await req(`/messages/${encodeURIComponent(messageId)}`);
+    } catch {
+        return null;
+    }
+}
+
 export async function sendMessage(chatId, text, attachmentBuffer, attachmentName) {
     const fd = new FormData();
     if (text) fd.append('text', text);
