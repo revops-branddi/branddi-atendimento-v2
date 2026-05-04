@@ -293,18 +293,6 @@ router.post('/messages/:conversationId/note', async (req, res) => {
     }
 });
 
-// DEBUG (temporário): inspeciona o que Unipile devolve em GET /messages/:id
-router.get('/debug/unipile-msg/:id', async (req, res) => {
-    if (req.user?.role !== 'Admin') return res.status(403).end();
-    try {
-        const detail = await getMessageById(req.params.id);
-        const norm = detail ? whatsapp.normalizeMessage(detail) : null;
-        res.json({ raw: detail, normalized: norm });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // ─── GET /api/attachments/:messageId/:attId — Proxy para mídia do Unipile
 // Usa o endpoint message-scoped /api/v1/messages/:msgId/attachments/:attId
 // (suporta sticker/image/video/audio que vêm como attachments[] em raw,
