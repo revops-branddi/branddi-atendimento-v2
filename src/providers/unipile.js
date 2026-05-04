@@ -160,14 +160,7 @@ function enrichUnsupportedMessage(originalStr) {
         };
     }
     if (m.stickerMessage) {
-        return {
-            text: '',
-            kind: 'sticker',
-            meta: {},
-            // Unipile mantém o binário acessível via /messages/:id/attachments/0,
-            // mesmo quando o tipo é "unsupported". O front renderiza como imagem.
-            attachments: [{ uri: '__att_index_0__', mime_type: 'image/webp', name: 'sticker.webp' }],
-        };
+        return { text: '🌟 Figurinha (visualizar no WhatsApp)', kind: 'sticker', meta: {} };
     }
     if (m.audioMessage) {
         const seconds = m.audioMessage.seconds || null;
