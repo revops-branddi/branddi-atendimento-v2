@@ -1542,6 +1542,61 @@ body {
 }
 
 /* ============================================================
+   v2 — Override SISTÊMICO dos legacy tokens dark blue/cyan
+   ============================================================
+   O style-v2.css legado declarou ~30 tokens com valores dark
+   (#0f1923/#1e3248/#152130 etc) e accent cyan (#00E5FF). Toda
+   regra legacy que usa esses vars renderiza dark — em vez de
+   override classe-por-classe (deal-result-item, script-card,
+   modal-history-msgs, chat-textarea, attach-preview, etc), redefino
+   os PRÓPRIOS tokens em :root pra valores light. Single fix.
+   ============================================================ */
+:root {
+  /* Backgrounds legacy → light theme */
+  --bg-deep:       var(--bg-base);     /* #F6F7F8 */
+  --bg-surface:    var(--bg-elev-1);   /* #FFFFFF */
+  --bg-convlist:   var(--bg-elev-1);
+  --bg-chat:       var(--bg-base);
+  --bg-panel:      var(--bg-elev-1);
+  --bg-input:      var(--bg-elev-2);   /* #F1F3F5 */
+  --bg-card:       var(--bg-elev-1);
+  --bg-card-hover: var(--bg-elev-2);
+  --bg-elevated:   var(--bg-elev-1);
+  --bg-nav:        var(--bg-elev-1);
+
+  /* Accent cyan legacy → teal Branddi */
+  --accent-dim:    rgba(15, 157, 143, 0.10);
+  --accent-soft:   rgba(15, 157, 143, 0.08);
+  --accent-mid:    rgba(15, 157, 143, 0.20);
+  --accent-glow:   rgba(15, 157, 143, 0.06);
+  --border-accent: rgba(15, 157, 143, 0.30);
+
+  /* Borders legacy → light */
+  --border:        var(--border-sm);
+  --border-strong: var(--border-lg);
+  --border-hover:  var(--border-md);
+
+  /* Secondary palette legacy — mantém semânticas mas alinha
+     com light theme (alfa baixo sobre branco em vez de dim sobre dark) */
+  --teal:        var(--accent);
+  --amber:       var(--warning);
+  --amber-dim:   rgba(245, 158, 11, 0.12);
+  --amber-soft:  rgba(245, 158, 11, 0.10);
+  --red:         var(--danger);
+  --red-dim:     rgba(225, 29, 72, 0.12);
+  --red-soft:    rgba(225, 29, 72, 0.10);
+  --green:       var(--success);
+  --green-dim:   rgba(16, 185, 129, 0.12);
+  --green-soft:  rgba(16, 185, 129, 0.10);
+  --purple:      #8B5CF6;
+  --purple-dim:  rgba(139, 92, 246, 0.10);
+
+  /* Text legacy — text-primary/secondary já apontam pra text-1/2 do v2 */
+  --text-primary:   var(--text-1);
+  --text-secondary: var(--text-2);
+}
+
+/* ============================================================
    v2 §1 — ConvRow (linha de conversa na sidebar inbox)
    ============================================================
    Aplica em cima das regras antigas via source-order. As classes
