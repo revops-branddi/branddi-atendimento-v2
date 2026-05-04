@@ -992,8 +992,10 @@ function renderMessage(msg) {
         if (!proxyUrl) continue;
 
         if (mime.startsWith('image/')) {
-            attachmentsHtml += `<div class="msg-attachment msg-image">
-                <img src="${proxyUrl}" alt="${escHtml(name)}" loading="lazy" onclick="window.open(this.src,'_blank')">
+            const isSticker = !!att.sticker || mime === 'image/webp';
+            const styleAttr = isSticker ? ' style="max-width:140px;max-height:140px;background:transparent"' : '';
+            attachmentsHtml += `<div class="msg-attachment msg-image${isSticker ? ' msg-sticker' : ''}">
+                <img src="${proxyUrl}" alt="${escHtml(name)}" loading="lazy"${styleAttr} onclick="window.open(this.src,'_blank')">
             </div>`;
         } else if (mime.startsWith('video/')) {
             attachmentsHtml += `<div class="msg-attachment msg-video">
@@ -1010,8 +1012,11 @@ function renderMessage(msg) {
         }
     }
 
-    // Conteúdo de texto com links clicáveis
-    const textContent = msg.content ? linkify(escHtml(msg.content)) : (atts.length ? '' : '(mídia)');
+    // Conteúdo de texto com links clicáveis. Esconde o placeholder do Unipile
+    // ("-- Unipile cannot display ... --") quando temos attachment renderizado.
+    const isUnipilePlaceholder = msg.content && /Unipile cannot display/i.test(msg.content);
+    const showText = msg.content && !isUnipilePlaceholder;
+    const textContent = showText ? linkify(escHtml(msg.content)) : (atts.length ? '' : '(mídia)');
 
     // Status de entrega — só faz sentido em msgs outbound (humano ou bot)
     let deliveryHtml = '';
