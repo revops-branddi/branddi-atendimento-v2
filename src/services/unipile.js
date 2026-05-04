@@ -686,9 +686,23 @@ async function processChat(chat) {
             if (!saved) {
                 if (isOutbound) {
                     const { default: sb } = await import('./supabase.js');
+                    const update = { delivered: !!msg.delivered, seen: !!msg.seen };
+                    // Se a linha local foi gravada pela rota send-media (que não
+                    // tem o att.id do Unipile), os attachments lá não têm uri
+                    // renderizável. Quando o polling traz a versão "enriquecida"
+                    // (com att.id), sobrescrevemos pra preview funcionar.
+                    if (msg.attachments?.some(a => a.id)) {
+                        const { data: existing } = await sb
+                            .from('messages')
+                            .select('attachments')
+                            .eq('unipile_message_id', msg.id)
+                            .single();
+                        const existingHasId = (existing?.attachments || []).some(a => a.id);
+                        if (!existingHasId) update.attachments = msg.attachments;
+                    }
                     await sb
                         .from('messages')
-                        .update({ delivered: !!msg.delivered, seen: !!msg.seen })
+                        .update(update)
                         .eq('unipile_message_id', msg.id);
                 }
                 continue;
