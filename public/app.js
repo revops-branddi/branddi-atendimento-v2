@@ -178,6 +178,10 @@ function setupEventDelegation() {
             case 'route-dropdown':
                 toggleRouteDropdown();
                 break;
+            case 'open-overflow-menu':
+                e.stopPropagation();
+                toggleOverflowMenu();
+                break;
             case 'route-action': {
                 const team = el.dataset.team;
                 const cid = el.dataset.id;
@@ -344,6 +348,28 @@ document.addEventListener('click', (e) => {
     const menu = document.querySelector('.route-dropdown-menu');
     if (menu?.classList.contains('open') && dd && !dd.contains(e.target)) {
         menu.classList.remove('open');
+    }
+});
+
+// SPEC v2 §2 — Chat header overflow menu (⋯) — agrupa ações secundárias
+function toggleOverflowMenu() {
+    const wrap = document.querySelector('.ch-overflow');
+    if (!wrap) return;
+    const wasOpen = wrap.classList.contains('open');
+    // Close any sibling dropdowns first (route, scripts) to evitar empilhamento
+    closeRouteDropdown();
+    document.getElementById('scripts-menu')?.classList.remove('open');
+    wrap.classList.toggle('open', !wasOpen);
+}
+function closeOverflowMenu() {
+    document.querySelector('.ch-overflow')?.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+    const wrap = document.querySelector('.ch-overflow');
+    if (!wrap?.classList.contains('open')) return;
+    // Fecha no click fora do wrap, ou no click em um item do menu
+    if (!wrap.contains(e.target) || e.target.closest('.ch-menu-item')) {
+        wrap.classList.remove('open');
     }
 });
 
@@ -839,36 +865,34 @@ function renderChatArea(conv) {
     const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
     const cls = lead.classification || 'unclassified';
 
+    // SPEC v2 §2 — chat header (split inline + ⋯ overflow)
+    // Status pill mapping (conv.status → tone + label)
+    const statusToneMap = { waiting: 'warning', in_progress: 'success', closed: 'muted', archived: 'danger' };
+    const statusLabelMap = { waiting: 'Aguardando', in_progress: 'Em andamento', closed: 'Encerrada', archived: 'Arquivada' };
+    const statusKey = conv.archived_at ? 'archived' : (conv.status || 'waiting');
+    const statusTone = statusToneMap[statusKey] || 'muted';
+    const statusLabel = statusLabelMap[statusKey] || statusKey;
+
+    const isAdmin = currentUser?.role === 'Admin';
+    const showPipedrive = (cls !== 'opec' && !conv.crm_deal_id && !lead.crm_deal_id);
+
     const area = document.getElementById('chat-area');
     area.innerHTML = `
-        <div class="chat-header">
-            <div class="chat-header-left">
-                <div class="chat-avatar">${initials}</div>
-                <div>
-                    <div class="chat-meta-name">${escHtml(name)}</div>
-                    <div class="chat-meta-sub">${lead.company_name ? escHtml(lead.company_name) + ' · ' : ''}${classLabel(cls)}</div>
+        <header class="chat-header">
+            <div class="ch-info chat-header-left">
+                <div class="ch-avatar chat-avatar">${initials}</div>
+                <div class="ch-info-text">
+                    <div class="ch-name chat-meta-name">${escHtml(name)}</div>
+                    <div class="ch-status chat-meta-sub">
+                        <span class="status-dot ${statusTone}"></span>
+                        ${statusLabel}${lead.company_name ? ' · ' + escHtml(lead.company_name) : ''}${classLabel(cls) ? ' · ' + classLabel(cls) : ''}
+                    </div>
                 </div>
             </div>
-            <div class="chat-header-actions">
-                ${(cls !== 'opec' && !conv.crm_deal_id && !lead.crm_deal_id) ? `
-                <button class="btn-sm btn-push-pipedrive" data-action="push-pipedrive" data-id="${escHtml(String(conv.id))}" title="Enviar ao Pipedrive (cria deal, pessoa, transcript)">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                    Pipedrive
-                </button>` : ''}
-                ${currentUser?.role === 'Admin' ? (conv.archived_at ? `
-                <button class="btn-sm btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" title="Restaurar conversa arquivada">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-                    Restaurar
-                </button>` : `
-                <button class="btn-sm btn-delete-conv" data-action="delete-conv-menu" data-id="${escHtml(String(conv.id))}" title="Arquivar ou excluir (Admin)">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                </button>`) : ''}
-                <button class="btn-sm btn-toggle-lead-panel" data-action="toggle-lead-panel" title="Painel do lead">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-                </button>
+            <div class="ch-actions chat-header-actions">
                 <div class="route-dropdown">
                     <button class="btn-sm btn-route-trigger" data-action="route-dropdown">
-                        <svg class="icon icon-sm"><use href="/icons.svg#icon-share"></use></svg> Atribuir
+                        <svg class="icon icon-sm"><use href="/icons.svg#icon-share"></use></svg> Atribuir <span class="caret">▾</span>
                     </button>
                     <div class="route-dropdown-menu">
                         <button class="route-dropdown-item" data-action="route-action" data-id="${conv.id}" data-team="comercial">
@@ -883,8 +907,34 @@ function renderChatArea(conv) {
                         </button>
                     </div>
                 </div>
+                ${showPipedrive ? `
+                <button class="btn-sm btn-primary btn-push-pipedrive" data-action="push-pipedrive" data-id="${escHtml(String(conv.id))}" title="Enviar ao Pipedrive (cria deal, pessoa, transcript)">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Pipedrive
+                </button>` : ''}
+                <div class="ch-divider"></div>
+                <div class="ch-overflow">
+                    <button class="btn-icon" data-action="open-overflow-menu" title="Mais ações" aria-haspopup="menu">⋯</button>
+                    <div class="ch-overflow-menu" role="menu">
+                        <button class="ch-menu-item btn-toggle-lead-panel" data-action="toggle-lead-panel" role="menuitem">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                            <span>Ocultar painel do lead</span>
+                        </button>
+                        ${isAdmin ? (conv.archived_at ? `
+                        <button class="ch-menu-item btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" role="menuitem">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                            <span>Restaurar conversa</span>
+                            <span class="badge-admin">ADM</span>
+                        </button>` : `
+                        <button class="ch-menu-item btn-delete-conv" data-action="delete-conv-menu" data-id="${escHtml(String(conv.id))}" role="menuitem">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                            <span>Arquivar / Excluir</span>
+                            <span class="badge-admin">ADM</span>
+                        </button>`) : ''}
+                    </div>
+                </div>
             </div>
-        </div>
+        </header>
         <div class="messages-wrap" id="messages-wrap">
             <div class="empty-state" style="padding:40px 0"><span>Carregando mensagens...</span></div>
         </div>
