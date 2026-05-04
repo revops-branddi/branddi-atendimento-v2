@@ -214,20 +214,21 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         let attachments = [];
         if (file) {
             const fallback = { name: file.originalname, mime_type: file.mimetype, size: file.size };
+            attachments = [fallback];
+            // Unipile leva ~1–2s pra indexar a msg recém-enviada. Tentamos com
+            // backoff curto pra capturar att.id (renderiza preview imediato).
+            // Se mesmo com retries não vier, o polling reconcilia depois.
             if (realUnipileId) {
-                try {
-                    const detail = await getMessageById(realUnipileId);
-                    const norm = detail ? whatsapp.normalizeMessage(detail) : null;
-                    if (norm?.attachments?.length) {
-                        attachments = norm.attachments;
-                    } else {
-                        attachments = [fallback];
-                    }
-                } catch {
-                    attachments = [fallback];
+                const delays = [400, 900, 1500];
+                for (const wait of delays) {
+                    await new Promise(r => setTimeout(r, wait));
+                    try {
+                        const detail = await getMessageById(realUnipileId);
+                        const norm = detail ? whatsapp.normalizeMessage(detail) : null;
+                        const hasId = norm?.attachments?.some(a => a.id);
+                        if (hasId) { attachments = norm.attachments; break; }
+                    } catch { /* tenta de novo */ }
                 }
-            } else {
-                attachments = [fallback];
             }
         }
 
