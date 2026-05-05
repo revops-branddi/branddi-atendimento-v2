@@ -1765,14 +1765,17 @@ body {
 }
 
 /* Tag do atendente com paleta determinística pelo nome.
-   Mesmo hash do ownerColorClass: "Harylanne" sempre cai no mesmo
-   data-color entre sessões. */
-.conv-item .tag.tag-owner[data-color="c0"] { background: var(--accent-50);             color: var(--accent-700); }
-.conv-item .tag.tag-owner[data-color="c1"] { background: rgba(167, 139, 250, 0.14);     color: #6D28D9; }
-.conv-item .tag.tag-owner[data-color="c2"] { background: rgba(245, 158, 11, 0.14);      color: #92400E; }
-.conv-item .tag.tag-owner[data-color="c3"] { background: rgba(52, 211, 153, 0.14);      color: #047857; }
-.conv-item .tag.tag-owner[data-color="c4"] { background: rgba(244, 114, 182, 0.14);     color: #BE185D; }
-.conv-item .tag.tag-owner[data-color="c5"] { background: rgba(96, 165, 250, 0.14);      color: #1D4ED8; }
+   Mesmo hash djb2 do ownerColorClass: "Harylanne" sempre cai no
+   mesmo data-color entre sessões. 8 buckets pra reduzir colisões
+   no time típico (~10 atendentes). */
+.conv-item .tag.tag-owner[data-color="c0"] { background: var(--accent-50);             color: var(--accent-700); }   /* teal */
+.conv-item .tag.tag-owner[data-color="c1"] { background: rgba(167, 139, 250, 0.14);     color: #6D28D9; }              /* violeta */
+.conv-item .tag.tag-owner[data-color="c2"] { background: rgba(245, 158, 11, 0.14);      color: #92400E; }              /* âmbar */
+.conv-item .tag.tag-owner[data-color="c3"] { background: rgba(52, 211, 153, 0.14);      color: #047857; }              /* verde */
+.conv-item .tag.tag-owner[data-color="c4"] { background: rgba(244, 114, 182, 0.14);     color: #BE185D; }              /* rosa */
+.conv-item .tag.tag-owner[data-color="c5"] { background: rgba(96, 165, 250, 0.14);      color: #1D4ED8; }              /* azul */
+.conv-item .tag.tag-owner[data-color="c6"] { background: rgba(251, 146, 60, 0.14);      color: #C2410C; }              /* laranja */
+.conv-item .tag.tag-owner[data-color="c7"] { background: rgba(6, 182, 212, 0.14);       color: #0E7490; }              /* cyan */
 
 /* Múltiplos owners: pequeno gap entre tags */
 .conv-item .conv-meta-row .tag-owner + .tag-owner { margin-left: 4px; }
