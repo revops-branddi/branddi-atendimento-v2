@@ -1620,6 +1620,18 @@ body {
   border-left-color: var(--accent);
 }
 .conv-item.unread .conv-name { font-weight: 700; }
+/* Override defensivo: legacy style.css linhas 391 e 1760 setavam
+   .conv-name color pra var(--accent) (unread) ou #ecfdf5 (lead-replied).
+   Com accent agora teal e bg-active também teal-soft, texto vira
+   invisível. Force text-1 sempre — peso já indica unread, prefix
+   "↩ " já indica lead-replied; cor não precisa mudar. */
+.conv-item .conv-name,
+.conv-item.unread .conv-name,
+.conv-item.lead-replied .conv-name,
+.conv-item.unread.lead-replied .conv-name,
+.conv-item.active .conv-name {
+  color: var(--text-1) !important;
+}
 /* Dot unread: padding-left extra na conv-item pra dar respiro entre
    dot e nome (evita "grudado" reportado). Dot fica centralizado no
    espaço extra (8px do edge, gap 8px do content). */
