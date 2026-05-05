@@ -1979,13 +1979,21 @@ body {
   min-height: 0 !important;
   overflow-y: auto !important;
 }
-/* Chain de altura: html/body → app → chat. Sem height definido em
-   nenhum nível, flex:1 vira flex:1 of nothing = 0. */
+/* Chain de altura: html/body → main → topbar (52px fixo) + panel
+   (flex 1 toma o resto). Sem isso, panels com height:100% somam
+   topbar (52px) + 100vh = overflow → composer empurrado pra fora. */
 html, body { height: 100%; min-height: 0; }
-.app-layout, .inbox-layout, #panel-inbox, .tab-panel#panel-inbox {
+.app-layout {
+  display: flex !important;
+  flex-direction: column !important;
   height: 100% !important;
   min-height: 0 !important;
+  overflow: hidden;
 }
+.app-layout > .app-topbar { flex: 0 0 auto !important; }
+.app-layout > .tab-panel { flex: 1 1 0 !important; min-height: 0 !important; overflow: hidden; }
+.app-layout > .tab-panel:not(.active) { flex: 0 !important; }  /* não aloca espaço quando inativa */
+.inbox-layout { height: 100% !important; min-height: 0 !important; }
 .chat-area {
   display: flex !important;
   flex-direction: column !important;
