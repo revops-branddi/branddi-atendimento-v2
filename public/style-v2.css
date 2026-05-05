@@ -1962,7 +1962,9 @@ body {
    Opt-in: data-message-style="tabular" no <html> ou <body>.
    ============================================================ */
 
-/* Mensagens-wrap: column flex (bolhas se alinham via align-self) */
+/* Mensagens-wrap: column flex (bolhas se alinham via align-self).
+   flex: 1 + min-height: 0 + overflow-y: auto = mensagens scrollam
+   internamente, composer fica fixo no bottom da chat-area. */
 .messages-wrap {
   display: flex;
   flex-direction: column;
@@ -1971,6 +1973,17 @@ body {
   background: var(--bg-base);
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Chat-area precisa ser flex column de altura definida pra que o
+   flex: 1 do messages-wrap calcule corretamente */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 /* === DEFAULT: BOLHAS === */
