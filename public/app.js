@@ -1879,6 +1879,21 @@ async function loadDealsForLead(lead, conv) {
             return;
         }
 
+        // Auto-cache: ao abrir a conversa, mesmo sem o user clicar em
+        // nenhum deal, salva o org_name pra preencher conv-list.company.
+        // Prioriza o deal que bate com lead.crm_deal_id; senão o 1º.
+        try {
+            if (lead?.id) {
+                const matchedDeal = lead.crm_deal_id
+                    ? deals.find(d => String(d.id) === String(lead.crm_deal_id))
+                    : null;
+                const orgFromDeal = (matchedDeal || deals[0])?.org_name || '';
+                if (orgFromDeal) {
+                    localStorage.setItem(`atd:org:${lead.id}`, orgFromDeal);
+                }
+            }
+        } catch (_) {}
+
         // Renderiza lista de deals como cards clicáveis
         if (listEl) {
             listEl.innerHTML = deals.map(d => {
