@@ -1182,7 +1182,18 @@ function renderMessage(msg) {
             proxyUrl = att.uri;
         }
 
-        if (!proxyUrl) continue;
+        // Fallback: se attachment não tem URL renderizável (msg antiga sem
+        // unipile_message_id, ou Unipile não enviou att.id), mostra placeholder
+        // pra usuário saber que tinha mídia ali. Antes renderizava bubble
+        // vazio (silent fail) — pior UX.
+        if (!proxyUrl) {
+            const icon = isSticker ? '🎟️' : isVideo ? '🎬' : isAudio ? '🎵' : isImg ? '🖼️' : '📎';
+            const label = isSticker ? 'Sticker' : (name || 'Mídia');
+            attachmentsHtml += `<div class="msg-attachment msg-file msg-unavailable" title="Mídia indisponível (sem URL)">
+                <span style="opacity:0.6">${icon} ${escHtml(label)}</span>
+            </div>`;
+            continue;
+        }
 
         if (isImg) {
             const styleAttr = isSticker ? ' style="max-width:140px;max-height:140px;background:transparent"' : '';
