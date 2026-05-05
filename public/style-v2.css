@@ -1685,6 +1685,17 @@ body {
   min-width: 0;
   flex: 1 1 auto;
 }
+/* Owner tag: SEMPRE à direita da meta-row, mesmo sem company.
+   margin-left: auto consume o espaço livre antes do tag,
+   empurrando-o pro fim — comportamento consistente. */
+.conv-item .conv-meta-row .tag-owner {
+  margin-left: auto;
+}
+/* Múltiplos owner-tags: o primeiro ganha o margin-auto, os demais
+   ficam colados nele */
+.conv-item .conv-meta-row .tag-owner ~ .tag-owner {
+  margin-left: 4px;
+}
 
 /* AvatarStack — 22px circles, overlap -8px, max 3 + "+N" (SPEC v2 §1.2) */
 .avatar-stack {
