@@ -1964,26 +1964,41 @@ body {
 
 /* Mensagens-wrap: column flex (bolhas se alinham via align-self).
    flex: 1 + min-height: 0 + overflow-y: auto = mensagens scrollam
-   internamente, composer fica fixo no bottom da chat-area. */
+   internamente, composer fica fixo no bottom da chat-area.
+   !important defensivo contra cascata legacy que tinha overflow:hidden
+   ou flex:none que comprimia tudo. */
 .messages-wrap {
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 6px;
   padding: 16px 20px;
   background: var(--bg-base);
   position: relative;
   z-index: 1;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }
-/* Chat-area precisa ser flex column de altura definida pra que o
-   flex: 1 do messages-wrap calcule corretamente */
+/* Chain de altura: html/body → app → chat. Sem height definido em
+   nenhum nível, flex:1 vira flex:1 of nothing = 0. */
+html, body { height: 100%; min-height: 0; }
+.app-layout, .inbox-layout, #panel-inbox, .tab-panel#panel-inbox {
+  height: 100% !important;
+  min-height: 0 !important;
+}
 .chat-area {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden;  /* contém o scroll internamente */
+}
+/* Footer (input tabs + composer) sempre visíveis e auto-size,
+   nunca crescem além do necessário */
+.chat-input-tabs,
+.chat-input-wrap,
+.chat-notes-area {
+  flex: 0 0 auto !important;
 }
 
 /* === DEFAULT: BOLHAS === */
