@@ -880,7 +880,13 @@ function renderConversationList() {
             .map(n => `<span class="tag tag-owner" data-color="${ownerColorClass(n)}">${escHtml(n.slice(0, 14))}</span>`)
             .join('');
 
-        const company = lead.company_name || '';
+        // Empresa: lead.company_name → fallback localStorage[atd:org:LEAD_ID]
+        // (preenchido quando user seleciona deal no picker — Pipedrive deals
+        // têm org_name mesmo quando lead.company_name no Branddi tá vazio)
+        let company = lead.company_name || '';
+        if (!company && lead.id) {
+            try { company = localStorage.getItem(`atd:org:${lead.id}`) || ''; } catch (_) {}
+        }
         const isArchived = !!conv.archived_at;
 
         const klass = ['conv-item'];
@@ -1879,7 +1885,7 @@ async function loadDealsForLead(lead, conv) {
                 const statusBadge = d.status === 'won' ? 'deal-won'
                     : d.status === 'lost' ? 'deal-lost' : 'deal-open';
                 return `
-                    <div class="deal-picker-item" data-deal-id="${d.id}" data-deal-title="${escHtml(d.title)}">
+                    <div class="deal-picker-item" data-deal-id="${d.id}" data-deal-title="${escHtml(d.title)}" data-deal-org="${escHtml(d.org_name || '')}">
                         <div class="deal-picker-radio"></div>
                         <div class="deal-picker-info">
                             <div class="deal-picker-title">${escHtml(d.title)}</div>
@@ -1903,12 +1909,21 @@ async function loadDealsForLead(lead, conv) {
 
         if (picker) picker.style.display = '';
 
-        // Auto-seleciona se só tem 1 deal, ou se lead.crm_deal_id bate com um deal
+        // Auto-seleciona em ordem de prioridade:
+        // 1. Só tem 1 deal → seleciona ele
+        // 2. lead.crm_deal_id (vindo do backend) bate com um deal
+        // 3. localStorage[atd:deal:CONV_ID] (escolha anterior do usuário)
+        let lastSavedDealId = null;
+        try { lastSavedDealId = localStorage.getItem(`atd:deal:${conv.id}`); } catch (_) {}
+
         if (deals.length === 1) {
             const firstItem = listEl?.querySelector('.deal-picker-item');
             if (firstItem) selectDeal(firstItem, lead, conv);
         } else if (lead.crm_deal_id) {
             const matchItem = listEl?.querySelector(`[data-deal-id="${lead.crm_deal_id}"]`);
+            if (matchItem) selectDeal(matchItem, lead, conv);
+        } else if (lastSavedDealId) {
+            const matchItem = listEl?.querySelector(`[data-deal-id="${lastSavedDealId}"]`);
             if (matchItem) selectDeal(matchItem, lead, conv);
         }
     } catch {
@@ -1921,6 +1936,15 @@ async function loadDealsForLead(lead, conv) {
 function selectDeal(itemEl, lead, conv) {
     selectedDealId = itemEl.dataset.dealId;
     const dealTitle = itemEl.dataset.dealTitle;
+    const dealOrg = itemEl.dataset.dealOrg || '';
+
+    // Persistência frontend-only: salva escolha por conv + org por lead.
+    // Backend não tem endpoint pra atualizar leads.crm_deal_id após seleção,
+    // então uso localStorage pra fingir que persiste — auto-restore no render.
+    try {
+        if (conv?.id) localStorage.setItem(`atd:deal:${conv.id}`, selectedDealId);
+        if (lead?.id && dealOrg) localStorage.setItem(`atd:org:${lead.id}`, dealOrg);
+    } catch (_) {}
 
     const listEl = document.getElementById('lp-deal-list');
     const hintEl = document.getElementById('lp-deal-hint');
