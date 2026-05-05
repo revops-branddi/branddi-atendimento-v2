@@ -1408,7 +1408,7 @@ async function sendMsg() {
 }
 
 function handleInputKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         sendMsg();
     }
