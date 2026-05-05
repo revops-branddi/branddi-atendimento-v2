@@ -223,6 +223,27 @@
             letter-spacing: 0.4px;
         }
 
+        .classification-pill {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: var(--r-pill);
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            vertical-align: middle;
+        }
+        .classification-pill.comercial {
+            background: var(--accent-50);
+            color: var(--accent-700);
+        }
+        .classification-pill.opec {
+            background: rgba(99, 102, 241, 0.12);
+            color: #4f46e5;
+        }
+
         /* === Main / chat area === */
         .site-main {
             display: flex;

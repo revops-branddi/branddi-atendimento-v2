@@ -21,6 +21,14 @@ export async function getLeadById(id) {
     return data || null;
 }
 
+export async function updateLead(id, patch) {
+    const { data, error } = await sb.from('leads')
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+}
+
 // ─── CONVERSATIONS ────────────────────────────────────────────────────
 
 export async function listConversations({

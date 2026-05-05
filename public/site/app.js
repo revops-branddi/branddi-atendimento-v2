@@ -241,7 +241,10 @@ function renderHeader(conv) {
 
     return el('div', { class: 'conv-header' },
         el('div', { class: 'info' },
-            el('div', { class: 'name' }, lead.name || lead.phone || 'Sem nome'),
+            el('div', { class: 'name' },
+                lead.name || lead.phone || 'Sem nome',
+                renderClassificationBadge(lead),
+            ),
             el('div', { class: 'sub' },
                 lead.phone ? `${lead.phone} · ` : '',
                 lead.company_name || lead.email || '',
@@ -249,10 +252,61 @@ function renderHeader(conv) {
             ),
         ),
         el('div', { class: 'conv-actions' },
+            ...renderClassificationButtons(conv, lead),
             statusSel,
             claimBtn,
         ),
     );
+}
+
+function renderClassificationBadge(lead) {
+    if (lead.classification === 'comercial') {
+        const label = lead.crm_deal_id
+            ? `Comercial · Deal #${lead.crm_deal_id}`
+            : 'Comercial';
+        return el('span', { class: 'classification-pill comercial', title: label }, label);
+    }
+    if (lead.classification === 'opec') {
+        return el('span', { class: 'classification-pill opec' }, 'OPEC');
+    }
+    return null;
+}
+
+function renderClassificationButtons(conv, lead) {
+    // Lead já classificado → não mostra botões (badge já indica o estado).
+    if (lead.classification === 'comercial' || lead.classification === 'opec') {
+        return [];
+    }
+    return [
+        el('button', {
+            class: 'primary',
+            title: 'Cria Person + Deal no Pipedrive',
+            onclick: () => routeLead('comercial'),
+        }, 'Comercial'),
+        el('button', {
+            title: 'Marca como OPEC (roteamento Gchat virá em seguida)',
+            onclick: () => routeLead('opec'),
+        }, 'OPEC'),
+    ];
+}
+
+async function routeLead(target) {
+    const id = state.activeConvId;
+    if (!id) return;
+    const confirmMsg = target === 'comercial'
+        ? 'Criar Person + Deal no Pipedrive pra esse lead?'
+        : 'Marcar esse lead como OPEC?';
+    if (!confirm(confirmMsg)) return;
+    try {
+        const res = await api(`/conversations/${id}/route-${target}`, { method: 'POST' });
+        const msg = target === 'comercial'
+            ? (res.already_routed ? `Já tinha deal #${res.deal_id}` : `Deal #${res.deal_id} criado no Pipedrive`)
+            : 'Lead marcado como OPEC';
+        toast(msg, 'success');
+        await Promise.all([renderConversation(), loadConversations({ silent: true })]);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
 }
 
 function renderMessages(msgs) {
