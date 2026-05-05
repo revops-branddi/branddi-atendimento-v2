@@ -838,7 +838,13 @@ function renderConversationList() {
         else if (currentFilter === 'comercial') filtered = filtered.filter(c => c.assigned_to === 'comercial' || c.leads?.classification === 'comercial');
         else if (currentFilter === 'opec') filtered = filtered.filter(c => c.assigned_to === 'opec' || c.leads?.classification === 'opec');
     }
-    // archived: servidor já retorna só as arquivadas, sem filtro client-side adicional
+    // archived: servidor já retorna só as arquivadas quando filtro=archived;
+    // em outros filtros (all/waiting/in_progress/comercial/opec), exclui as
+    // arquivadas que possam ter vazado no cache local — evita mostrar a
+    // conv com .archived class (opacity 0.65) na inbox normal.
+    if (currentFilter !== 'archived') {
+        filtered = filtered.filter(c => !c.archived_at);
+    }
 
     // Client-side search
     if (inboxSearchTerm) {
