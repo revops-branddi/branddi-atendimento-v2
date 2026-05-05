@@ -1044,17 +1044,12 @@ function renderChatArea(conv) {
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
                             <span>Ocultar painel do lead</span>
                         </button>
-                        ${isAdmin ? (conv.archived_at ? `
+                        ${isAdmin && conv.archived_at ? `
                         <button class="ch-menu-item btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" role="menuitem">
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
                             <span>Restaurar conversa</span>
                             <span class="badge-admin">ADM</span>
-                        </button>` : `
-                        <button class="ch-menu-item btn-delete-conv" data-action="delete-conv-menu" data-id="${escHtml(String(conv.id))}" role="menuitem">
-                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                            <span>Arquivar / Excluir</span>
-                            <span class="badge-admin">ADM</span>
-                        </button>`) : ''}
+                        </button>` : ''}
                     </div>
                 </div>
             </div>
