@@ -1019,29 +1019,9 @@ function renderChatArea(conv) {
                 </div>
             </div>
             <div class="ch-actions chat-header-actions">
-                <div class="route-dropdown">
-                    <button class="btn-sm btn-route-trigger" data-action="route-dropdown">
-                        <svg class="icon icon-sm"><use href="/icons.svg#icon-share"></use></svg> Atribuir <span class="caret">▾</span>
-                    </button>
-                    <div class="route-dropdown-menu">
-                        <button class="route-dropdown-item" data-action="route-action" data-id="${conv.id}" data-team="comercial">
-                            <span class="route-dot" style="background:var(--accent)"></span> Comercial
-                        </button>
-                        <button class="route-dropdown-item" data-action="route-action" data-id="${conv.id}" data-team="opec">
-                            <span class="route-dot" style="background:var(--amber)"></span> OPEC
-                        </button>
-                        <div class="route-dropdown-divider"></div>
-                        <button class="route-dropdown-item route-close" data-action="route-action" data-id="${conv.id}" data-team="close">
-                            <svg class="icon icon-sm"><use href="/icons.svg#icon-x"></use></svg> Fechar conversa
-                        </button>
-                    </div>
-                </div>
-                ${showPipedrive ? `
-                <button class="btn-sm btn-primary btn-push-pipedrive" data-action="push-pipedrive" data-id="${escHtml(String(conv.id))}" title="Enviar ao Pipedrive (cria deal, pessoa, transcript)">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                    Pipedrive
-                </button>` : ''}
-                <div class="ch-divider"></div>
+                <!-- Atribuir + Pipedrive removidos: este Inbox é só prospecção
+                     (deals já existem no Pipedrive desde o início). Conversas
+                     do site → /site/ que tem o fluxo Atribuir + criar deal. -->
                 <div class="ch-overflow">
                     <button class="btn-icon" data-action="open-overflow-menu" title="Mais ações" aria-haspopup="menu">⋯</button>
                     <div class="ch-overflow-menu" role="menu">
