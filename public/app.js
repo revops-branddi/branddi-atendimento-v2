@@ -175,8 +175,19 @@ function setupEventDelegation() {
             case 'toggle-lp-details':
                 el.closest('.lp-collapsible')?.classList.toggle('open');
                 break;
+            case 'lp-tab': {
+                // SPEC v2 §4 — alterna aba Atividade | Detalhes no lead-panel
+                const target = el.dataset.tab; // 'atividade' | 'detalhes'
+                document.querySelectorAll('.lp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
+                document.querySelectorAll('.lp-tab-panel').forEach(p => p.classList.toggle('active', p.id === `lp-panel-${target}`));
+                break;
+            }
             case 'route-dropdown':
                 toggleRouteDropdown();
+                break;
+            case 'open-overflow-menu':
+                e.stopPropagation();
+                toggleOverflowMenu();
                 break;
             case 'route-action': {
                 const team = el.dataset.team;
@@ -344,6 +355,122 @@ document.addEventListener('click', (e) => {
     const menu = document.querySelector('.route-dropdown-menu');
     if (menu?.classList.contains('open') && dd && !dd.contains(e.target)) {
         menu.classList.remove('open');
+    }
+});
+
+// SPEC v2 §8 — Topbar: breadcrumb + WA pill + user chip
+const TOPBAR_TITLES = {
+    inbox:     { title: 'Inbox',     sub: 'Conversas WhatsApp' },
+    deals:     { title: 'Deals',     sub: 'Pipedrive' },
+    leads:     { title: 'Leads',     sub: 'Base completa' },
+    scripts:   { title: 'Scripts',   sub: 'Templates de atendimento' },
+    history:   { title: 'Histórico', sub: 'Conversas anteriores' },
+    dashboard: { title: 'Dashboard', sub: 'Métricas comerciais' },
+};
+function updateTopbarCrumb(tab) {
+    const t = TOPBAR_TITLES[tab];
+    if (!t) return;
+    const titleEl = document.getElementById('crumb-title');
+    const subEl = document.getElementById('crumb-sub');
+    if (titleEl) titleEl.textContent = t.title;
+    if (subEl) subEl.textContent = t.sub;
+}
+function updateTopbarUser() {
+    if (!currentUser) return;
+    const avatar = document.getElementById('topbar-user-avatar');
+    const name = document.getElementById('topbar-user-name');
+    const role = document.getElementById('topbar-user-role');
+    if (avatar) avatar.textContent = (currentUser.name || '?').split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+    if (name) name.textContent = currentUser.name || currentUser.email || '—';
+    if (role) role.textContent = currentUser.role || '—';
+}
+function updateTopbarWaPill() {
+    const dot = document.getElementById('status-dot');
+    const pill = document.getElementById('topbar-wa-status');
+    if (!dot || !pill) return;
+    const offline = dot.classList.contains('offline');
+    pill.classList.toggle('offline', offline);
+    const txt = pill.querySelector('.status-pill-text');
+    if (txt) txt.textContent = offline ? 'WA desconectado' : 'WA conectado';
+}
+function setupTopbarObservers() {
+    const dot = document.getElementById('status-dot');
+    if (dot) {
+        updateTopbarWaPill();
+        new MutationObserver(updateTopbarWaPill).observe(dot, { attributes: true, attributeFilter: ['class'] });
+    }
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupTopbarObservers);
+} else {
+    setupTopbarObservers();
+}
+
+// SPEC v2 §6 — WA disconnected banner: sincroniza visibilidade com
+// #status-dot.offline via MutationObserver. Single source of truth: o
+// dot. Nenhum dos 5+ pontos onde dot.className é setado precisa
+// chamar nada — o observer reage automaticamente.
+function setupWaDisconnectedBanner() {
+    const dot = document.getElementById('status-dot');
+    const banner = document.getElementById('wa-disconnected-banner');
+    if (!dot || !banner) return;
+    const sync = () => {
+        const offline = dot.classList.contains('offline');
+        banner.style.display = offline ? '' : 'none';
+    };
+    sync();
+    new MutationObserver(sync).observe(dot, { attributes: true, attributeFilter: ['class'] });
+}
+// Boot: registra o observer assim que DOM estiver pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupWaDisconnectedBanner);
+} else {
+    setupWaDisconnectedBanner();
+}
+
+// SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
+// e aplica em <html data-*>. Selects com [data-pref] disparam change.
+function syncAppearanceSelectsFromPrefs() {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    document.querySelectorAll('[data-pref]').forEach(sel => {
+        const key = sel.dataset.pref;
+        const current = prefs[key] || document.documentElement.dataset[key] || sel.options[0]?.value;
+        if (current && sel.value !== current) sel.value = current;
+    });
+}
+document.addEventListener('change', function (e) {
+    const sel = e.target.closest('[data-pref]');
+    if (!sel) return;
+    const key = sel.dataset.pref;
+    const value = sel.value;
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    prefs[key] = value;
+    try { localStorage.setItem('atd:prefs', JSON.stringify(prefs)); } catch(_) {}
+    document.documentElement.dataset[key] = value;
+});
+// (Sync ao abrir o modal acontece em openSettingsModal — chamada direta)
+
+// SPEC v2 §2 — Chat header overflow menu (⋯) — agrupa ações secundárias
+function toggleOverflowMenu() {
+    const wrap = document.querySelector('.ch-overflow');
+    if (!wrap) return;
+    const wasOpen = wrap.classList.contains('open');
+    // Close any sibling dropdowns first (route, scripts) to evitar empilhamento
+    closeRouteDropdown();
+    document.getElementById('scripts-menu')?.classList.remove('open');
+    wrap.classList.toggle('open', !wasOpen);
+}
+function closeOverflowMenu() {
+    document.querySelector('.ch-overflow')?.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+    const wrap = document.querySelector('.ch-overflow');
+    if (!wrap?.classList.contains('open')) return;
+    // Fecha no click fora do wrap, ou no click em um item do menu
+    if (!wrap.contains(e.target) || e.target.closest('.ch-menu-item')) {
+        wrap.classList.remove('open');
     }
 });
 
@@ -526,6 +653,7 @@ function switchTab(tab) {
     const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
     if (btn) btn.classList.add('active');
     document.getElementById(`panel-${tab}`)?.classList.add('active');
+    if (typeof updateTopbarCrumb === 'function') updateTopbarCrumb(tab);
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'scripts') loadScripts();
     if (tab === 'leads') loadLeads();
@@ -710,7 +838,13 @@ function renderConversationList() {
         else if (currentFilter === 'comercial') filtered = filtered.filter(c => c.assigned_to === 'comercial' || c.leads?.classification === 'comercial');
         else if (currentFilter === 'opec') filtered = filtered.filter(c => c.assigned_to === 'opec' || c.leads?.classification === 'opec');
     }
-    // archived: servidor já retorna só as arquivadas, sem filtro client-side adicional
+    // archived: servidor já retorna só as arquivadas quando filtro=archived;
+    // em outros filtros (all/waiting/in_progress/comercial/opec), exclui as
+    // arquivadas que possam ter vazado no cache local — evita mostrar a
+    // conv com .archived class (opacity 0.65) na inbox normal.
+    if (currentFilter !== 'archived') {
+        filtered = filtered.filter(c => !c.archived_at);
+    }
 
     // Client-side search
     if (inboxSearchTerm) {
@@ -740,28 +874,47 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // 1+ etiquetas de atendente, cada uma com cor própria derivada do nome
+        // Atendente — paleta determinística pelo nome.
+        // 1 owner = pill simples; 2+ owners = empilha tags (raro).
+        // Tag com nome > círculo com inicial: "S" pode ser Sergio OU Stephanie,
+        // mas "SERGIO" é inequívoco.
         const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
             ? conv.account_owner_names
             : (conv.account_owner_name ? [conv.account_owner_name] : []);
-        const ownerBadge = ownerNames.length > 0
-            ? ownerNames.map(n =>
-                `<span class="conv-owner-badge" data-color="${ownerColorClass(n)}" title="Atendente responsável">${escHtml(n)}</span>`
-              ).join('')
-            : '';
+        const ownerTags = ownerNames
+            .slice(0, 3) // até 3 tags inline; depois corta (raro)
+            .map(n => `<span class="tag tag-owner" data-color="${ownerColorClass(n)}">${escHtml(n.slice(0, 14))}</span>`)
+            .join('');
+
+        // Empresa: lead.company_name → fallback localStorage[atd:org:LEAD_ID]
+        // (preenchido quando user seleciona deal no picker — Pipedrive deals
+        // têm org_name mesmo quando lead.company_name no Branddi tá vazio)
+        let company = lead.company_name || '';
+        if (!company && lead.id) {
+            try { company = localStorage.getItem(`atd:org:${lead.id}`) || ''; } catch (_) {}
+        }
+        const isArchived = !!conv.archived_at;
 
         const klass = ['conv-item'];
         if (isActive)            klass.push('active');
         if (hasUnread)           klass.push('unread');
         if (lastFromLead)        klass.push('lead-replied');
+        if (isArchived)          klass.push('archived');
+
+        const unreadHtml = hasUnread
+            ? `<span class="conv-unread">${conv.unread_count}</span>`
+            : '';
 
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
-            <div class="conv-item-top">
-                <span class="conv-name">${escHtml(name)}${ownerBadge}</span>
-                <span class="conv-time">${time}</span>
+            <div class="conv-main">
+                <div class="conv-item-top">
+                    <span class="conv-name">${escHtml(name)}</span>
+                    <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
+                </div>
+                <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
+                ${(company || ownerTags) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerTags}</div>` : ''}
             </div>
-            <div class="conv-preview">${escHtml(preview)}</div>
-            ${hasUnread ? `<div class="conv-tags"><span class="tag tag-unread">${conv.unread_count} nova${conv.unread_count > 1 ? 's' : ''}</span></div>` : ''}
+            ${unreadHtml}
         </div>`;
     }).join('');
 }
@@ -773,6 +926,23 @@ function ownerColorClass(name) {
     let h = 0;
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
     return 'c' + (Math.abs(h) % 6);
+}
+
+// Render AvatarStack de owners — SPEC v2 §1.2:
+// avatares circulares 22px, overlap -8px, max 3 visíveis + "+N".
+function renderAvatarStack(names) {
+    if (!Array.isArray(names) || names.length === 0) return '';
+    const visible = names.slice(0, 3);
+    const more = names.length - visible.length;
+    const stack = visible.map(n => {
+        const init = String(n).split(/\s+/).filter(Boolean).slice(0, 2)
+            .map(w => w[0]).join('').toUpperCase() || '?';
+        return `<span class="avatar" data-color="${ownerColorClass(n)}" title="${escHtml(n)}">${escHtml(init)}</span>`;
+    }).join('');
+    const moreHtml = more > 0
+        ? `<span class="avatar avatar-more" title="+${more} mais">+${more}</span>`
+        : '';
+    return `<div class="avatar-stack">${stack}${moreHtml}</div>`;
 }
 
 function updateInboxBadge() {
@@ -819,36 +989,34 @@ function renderChatArea(conv) {
     const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
     const cls = lead.classification || 'unclassified';
 
+    // SPEC v2 §2 — chat header (split inline + ⋯ overflow)
+    // Status pill mapping (conv.status → tone + label)
+    const statusToneMap = { waiting: 'warning', in_progress: 'success', closed: 'muted', archived: 'danger' };
+    const statusLabelMap = { waiting: 'Aguardando', in_progress: 'Em andamento', closed: 'Encerrada', archived: 'Arquivada' };
+    const statusKey = conv.archived_at ? 'archived' : (conv.status || 'waiting');
+    const statusTone = statusToneMap[statusKey] || 'muted';
+    const statusLabel = statusLabelMap[statusKey] || statusKey;
+
+    const isAdmin = currentUser?.role === 'Admin';
+    const showPipedrive = (cls !== 'opec' && !conv.crm_deal_id && !lead.crm_deal_id);
+
     const area = document.getElementById('chat-area');
     area.innerHTML = `
-        <div class="chat-header">
-            <div class="chat-header-left">
-                <div class="chat-avatar">${initials}</div>
-                <div>
-                    <div class="chat-meta-name">${escHtml(name)}</div>
-                    <div class="chat-meta-sub">${lead.company_name ? escHtml(lead.company_name) + ' · ' : ''}${classLabel(cls)}</div>
+        <header class="chat-header">
+            <div class="ch-info chat-header-left">
+                <div class="ch-avatar chat-avatar">${initials}</div>
+                <div class="ch-info-text">
+                    <div class="ch-name chat-meta-name">${escHtml(name)}</div>
+                    <div class="ch-status chat-meta-sub">
+                        <span class="status-dot ${statusTone}"></span>
+                        ${statusLabel}${lead.company_name ? ' · ' + escHtml(lead.company_name) : ''}${classLabel(cls) ? ' · ' + classLabel(cls) : ''}
+                    </div>
                 </div>
             </div>
-            <div class="chat-header-actions">
-                ${(cls !== 'opec' && !conv.crm_deal_id && !lead.crm_deal_id) ? `
-                <button class="btn-sm btn-push-pipedrive" data-action="push-pipedrive" data-id="${escHtml(String(conv.id))}" title="Enviar ao Pipedrive (cria deal, pessoa, transcript)">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                    Pipedrive
-                </button>` : ''}
-                ${currentUser?.role === 'Admin' ? (conv.archived_at ? `
-                <button class="btn-sm btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" title="Restaurar conversa arquivada">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-                    Restaurar
-                </button>` : `
-                <button class="btn-sm btn-delete-conv" data-action="delete-conv-menu" data-id="${escHtml(String(conv.id))}" title="Arquivar ou excluir (Admin)">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                </button>`) : ''}
-                <button class="btn-sm btn-toggle-lead-panel" data-action="toggle-lead-panel" title="Painel do lead">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-                </button>
+            <div class="ch-actions chat-header-actions">
                 <div class="route-dropdown">
                     <button class="btn-sm btn-route-trigger" data-action="route-dropdown">
-                        <svg class="icon icon-sm"><use href="/icons.svg#icon-share"></use></svg> Atribuir
+                        <svg class="icon icon-sm"><use href="/icons.svg#icon-share"></use></svg> Atribuir <span class="caret">▾</span>
                     </button>
                     <div class="route-dropdown-menu">
                         <button class="route-dropdown-item" data-action="route-action" data-id="${conv.id}" data-team="comercial">
@@ -863,8 +1031,29 @@ function renderChatArea(conv) {
                         </button>
                     </div>
                 </div>
+                ${showPipedrive ? `
+                <button class="btn-sm btn-primary btn-push-pipedrive" data-action="push-pipedrive" data-id="${escHtml(String(conv.id))}" title="Enviar ao Pipedrive (cria deal, pessoa, transcript)">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Pipedrive
+                </button>` : ''}
+                <div class="ch-divider"></div>
+                <div class="ch-overflow">
+                    <button class="btn-icon" data-action="open-overflow-menu" title="Mais ações" aria-haspopup="menu">⋯</button>
+                    <div class="ch-overflow-menu" role="menu">
+                        <button class="ch-menu-item btn-toggle-lead-panel" data-action="toggle-lead-panel" role="menuitem">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                            <span>Ocultar painel do lead</span>
+                        </button>
+                        ${isAdmin && conv.archived_at ? `
+                        <button class="ch-menu-item btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" role="menuitem">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                            <span>Restaurar conversa</span>
+                            <span class="badge-admin">ADM</span>
+                        </button>` : ''}
+                    </div>
+                </div>
             </div>
-        </div>
+        </header>
         <div class="messages-wrap" id="messages-wrap">
             <div class="empty-state" style="padding:40px 0"><span>Carregando mensagens...</span></div>
         </div>
@@ -956,13 +1145,19 @@ async function loadMessages(convId, chatId) {
 }
 
 function renderMessage(msg) {
+    // SPEC v2 §3 — 5 tipos: inbound, outbound, bot, note, system
+    const isSystem = msg.sender_type === 'system';
     const isBot    = msg.sender_type === 'bot';
     const isNote   = msg.sender_type === 'note';
     const isOut    = msg.direction === 'outbound';
-    const cls      = isNote ? 'note' : isBot ? 'bot' : (isOut ? 'outbound' : 'inbound');
+    const cls      = isSystem ? 'system'
+                   : isNote   ? 'note'
+                   : isBot    ? 'bot'
+                   : isOut    ? 'outbound'
+                              : 'inbound';
     const time     = formatTime(msg.created_at);
 
-    // Nome do remetente
+    // Nome do remetente — preenche apenas pra in/out/bot/note (system não tem)
     let sender = '';
     if (isNote) {
         sender = msg.sent_by_name || msg.sender_name || 'Nota interna';
@@ -970,7 +1165,14 @@ function renderMessage(msg) {
         sender = '🤖 Bot';
     } else if (isOut) {
         sender = msg.sent_by_name || msg.sender_name || 'Equipe';
+    } else if (!isSystem) {
+        // inbound — autor é o lead (preenchido pelo conversation lead)
+        sender = msg.sender_name || (currentConversation?.leads?.name) || '';
     }
+
+    // Type label da coluna esquerda (SPEC §3)
+    const typeLabels = { inbound: 'Lead', outbound: 'Atendente', bot: 'Bot', note: 'Nota interna' };
+    const typeLabel = typeLabels[cls] || '';
 
     // Renderiza attachments (imagens, vídeos, documentos).
     // Espelha o approach do v3: usa msg.unipile_message_id + att.id direto
@@ -1029,17 +1231,28 @@ function renderMessage(msg) {
         const seen = !!msg.seen;
         const delivered = !!msg.delivered;
         let icon, label, klass;
-        if (seen)            { icon = '✓✓'; label = 'Lido';      klass = 'msg-status seen'; }
-        else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-status delivered'; }
-        else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-status sent'; }
+        if (seen)            { icon = '✓✓'; label = 'Lido';      klass = 'msg-check read'; }
+        else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-check delivered'; }
+        else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-check sent'; }
         deliveryHtml = `<span class="${klass}" title="${label}">${icon}</span>`;
     }
 
-    return `<div class="msg-bubble ${cls}">
-        ${attachmentsHtml}
-        ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
+    // System messages: linha centralizada simples (SPEC §3)
+    if (isSystem) {
+        return `<div class="msg-bubble msg-row msg-system system">${textContent}</div>`;
+    }
+
+    // Demais tipos: grid 88px meta + 1fr content + auto status (SPEC §3)
+    return `<div class="msg-bubble msg-row msg-${cls} ${cls}">
         <div class="msg-meta">
-            ${sender ? `<span class="msg-sender${isBot ? ' bot-label' : ''}">${escHtml(sender)}</span>` : ''}
+            ${typeLabel ? `<div class="msg-type">${typeLabel}</div>` : ''}
+            ${sender ? `<div class="msg-author" title="${escHtml(sender)}">${escHtml(sender)}</div>` : ''}
+        </div>
+        <div class="msg-content">
+            ${attachmentsHtml}
+            ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
+        </div>
+        <div class="msg-status-col">
             <span class="msg-time">${time}</span>
             ${deliveryHtml}
         </div>
@@ -1667,13 +1880,28 @@ async function loadDealsForLead(lead, conv) {
             return;
         }
 
+        // Auto-cache: ao abrir a conversa, mesmo sem o user clicar em
+        // nenhum deal, salva o org_name pra preencher conv-list.company.
+        // Prioriza o deal que bate com lead.crm_deal_id; senão o 1º.
+        try {
+            if (lead?.id) {
+                const matchedDeal = lead.crm_deal_id
+                    ? deals.find(d => String(d.id) === String(lead.crm_deal_id))
+                    : null;
+                const orgFromDeal = (matchedDeal || deals[0])?.org_name || '';
+                if (orgFromDeal) {
+                    localStorage.setItem(`atd:org:${lead.id}`, orgFromDeal);
+                }
+            }
+        } catch (_) {}
+
         // Renderiza lista de deals como cards clicáveis
         if (listEl) {
             listEl.innerHTML = deals.map(d => {
                 const statusBadge = d.status === 'won' ? 'deal-won'
                     : d.status === 'lost' ? 'deal-lost' : 'deal-open';
                 return `
-                    <div class="deal-picker-item" data-deal-id="${d.id}" data-deal-title="${escHtml(d.title)}">
+                    <div class="deal-picker-item" data-deal-id="${d.id}" data-deal-title="${escHtml(d.title)}" data-deal-org="${escHtml(d.org_name || '')}">
                         <div class="deal-picker-radio"></div>
                         <div class="deal-picker-info">
                             <div class="deal-picker-title">${escHtml(d.title)}</div>
@@ -1697,12 +1925,21 @@ async function loadDealsForLead(lead, conv) {
 
         if (picker) picker.style.display = '';
 
-        // Auto-seleciona se só tem 1 deal, ou se lead.crm_deal_id bate com um deal
+        // Auto-seleciona em ordem de prioridade:
+        // 1. Só tem 1 deal → seleciona ele
+        // 2. lead.crm_deal_id (vindo do backend) bate com um deal
+        // 3. localStorage[atd:deal:CONV_ID] (escolha anterior do usuário)
+        let lastSavedDealId = null;
+        try { lastSavedDealId = localStorage.getItem(`atd:deal:${conv.id}`); } catch (_) {}
+
         if (deals.length === 1) {
             const firstItem = listEl?.querySelector('.deal-picker-item');
             if (firstItem) selectDeal(firstItem, lead, conv);
         } else if (lead.crm_deal_id) {
             const matchItem = listEl?.querySelector(`[data-deal-id="${lead.crm_deal_id}"]`);
+            if (matchItem) selectDeal(matchItem, lead, conv);
+        } else if (lastSavedDealId) {
+            const matchItem = listEl?.querySelector(`[data-deal-id="${lastSavedDealId}"]`);
             if (matchItem) selectDeal(matchItem, lead, conv);
         }
     } catch {
@@ -1715,6 +1952,15 @@ async function loadDealsForLead(lead, conv) {
 function selectDeal(itemEl, lead, conv) {
     selectedDealId = itemEl.dataset.dealId;
     const dealTitle = itemEl.dataset.dealTitle;
+    const dealOrg = itemEl.dataset.dealOrg || '';
+
+    // Persistência frontend-only: salva escolha por conv + org por lead.
+    // Backend não tem endpoint pra atualizar leads.crm_deal_id após seleção,
+    // então uso localStorage pra fingir que persiste — auto-restore no render.
+    try {
+        if (conv?.id) localStorage.setItem(`atd:deal:${conv.id}`, selectedDealId);
+        if (lead?.id && dealOrg) localStorage.setItem(`atd:org:${lead.id}`, dealOrg);
+    } catch (_) {}
 
     const listEl = document.getElementById('lp-deal-list');
     const hintEl = document.getElementById('lp-deal-hint');
@@ -2077,7 +2323,18 @@ async function loadDashboard() {
         renderDashTables(data);
     } catch (err) {
         console.error('Dashboard error:', err);
-        toast(`Dashboard: ${err.message}`, 'error');
+        // Reset KPIs pra "—" pra não ficar com dados velhos
+        ['kpi-sent','kpi-received','kpi-reply-rate','kpi-first-resp',
+         'kpi-total','kpi-comercial','kpi-opec','kpi-convs',
+         'kpi-comercial-pct','kpi-opec-pct',
+         'kpi-act-bb','kpi-act-fr','kpi-act-vm','kpi-transcripts','kpi-apollo'
+        ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+        // Mensagem inline em vez de toast cruel — possíveis causas:
+        // - sem dados no período (filtro muito restrito)
+        // - bug backend conhecido: data=null em query supabase quando não há msgs
+        const apolloSubEl = document.getElementById('kpi-apollo-sub');
+        if (apolloSubEl) apolloSubEl.textContent = 'Sem dados no período';
+        toast('Sem dados disponíveis no período selecionado', 'warn');
     }
 }
 
@@ -2459,6 +2716,9 @@ function setupCurrentUser() {
         <button class="btn-logout" data-action="logout" title="Sair">&#x2715;</button>
     `;
 
+    // SPEC v2 §8 — preenche o user chip do topbar
+    if (typeof updateTopbarUser === 'function') updateTopbarUser();
+
     const isAdmin = currentUser.role === 'Admin';
 
     // Admin ve o link de usuarios nas configuracoes
@@ -2708,6 +2968,11 @@ let _settingsData = null;
 async function openSettingsModal() {
     const modal = document.getElementById('modal-settings');
     if (modal) modal.style.display = 'flex';
+
+    // Sync selects de Aparência com prefs salvas (SPEC v2 §5)
+    if (typeof syncAppearanceSelectsFromPrefs === 'function') {
+        syncAppearanceSelectsFromPrefs();
+    }
 
     const isAdmin = currentUser?.role === 'Admin';
 
