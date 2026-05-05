@@ -7,88 +7,462 @@
     <meta name="description" content="Atendimento dedicado ao chat do site da Branddi." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Reusa os tokens v2 do redesign principal pra consistência visual -->
+    <link rel="stylesheet" href="/style-v2.css" />
     <style>
+        /* === Tokens locais — espelham os tokens v2 do main app === */
+        :root {
+            --bg-base:    #F6F7F8;
+            --bg-elev-1:  #FFFFFF;
+            --bg-elev-2:  #F1F3F5;
+            --bg-elev-3:  #E6E9EC;
+            --bg-hover:   #F1F3F5;
+            --bg-active:  rgba(15, 157, 143, 0.10);
+            --border-sm:  #EEF1F4;
+            --border-md:  #E4E7EB;
+            --border-lg:  #D1D6DB;
+            --text-1:     #0E1620;
+            --text-2:     #5A6672;
+            --text-3:     #8A95A0;
+            --text-muted: #8A95A0;
+            --accent:     #0F9D8F;
+            --accent-50:  #E6F6F4;
+            --accent-100: #BFE7E2;
+            --accent-700: #0B7A6F;
+            --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+            --sh-sm: 0 1px 2px rgba(15,22,32,0.04);
+            --sh-md: 0 4px 12px rgba(15,22,32,0.06);
+            --sh-lg: 0 12px 32px rgba(15,22,32,0.10);
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger:  #E11D48;
+        }
+
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; color: #111827; }
-        body { display: flex; height: 100vh; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
+        html, body { margin: 0; padding: 0; height: 100%; min-height: 0; }
+        body {
+            display: flex;
+            height: 100vh;
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 14px;
+            background: var(--bg-base);
+            color: var(--text-1);
+        }
 
-        .site-shell { display: grid; grid-template-columns: 340px 1fr; width: 100%; height: 100%; }
+        .site-shell {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            width: 100%;
+            height: 100%;
+        }
 
-        .site-sidebar { border-right: 1px solid #e5e7eb; background: #f9fafb; display: flex; flex-direction: column; min-height: 0; }
-        .site-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; }
-        .site-header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-        .site-back { color: #6b7280; text-decoration: none; font-size: 13px; }
-        .site-back:hover { color: #111827; }
+        /* === Sidebar === */
+        .site-sidebar {
+            border-right: 1px solid var(--border-md);
+            background: var(--bg-elev-1);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .site-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-md);
+        }
+        .site-header h1 {
+            font-size: 15px;
+            margin: 0;
+            font-weight: 600;
+            color: var(--text-1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .site-header h1::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+        .site-back {
+            color: var(--text-2);
+            text-decoration: none;
+            font-size: 13px;
+            padding: 4px 10px;
+            border-radius: var(--r-md);
+            transition: background 0.12s;
+        }
+        .site-back:hover {
+            color: var(--text-1);
+            background: var(--bg-elev-2);
+        }
 
-        .site-filters { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .site-filters {
+            display: flex;
+            gap: 4px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-md);
+            flex-wrap: wrap;
+            background: var(--bg-elev-1);
+        }
         .filter-btn {
-            background: #fff; border: 1px solid #e5e7eb; border-radius: 999px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #374151;
+            background: transparent;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-pill);
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-2);
+            font-family: inherit;
+            transition: all 0.12s;
         }
-        .filter-btn:hover { background: #f3f4f6; }
-        .filter-btn.active { background: #111827; color: #fff; border-color: #111827; }
-
-        .conv-list { flex: 1; overflow-y: auto; padding: 8px; }
-        .conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
-        .conv-item:hover { background: #f3f4f6; }
-        .conv-item.active { background: #eef2ff; border-color: #6366f1; }
-        .conv-item .name { font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
-        .conv-item .preview { font-size: 12px; color: #6b7280; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .conv-item .meta { font-size: 11px; color: #9ca3af; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
-        .conv-item time { color: #9ca3af; font-size: 11px; font-weight: 400; }
-
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; line-height: 1.4; }
-        .badge-waiting_human { background: #fef3c7; color: #92400e; }
-        .badge-in_progress   { background: #d1fae5; color: #065f46; }
-        .badge-resolved      { background: #e5e7eb; color: #374151; }
-
-        .site-main { display: flex; flex-direction: column; min-height: 0; }
-        /* Estado "loaded" do viewer: flex column ocupando todo o main, pra
-           que o msg-list (flex:1) tenha contexto pra crescer. Substitui o
-           .site-empty quando uma conversa é selecionada. */
-        .conv-view { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
-        .site-empty { color: #9ca3af; text-align: center; margin: 80px 16px; font-size: 14px; }
-
-        .conv-header { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .conv-header .info { flex: 1; min-width: 200px; }
-        .conv-header .name { font-weight: 600; font-size: 15px; }
-        .conv-header .sub  { font-size: 12px; color: #6b7280; margin-top: 2px; }
-        .conv-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-        .conv-actions select, .conv-actions button {
-            font-family: inherit; font-size: 12px; padding: 5px 10px;
-            border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer;
+        .filter-btn:hover {
+            background: var(--bg-elev-2);
+            color: var(--text-1);
         }
-        .conv-actions button.primary { background: #111827; color: #fff; border-color: #111827; }
-        .conv-actions button:hover:not(:disabled) { background: #f3f4f6; }
-        .conv-actions button.primary:hover:not(:disabled) { background: #1f2937; }
-        .conv-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .filter-btn.active {
+            background: var(--accent-50);
+            color: var(--accent-700);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
 
-        .msg-list { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: #f9fafb; }
-        .msg { max-width: 65%; padding: 8px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
-        .msg.inbound  { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; }
-        .msg.outbound { align-self: flex-end; background: #6366f1; color: #fff; }
-        .msg .who   { font-size: 11px; opacity: 0.7; margin-bottom: 2px; }
-        .msg .when  { font-size: 10px; opacity: 0.55; margin-top: 4px; text-align: right; }
-        .msg.outbound .when { color: #e0e7ff; }
+        .conv-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+            background: var(--bg-elev-1);
+        }
+        .conv-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-sm);
+            border-left: 3px solid transparent;
+            transition: background 0.12s;
+            position: relative;
+        }
+        .conv-item:hover { background: var(--bg-hover); }
+        .conv-item.active {
+            background: var(--bg-active);
+            border-left-color: var(--accent);
+        }
+        .conv-item .name {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-1);
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .conv-item .name span:first-child {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex: 1;
+        }
+        .conv-item .preview {
+            font-size: 12px;
+            color: var(--text-3);
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .conv-item .meta {
+            font-size: 11px;
+            margin-top: 6px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .conv-item time {
+            color: var(--text-3);
+            font-size: 11px;
+            font-weight: 400;
+            font-feature-settings: "tnum";
+        }
 
-        .composer { padding: 12px 16px; border-top: 1px solid #e5e7eb; background: #fff; display: flex; gap: 8px; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: var(--r-pill);
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .badge-waiting_human {
+            background: rgba(245, 158, 11, 0.14);
+            color: #92400E;
+        }
+        .badge-in_progress {
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+        }
+        .badge-resolved {
+            background: var(--bg-elev-2);
+            color: var(--text-2);
+        }
+
+        .status-pill {
+            font-size: 10px;
+            color: var(--accent-700);
+            padding: 2px 8px;
+            background: var(--accent-50);
+            border-radius: var(--r-pill);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        /* === Main / chat area === */
+        .site-main {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            background: var(--bg-base);
+            position: relative;
+        }
+        .site-main::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url('/branddi-mark.svg');
+            background-repeat: repeat;
+            background-size: 90px 135px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .conv-view {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+        }
+        .site-empty {
+            color: var(--text-2);
+            text-align: center;
+            padding: 32px 28px;
+            font-size: 13px;
+            background: var(--bg-elev-1);
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-lg);
+            box-shadow: var(--sh-md);
+            max-width: 320px;
+            margin: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Conv header === */
+        .conv-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-md);
+            background: var(--bg-elev-1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            min-height: 60px;
+            flex-shrink: 0;
+        }
+        .conv-header .info {
+            flex: 1;
+            min-width: 200px;
+        }
+        .conv-header .name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-1);
+        }
+        .conv-header .sub {
+            font-size: 11px;
+            color: var(--text-2);
+            margin-top: 2px;
+        }
+        .conv-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .conv-actions select,
+        .conv-actions button {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            background: var(--bg-elev-1);
+            color: var(--text-1);
+            cursor: pointer;
+            transition: all 0.12s;
+        }
+        .conv-actions select:focus,
+        .conv-actions button:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+        }
+        .conv-actions button.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .conv-actions button:hover:not(:disabled) {
+            background: var(--bg-elev-2);
+        }
+        .conv-actions button.primary:hover:not(:disabled) {
+            background: var(--accent-700);
+            border-color: var(--accent-700);
+        }
+        .conv-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* === Messages === */
+        .msg-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: transparent;
+            min-height: 0;
+        }
+        .msg {
+            max-width: 70%;
+            padding: 10px 14px 8px;
+            border-radius: 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            box-shadow: var(--sh-sm);
+        }
+        .msg.inbound {
+            align-self: flex-start;
+            background: var(--bg-elev-1);
+            border: 1px solid var(--border-md);
+            color: var(--text-1);
+            border-bottom-left-radius: 4px;
+        }
+        .msg.outbound {
+            align-self: flex-end;
+            background: var(--accent-50);
+            border: 1px solid var(--accent-100);
+            color: var(--text-1);
+            border-bottom-right-radius: 4px;
+        }
+        .msg .who {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-2);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .msg.outbound .who {
+            color: var(--accent-700);
+        }
+        .msg .when {
+            font-size: 10px;
+            color: var(--text-3);
+            margin-top: 4px;
+            text-align: right;
+            font-feature-settings: "tnum";
+        }
+
+        /* === Composer === */
+        .composer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-md);
+            background: var(--bg-elev-1);
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
         .composer textarea {
-            flex: 1; resize: none; min-height: 40px; max-height: 140px;
-            padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px;
-            font-family: inherit; font-size: 14px;
+            flex: 1;
+            resize: none;
+            min-height: 40px;
+            max-height: 140px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            font-family: inherit;
+            font-size: 13px;
+            background: var(--bg-elev-2);
+            color: var(--text-1);
+            transition: all 0.12s;
         }
-        .composer textarea:focus { outline: none; border-color: #6366f1; }
+        .composer textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+            background: var(--bg-elev-1);
+        }
+        .composer textarea::placeholder {
+            color: var(--text-3);
+        }
         .composer button {
-            background: #6366f1; color: #fff; border: none; border-radius: 8px;
-            padding: 8px 16px; font-weight: 600; cursor: pointer; font-family: inherit;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--r-md);
+            padding: 8px 18px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.12s;
         }
-        .composer button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .composer button:hover:not(:disabled) {
+            background: var(--accent-700);
+        }
+        .composer button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
         .composer.disabled { opacity: 0.6; }
 
-        .status-pill { font-size: 11px; color: #6b7280; padding: 2px 8px; background: #f3f4f6; border-radius: 999px; }
-        .toast { position: fixed; bottom: 20px; right: 20px; background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.2s; }
-        .toast.show { opacity: 1; }
-        .toast.error { background: #b91c1c; }
+        /* === Toast === */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--text-1);
+            color: var(--bg-elev-1);
+            padding: 12px 18px;
+            border-radius: var(--r-md);
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.2s, transform 0.2s;
+            box-shadow: var(--sh-lg);
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast.error {
+            background: var(--danger);
+        }
     </style>
 </head>
 <body>
@@ -106,7 +480,7 @@
             <button class="filter-btn" data-filter="resolved">Resolvidas</button>
         </div>
         <div id="conv-list" class="conv-list">
-            <div class="site-empty">Carregando…</div>
+            <div class="site-empty" style="border:none;box-shadow:none;background:transparent;margin:32px auto">Carregando…</div>
         </div>
     </aside>
     <main class="site-main">
