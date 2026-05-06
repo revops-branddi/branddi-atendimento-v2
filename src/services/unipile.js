@@ -483,6 +483,88 @@ export function stopPolling() {
     if (_pollingInterval) clearInterval(_pollingInterval);
 }
 
+/**
+ * Re-sincroniza uma conversa específica: puxa as últimas N mensagens do
+ * Unipile e roda pelo saveMessage (que deduplica por unipile_message_id).
+ *
+ * Uso: recuperar mensagens que o polling perdeu por bugs/erros transitórios.
+ * Mais barato que processChat completo — pula match de lead/Pipedrive porque
+ * a conversa já existe.
+ *
+ * @returns {{ fetched, inserted, skipped, errored }}
+ */
+export async function resyncConversation(conversationId, { limit = 50 } = {}) {
+    if (!isAvailable()) throw new Error('Unipile não configurado');
+    const { default: sb } = await import('./supabase.js');
+
+    const { data: conversation, error } = await sb
+        .from('conversations')
+        .select('*, leads(name)')
+        .eq('id', conversationId)
+        .single();
+    if (error || !conversation) throw new Error('Conversa não encontrada');
+    if (!conversation.whatsapp_chat_id) {
+        throw new Error('Conversa sem whatsapp_chat_id (não é WhatsApp)');
+    }
+
+    const msgs = await getMessages(conversation.whatsapp_chat_id, { limit });
+    const allMsgs = msgs.items || [];
+
+    const accountId = conversation.whatsapp_account_id;
+    const accountOwner = accountId ? await getAccountOwner(accountId) : null;
+
+    let inserted = 0, skipped = 0, errored = 0;
+    for (const rawMsg of allMsgs) {
+        try {
+            const msg = whatsapp.normalizeMessage(rawMsg);
+            const isOutbound = msg.direction === 'outbound';
+            const outboundName = accountOwner?.user_name || 'Atendente';
+
+            const saved = await saveMessage({
+                conversation_id:    conversation.id,
+                direction:          msg.direction,
+                sender_type:        isOutbound ? 'human' : 'lead',
+                sender_name:        isOutbound ? outboundName : (conversation.leads?.name || 'Lead'),
+                sent_by_user_id:    isOutbound ? (accountOwner?.user_id || null) : null,
+                sent_by_name:       isOutbound ? outboundName : null,
+                content:            msg.text,
+                attachments:        msg.attachments,
+                unipile_message_id: msg.id,
+                created_at:         msg.timestamp,
+                delivered:          !!msg.delivered,
+                seen:               !!msg.seen,
+            });
+
+            if (saved) inserted++;
+            else skipped++;
+        } catch (err) {
+            errored++;
+            logger.warn('Resync: erro processando msg', {
+                conversation_id: conversationId,
+                msg_id: rawMsg?.id,
+                error: err.message,
+            });
+        }
+    }
+
+    if (inserted > 0) {
+        await updateConversation(conversation.id, {
+            last_message_at: new Date().toISOString(),
+        });
+    }
+
+    logger.info('Resync conversa concluído', {
+        conversation_id: conversationId,
+        chat_id: conversation.whatsapp_chat_id,
+        fetched: allMsgs.length,
+        inserted,
+        skipped,
+        errored,
+    });
+
+    return { fetched: allMsgs.length, inserted, skipped, errored };
+}
+
 async function processChat(chat) {
     try {
         let conversation = await findConversationByChat(chat.id);
@@ -657,6 +739,11 @@ async function processChat(chat) {
         }
 
         for (const rawMsg of newMsgs) {
+            // try/catch POR MENSAGEM — um erro em uma msg não pode descartar
+            // as restantes daquele newMsgs (era o que acontecia antes:
+            // saveMessage lançava em duplicata e o loop morria, perdendo as
+            // mensagens novas que ainda viriam atrás na lista).
+            try {
             // Normalize via provider abstraction
             const msg = whatsapp.normalizeMessage(rawMsg);
 
@@ -753,6 +840,14 @@ async function processChat(chat) {
             // Auto-create Reply activity in Pipedrive (fire and forget)
             if (msg.direction === 'inbound') {
                 onInboundMessage(conversation.id).catch(() => {});
+            }
+            } catch (err) {
+                // Mensagem individual falhou — loga e segue pras próximas.
+                logger.warn('Polling: erro processando msg, seguindo', {
+                    chat_id: chat.id,
+                    msg_id: rawMsg?.id,
+                    error: err.message,
+                });
             }
         }
 

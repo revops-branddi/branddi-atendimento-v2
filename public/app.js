@@ -206,6 +206,9 @@ function setupEventDelegation() {
             case 'restore-conv':
                 restoreConversation(id);
                 break;
+            case 'resync-conv':
+                resyncConversation(id);
+                break;
             case 'confirm-delete-conv':
                 confirmDeleteConv();
                 break;
@@ -276,6 +279,28 @@ async function restoreConversation(conversationId) {
         if (typeof loadInbox === 'function') loadInbox();
     } catch (err) {
         toast(`❌ Falha: ${err.message}`, 'error');
+    }
+}
+
+// ─── Re-sincronizar mensagens (recupera msgs perdidas pelo polling) ───
+async function resyncConversation(conversationId) {
+    try {
+        toast('🔄 Re-puxando mensagens do WhatsApp...', 'info');
+        const r = await apiFetch(`/api/inbox/${conversationId}/resync`, {
+            method: 'POST',
+            body: JSON.stringify({ limit: 50 }),
+        });
+        if (r.inserted > 0) {
+            toast(`✅ ${r.inserted} mensagem(ns) recuperada(s)`, 'success');
+            // Recarrega as mensagens da conversa atual pra mostrar as recuperadas
+            if (currentConversation?.id === conversationId) {
+                await loadMessages(currentConversation.id, currentConversation.whatsapp_chat_id);
+            }
+        } else {
+            toast('Nada novo — todas as mensagens já estavam no inbox', 'info');
+        }
+    } catch (err) {
+        toast(`❌ Falha ao re-sincronizar: ${err.message}`, 'error');
     }
 }
 
@@ -1028,6 +1053,10 @@ function renderChatArea(conv) {
                         <button class="ch-menu-item btn-toggle-lead-panel" data-action="toggle-lead-panel" role="menuitem">
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
                             <span>Ocultar painel do lead</span>
+                        </button>
+                        <button class="ch-menu-item" data-action="resync-conv" data-id="${escHtml(String(conv.id))}" role="menuitem" title="Re-puxa últimas mensagens do WhatsApp (recupera msgs que o polling possa ter perdido)">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+                            <span>Re-sincronizar mensagens</span>
                         </button>
                         ${isAdmin && conv.archived_at ? `
                         <button class="ch-menu-item btn-restore-conv" data-action="restore-conv" data-id="${escHtml(String(conv.id))}" role="menuitem">
