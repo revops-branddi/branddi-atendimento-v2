@@ -72,7 +72,7 @@ async function getConversationDealInfo(conversationId) {
  *   2. process.env.PIPEDRIVE_API_TOKEN: fallback global (quando ninguém
  *      tem o número atribuído ou a atribuição é ambígua).
  */
-async function getTokenByWhatsAppAccount(unipileAccountId) {
+export async function getTokenByWhatsAppAccount(unipileAccountId) {
     if (!unipileAccountId) return process.env.PIPEDRIVE_API_TOKEN;
 
     try {
