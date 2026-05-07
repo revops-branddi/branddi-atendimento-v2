@@ -61,10 +61,11 @@ function isGroup(chat) {
 
 function normalizeParticipants(attendees) {
     return (attendees || []).map(a => ({
-        provider_id: a.provider_id || a.id || null,
-        name: a.name || null,
-        phone: a.specifics?.phone_number || a.phone_number || null,
-        is_self: !!a.is_self,
+        id:          a.id || null,
+        provider_id: a.provider_id || null,
+        name:        a.name || null,
+        phone:       a.specifics?.phone_number || a.phone_number || null,
+        is_self:     !!a.is_self,
     }));
 }
 

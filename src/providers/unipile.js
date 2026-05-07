@@ -94,19 +94,33 @@ class UnipileProvider extends WhatsAppProvider {
             }
         }
 
+        // Em GROUP chats, raw.sender é tipicamente undefined. Pra resolver o
+        // nome do remetente, usamos:
+        //   1. senderAttendeeId (raw.sender_attendee_id) → match com
+        //      group_participants[].id em service/unipile.js
+        //   2. pushName extraído do JSON original do WhatsApp (raw.original)
+        //      como fallback robusto
+        let pushName = null;
+        try {
+            const o = typeof raw.original === 'string' ? JSON.parse(raw.original) : raw.original;
+            pushName = o?.pushName || null;
+        } catch { /* original mal-formado */ }
+
         return {
-            id:          raw.id,
-            chatId:      raw.chat_id,
+            id:               raw.id,
+            chatId:           raw.chat_id,
             text,
-            direction:   raw.is_sender ? 'outbound' : 'inbound',
-            senderPhone: raw.sender?.phone_number || null,
-            senderName:  raw.sender?.name || null,
-            timestamp:   raw.timestamp || raw.created_at,
+            direction:        raw.is_sender ? 'outbound' : 'inbound',
+            senderPhone:      raw.sender?.phone_number || null,
+            senderName:       raw.sender?.name || null,
+            senderAttendeeId: raw.sender_attendee_id || null,
+            pushName,
+            timestamp:        raw.timestamp || raw.created_at,
             attachments,
             // Status de entrega (significativo apenas pra outbound):
             // delivered=1 → ✓✓ cinza | seen=1 → ✓✓ azul (lido)
-            delivered:   raw.delivered === 1 || raw.delivered === true,
-            seen:        raw.seen === 1 || raw.seen === true,
+            delivered:        raw.delivered === 1 || raw.delivered === true,
+            seen:             raw.seen === 1 || raw.seen === true,
         };
     }
 
