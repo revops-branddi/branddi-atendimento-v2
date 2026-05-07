@@ -772,6 +772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupScriptCats(); } catch (e) { console.warn('setupScriptCats:', e); }
     try { setupScriptForm(); } catch (e) { console.warn('setupScriptForm:', e); }
     try { setupInboxSearch(); } catch (e) { console.warn('setupInboxSearch:', e); }
+    try { setupGruposSearch(); } catch (e) { console.warn('setupGruposSearch:', e); }
     try { setupLeadFilters(); } catch (e) { console.warn('setupLeadFilters:', e); }
     try { setupHistoryFilters(); } catch (e) { console.warn('setupHistoryFilters:', e); }
     try { setupDashPeriod(); } catch (e) { console.warn('setupDashPeriod:', e); }
@@ -889,6 +890,269 @@ function switchTab(tab) {
     if (tab === 'leads') loadLeads();
     if (tab === 'history') setTimeout(loadHistory, 100);
     if (tab === 'deals') loadDeals();
+    if (tab === 'grupos') loadGrupos();
+}
+
+// ─── Grupos WhatsApp ─────────────────────────────────────────────────
+let allGrupos = [];
+let currentGrupo = null;
+let gruposSearchTerm = '';
+
+async function loadGrupos() {
+    const listEl = document.getElementById('grupos-list');
+    if (!listEl) return;
+    try {
+        const data = await apiFetch('/api/groups?limit=100');
+        allGrupos = data.groups || [];
+        renderGruposList();
+        updateGruposBadge();
+    } catch (err) {
+        listEl.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.padding = '40px 16px';
+        empty.textContent = `Falha ao carregar: ${err.message}`;
+        listEl.appendChild(empty);
+    }
+}
+
+function updateGruposBadge() {
+    const badge = document.getElementById('badge-grupos');
+    if (!badge) return;
+    const unread = allGrupos.reduce((sum, g) => sum + (g.unread_count || 0), 0);
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.style.display = unread > 0 ? '' : 'none';
+}
+
+function renderGruposList() {
+    const listEl = document.getElementById('grupos-list');
+    if (!listEl) return;
+    const term = gruposSearchTerm;
+    const items = allGrupos.filter(g => {
+        if (!term) return true;
+        return (g.group_subject || '').toLowerCase().includes(term);
+    });
+
+    listEl.replaceChildren();
+    if (items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.padding = '40px 16px';
+        empty.textContent = term ? 'Nenhum grupo encontrado' : 'Nenhum grupo';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    for (const g of items) {
+        const item = document.createElement('div');
+        item.className = 'conv-item' + (currentGrupo?.id === g.id ? ' active' : '');
+        item.dataset.id = g.id;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'conv-avatar';
+        avatar.style.background = 'var(--bg-elev-2)';
+        avatar.style.fontSize = '18px';
+        avatar.textContent = '👥';
+
+        const meta = document.createElement('div');
+        meta.className = 'conv-meta';
+
+        const top = document.createElement('div');
+        top.className = 'conv-top';
+        const name = document.createElement('span');
+        name.className = 'conv-name';
+        name.textContent = g.group_subject || '(grupo sem nome)';
+        const time = document.createElement('span');
+        time.className = 'conv-time';
+        time.textContent = g.last_message_at ? formatTime(g.last_message_at) : '';
+        top.appendChild(name);
+        top.appendChild(time);
+
+        const bottom = document.createElement('div');
+        bottom.className = 'conv-bottom';
+        const lastMsg = (g.messages || [])[0];
+        const preview = document.createElement('span');
+        preview.className = 'conv-preview';
+        if (lastMsg) {
+            const senderPrefix = lastMsg.sender_name && lastMsg.direction === 'inbound'
+                ? `${lastMsg.sender_name}: `
+                : '';
+            preview.textContent = senderPrefix + (lastMsg.content || '(mídia)').slice(0, 80);
+        } else {
+            preview.textContent = `${(g.group_participants || []).length} membros`;
+        }
+        bottom.appendChild(preview);
+        if (g.unread_count > 0) {
+            const unread = document.createElement('span');
+            unread.className = 'conv-unread';
+            unread.textContent = String(g.unread_count);
+            bottom.appendChild(unread);
+        }
+
+        meta.appendChild(top);
+        meta.appendChild(bottom);
+        item.appendChild(avatar);
+        item.appendChild(meta);
+
+        item.addEventListener('click', () => openGrupo(g.id));
+        listEl.appendChild(item);
+    }
+}
+
+async function openGrupo(grupoId) {
+    const grupo = allGrupos.find(g => g.id === grupoId);
+    if (!grupo) return;
+    currentGrupo = grupo;
+    renderGruposList(); // realça o ativo
+
+    // Render chat area + members panel
+    renderGrupoChat(grupo);
+    renderGrupoMembers(grupo);
+
+    // Carrega mensagens (reusa endpoint existente)
+    try {
+        const data = await apiFetch(`/api/messages/${grupoId}?limit=100`);
+        const msgs = data.messages || [];
+        renderGrupoMessages(grupo, msgs);
+    } catch (err) {
+        console.error('Erro carregando msgs do grupo:', err);
+    }
+}
+
+function renderGrupoChat(grupo) {
+    const area = document.getElementById('grupos-chat-area');
+    if (!area) return;
+    area.replaceChildren();
+
+    const header = document.createElement('header');
+    header.className = 'chat-header';
+
+    const left = document.createElement('div');
+    left.className = 'ch-info chat-header-left';
+    const ava = document.createElement('div');
+    ava.className = 'ch-avatar chat-avatar';
+    ava.style.fontSize = '18px';
+    ava.textContent = '👥';
+    const info = document.createElement('div');
+    info.className = 'ch-info-text';
+    const name = document.createElement('div');
+    name.className = 'ch-name chat-meta-name';
+    name.textContent = grupo.group_subject || '(grupo sem nome)';
+    const sub = document.createElement('div');
+    sub.className = 'ch-status chat-meta-sub';
+    sub.textContent = `${(grupo.group_participants || []).length} membros`;
+    info.appendChild(name);
+    info.appendChild(sub);
+    left.appendChild(ava);
+    left.appendChild(info);
+    header.appendChild(left);
+    area.appendChild(header);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'messages-wrap';
+    wrap.id = 'grupos-messages-wrap';
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.style.padding = '40px 0';
+    empty.textContent = 'Carregando mensagens...';
+    wrap.appendChild(empty);
+    area.appendChild(wrap);
+}
+
+function renderGrupoMessages(grupo, msgs) {
+    const wrap = document.getElementById('grupos-messages-wrap');
+    if (!wrap) return;
+    wrap.replaceChildren();
+    if (!msgs || msgs.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.padding = '40px 0';
+        empty.textContent = 'Nenhuma mensagem ainda';
+        wrap.appendChild(empty);
+        return;
+    }
+    for (const m of msgs) {
+        const isOut = m.direction === 'outbound';
+        const cls = isOut ? 'outbound' : 'inbound';
+
+        const bubble = document.createElement('div');
+        bubble.className = `msg-bubble msg-row msg-${cls} ${cls}`;
+        bubble.style.maxWidth = '85%';
+
+        // Em grupos: SEMPRE mostra sender_name (estilo grupo do WhatsApp)
+        const senderEl = document.createElement('div');
+        senderEl.className = 'msg-sender';
+        senderEl.textContent = m.sender_name || (isOut ? 'Atendente' : 'Membro');
+        senderEl.style.fontSize = '11px';
+        senderEl.style.fontWeight = '600';
+        senderEl.style.marginBottom = '2px';
+        senderEl.style.color = 'var(--accent)';
+        bubble.appendChild(senderEl);
+
+        const body = document.createElement('div');
+        body.className = 'msg-body';
+        body.textContent = m.content || '';
+        bubble.appendChild(body);
+
+        const meta = document.createElement('div');
+        meta.className = 'msg-meta';
+        meta.style.fontSize = '10px';
+        meta.style.color = 'var(--text-3)';
+        meta.style.marginTop = '4px';
+        meta.textContent = formatTime(m.created_at);
+        bubble.appendChild(meta);
+
+        wrap.appendChild(bubble);
+    }
+    wrap.scrollTop = wrap.scrollHeight;
+}
+
+function renderGrupoMembers(grupo) {
+    const panel = document.getElementById('grupos-info-panel');
+    const list = document.getElementById('grupos-members-list');
+    if (!panel || !list) return;
+    panel.style.display = '';
+
+    list.replaceChildren();
+    const members = grupo.group_participants || [];
+    const heading = document.createElement('div');
+    heading.style.fontSize = '12px';
+    heading.style.color = 'var(--text-3)';
+    heading.style.padding = '8px 12px';
+    heading.textContent = `${members.length} membros`;
+    list.appendChild(heading);
+
+    for (const m of members) {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.flexDirection = 'column';
+        row.style.padding = '8px 12px';
+        row.style.borderBottom = '1px solid var(--border-md)';
+
+        const name = document.createElement('div');
+        name.style.fontSize = '13px';
+        name.style.fontWeight = m.is_self ? '600' : '500';
+        name.textContent = (m.name || 'Sem nome') + (m.is_self ? ' (você)' : '');
+        row.appendChild(name);
+
+        if (m.phone) {
+            const phone = document.createElement('div');
+            phone.style.fontSize = '11px';
+            phone.style.color = 'var(--text-3)';
+            phone.textContent = m.phone;
+            row.appendChild(phone);
+        }
+        list.appendChild(row);
+    }
+}
+
+function setupGruposSearch() {
+    const input = document.getElementById('grupos-search');
+    if (!input) return;
+    input.addEventListener('input', debounce(() => {
+        gruposSearchTerm = (input.value || '').trim().toLowerCase();
+        renderGruposList();
+    }, 300));
 }
 
 // --- INBOX ---

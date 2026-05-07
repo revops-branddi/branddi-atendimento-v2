@@ -257,6 +257,7 @@ export async function getInbox({
     filter_user_ids, // array — Admin pode filtrar por N usuários
     filter_account_ids, // array — qualquer user pode filtrar por N números
     archived = false, // true = lista só arquivadas (Admin)
+    is_group = false, // false = inbox principal (DMs); true = só grupos
 } = {}) {
     // Normaliza singular → array (backwards compat)
     const userIds = Array.isArray(filter_user_ids) && filter_user_ids.length
@@ -283,6 +284,10 @@ export async function getInbox({
     } else {
         query = query.is('archived_at', null);
     }
+
+    // Filtro grupo vs DM. Inbox principal NÃO mostra grupos — eles ficam na
+    // página dedicada (/grupos). Quando is_group=true, mostra só grupos.
+    query = query.eq('is_group', !!is_group);
 
     if (status) query = query.eq('status', status);
 

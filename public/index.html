@@ -47,6 +47,11 @@
             <span class="nav-label">Inbox</span>
             <span class="nav-badge" id="badge-inbox">0</span>
         </button>
+        <button class="nav-btn" data-tab="grupos" id="tab-grupos" title="Grupos WhatsApp">
+            <span class="nav-icon" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;font-size:18px">👥</span>
+            <span class="nav-label">Grupos</span>
+            <span class="nav-badge" id="badge-grupos">0</span>
+        </button>
         <button class="nav-btn" data-tab="deals" id="tab-deals" title="Deals Pipedrive">
             <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-pipedrive"></use></svg></span>
             <span class="nav-label">Deals</span>
@@ -371,6 +376,35 @@
             </div>
         </aside>
 
+    </div>
+</section>
+
+<!-- ════════════ GRUPOS TAB ════════════ -->
+<section class="tab-panel" id="panel-grupos">
+    <div class="app-layout-inner inbox-layout">
+        <aside class="conversations-sidebar grupos-sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title-row">
+                    <h2 class="sidebar-title">Grupos WhatsApp</h2>
+                </div>
+                <input type="search" class="sidebar-search" id="grupos-search" placeholder="Buscar grupo..." autocomplete="off">
+            </div>
+            <div class="conversations-list" id="grupos-list">
+                <div class="empty-state" style="padding:40px 0"><span>Carregando grupos...</span></div>
+            </div>
+        </aside>
+        <section class="chat-area" id="grupos-chat-area">
+            <div class="empty-state empty-chat">
+                <div style="font-size:32px;margin-bottom:8px">👥</div>
+                <div>Selecione um grupo para ver as mensagens</div>
+            </div>
+        </section>
+        <aside class="lead-info-panel" id="grupos-info-panel" style="display:none">
+            <div class="panel-header">
+                <h3 class="panel-section-title">Membros</h3>
+            </div>
+            <div class="lead-info-content" id="grupos-members-list"></div>
+        </aside>
     </div>
 </section>
 
