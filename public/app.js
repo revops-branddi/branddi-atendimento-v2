@@ -1191,21 +1191,48 @@ function renderGrupoMembers(grupo) {
         row.style.padding = '8px 12px';
         row.style.borderBottom = '1px solid var(--border-md)';
 
+        // Display: nome real > phone formatado > "Sem identificação".
+        // Phone formatado é melhor que "Sem nome" — ao menos identifica
+        // unicamente o membro pra quem conhece o número.
+        const displayName = m.name || formatPhoneBR(m.phone) || 'Sem identificação';
+        const isFallback = !m.name;
+
         const name = document.createElement('div');
         name.style.fontSize = '13px';
         name.style.fontWeight = m.is_self ? '600' : '500';
-        name.textContent = (m.name || 'Sem nome') + (m.is_self ? ' (você)' : '');
+        if (isFallback) name.style.color = 'var(--text-2)';
+        name.textContent = displayName + (m.is_self ? ' (você)' : '');
         row.appendChild(name);
 
-        if (m.phone) {
+        // Mostra phone como sublinha SÓ quando temos nome (senão duplicaria)
+        if (m.name && m.phone) {
             const phone = document.createElement('div');
             phone.style.fontSize = '11px';
             phone.style.color = 'var(--text-3)';
-            phone.textContent = m.phone;
+            phone.textContent = formatPhoneBR(m.phone) || m.phone;
             row.appendChild(phone);
         }
         list.appendChild(row);
     }
+}
+
+// Formata phone BR pra display: "+5511987654321" → "+55 11 98765-4321"
+// Phones internacionais (não 55) ou inválidos: retorna como veio.
+function formatPhoneBR(raw) {
+    if (!raw) return null;
+    const digits = String(raw).replace(/\D/g, '');
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+        const cc = digits.slice(0, 2);
+        const ddd = digits.slice(2, 4);
+        const rest = digits.slice(4);
+        // 9 dígitos = celular novo (5 + 4); 8 dígitos = fixo / celular antigo (4 + 4)
+        const split = rest.length === 9
+            ? `${rest.slice(0, 5)}-${rest.slice(5)}`
+            : `${rest.slice(0, 4)}-${rest.slice(4)}`;
+        return `+${cc} ${ddd} ${split}`;
+    }
+    // Internacional ou desconhecido — preserva e adiciona '+' se faltou
+    return raw.startsWith('+') ? raw : `+${raw}`;
 }
 
 function setupGruposSearch() {
