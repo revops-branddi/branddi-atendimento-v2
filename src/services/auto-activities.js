@@ -62,10 +62,44 @@ async function getConversationDealInfo(conversationId) {
 /**
  * Descobre o token Pipedrive do dono da conta WhatsApp por onde veio a conversa.
  * Assim atividades ficam no nome do SDR certo (não do token global).
- * Fallback: token global.
+ *
+ * Cascata (fonte de verdade = quem ATENDE o número, não quem conectou):
+ *   1. permissions.whatsapp_accounts: user com esse account na lista E
+ *      pipedrive_api_token setado. SÓ aceita se for match ÚNICO (1 user) —
+ *      ambiguidade cai no próximo passo pra evitar atribuição errada.
+ *   2. whatsapp_accounts.connected_by_user_id: legado — quem clicou Connect.
+ *   3. process.env.PIPEDRIVE_API_TOKEN: fallback global.
  */
 async function getTokenByWhatsAppAccount(unipileAccountId) {
     if (!unipileAccountId) return process.env.PIPEDRIVE_API_TOKEN;
+
+    // (1) Match via permissions.whatsapp_accounts (atribuição de atendente)
+    try {
+        const { data: assigned } = await supabase
+            .from('platform_users')
+            .select('id, name, pipedrive_api_token, permissions')
+            .contains('permissions', { whatsapp_accounts: [unipileAccountId] })
+            .not('pipedrive_api_token', 'is', null);
+
+        const withToken = (assigned || []).filter(u => u.pipedrive_api_token);
+        if (withToken.length === 1) {
+            return withToken[0].pipedrive_api_token;
+        }
+        if (withToken.length > 1) {
+            logger.warn('Conta WhatsApp atribuída a múltiplos users — usando fallback', {
+                unipile_account_id: unipileAccountId,
+                user_count: withToken.length,
+                user_names: withToken.map(u => u.name),
+            });
+        }
+    } catch (err) {
+        logger.warn('Falha consultando permissions.whatsapp_accounts', {
+            unipile_account_id: unipileAccountId,
+            error: err.message,
+        });
+    }
+
+    // (2) Legado: connected_by_user_id (quem clicou Connect)
     try {
         const { data } = await supabase
             .from('whatsapp_accounts')
@@ -73,10 +107,11 @@ async function getTokenByWhatsAppAccount(unipileAccountId) {
             .eq('unipile_account_id', unipileAccountId)
             .maybeSingle();
         const personalToken = data?.platform_users?.pipedrive_api_token;
-        return personalToken || process.env.PIPEDRIVE_API_TOKEN;
-    } catch {
-        return process.env.PIPEDRIVE_API_TOKEN;
-    }
+        if (personalToken) return personalToken;
+    } catch { /* cai no global */ }
+
+    // (3) Fallback global
+    return process.env.PIPEDRIVE_API_TOKEN;
 }
 
 /**
