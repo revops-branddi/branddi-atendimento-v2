@@ -581,13 +581,35 @@ function isGroupChat(chat) {
 }
 
 // Mapeia attendees do Unipile pro shape simples que salvamos em group_participants.
+// IMPORTANTE: campo `id` é o attendee_id da Unipile — chave canônica que casa
+// com msg.sender_attendee_id pra resolver o nome do remetente em mensagens
+// (Unipile não devolve sender.name confiavelmente em group chats).
 function normalizeParticipants(attendees) {
     return (attendees || []).map(a => ({
-        provider_id: a.provider_id || a.id || null,
-        name: a.name || null,
-        phone: a.specifics?.phone_number || a.phone_number || null,
-        is_self: !!a.is_self,
+        id:          a.id || null,
+        provider_id: a.provider_id || null,
+        name:        a.name || null,
+        phone:       a.specifics?.phone_number || a.phone_number || null,
+        is_self:     !!a.is_self,
     }));
+}
+
+// Cascata pra resolver o nome do remetente de uma msg em group chat:
+//   1. msg.senderName (raro, mas se vier usa)
+//   2. Lookup attendee_id em group_participants[].id (caminho canônico)
+//   3. msg.pushName (vem do JSON original do WhatsApp, fallback robusto)
+//   4. 'Membro' como último recurso
+function resolveGroupSenderName(msg, participants) {
+    if (msg.senderName) return msg.senderName;
+
+    if (msg.senderAttendeeId && Array.isArray(participants)) {
+        const found = participants.find(p => p.id === msg.senderAttendeeId);
+        if (found?.name) return found.name;
+    }
+
+    if (msg.pushName) return msg.pushName;
+
+    return 'Membro';
 }
 
 // Processa chat de grupo. Diferenças em relação a DM:
@@ -673,7 +695,7 @@ async function processGroupChat(chat) {
                 if (isOutbound) {
                     senderName = await resolveOutboundSenderName(chat.account_id);
                 } else {
-                    senderName = msg.senderName || 'Membro';
+                    senderName = resolveGroupSenderName(msg, conversation.group_participants);
                 }
 
                 await saveMessage({
