@@ -17,11 +17,21 @@ const router = Router();
 // ─── GET /api/inbox — Lista conversas filtradas por role/usuário ──────
 router.get('/inbox', async (req, res) => {
     try {
-        const { status, type, limit = 50, filter_user_id, filter_account_id, archived } = req.query;
+        const {
+            status, type, limit = 50,
+            filter_user_id, filter_account_id,        // legado (singular)
+            filter_user_ids, filter_account_ids,      // novo: csv
+            archived,
+        } = req.query;
         const user   = req.user || {};
         const role   = user.role;
         const userId = user.id;
         const permissions = user.permissions || {};
+
+        // CSV → array; suporta backwards compat com singular
+        const parseCsv = (csv) => csv ? String(csv).split(',').map(s => s.trim()).filter(Boolean) : null;
+        const userIds    = parseCsv(filter_user_ids);
+        const accountIds = parseCsv(filter_account_ids);
 
         // archived=true só permitido para Admin
         const showArchived = archived === 'true' && role === 'Admin';
@@ -34,8 +44,11 @@ router.get('/inbox', async (req, res) => {
             user_id: userId,
             allowed_types: role === 'Admin' ? null : (permissions.conversation_types || []),
             allowed_accounts: role === 'Admin' ? null : (permissions.whatsapp_accounts || []),
-            filter_user_id: role === 'Admin' ? (filter_user_id || null) : null,
-            filter_account_id: filter_account_id || null,
+            // Admin pode filtrar por usuários; non-admin sempre null
+            filter_user_id:   role === 'Admin' ? (filter_user_id || null) : null,
+            filter_user_ids:  role === 'Admin' ? userIds : null,
+            filter_account_id:  filter_account_id || null,
+            filter_account_ids: accountIds,
             archived: showArchived,
         });
         res.json({ conversations, total: conversations.length });

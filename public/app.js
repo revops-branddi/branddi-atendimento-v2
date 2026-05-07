@@ -358,14 +358,219 @@ document.addEventListener('click', (e) => {
 });
 function updateFilterDot() {
     const dot = document.getElementById('filter-active-dot');
-    const accountVal = document.getElementById('inbox-account-filter')?.value || '';
-    const userVal    = document.getElementById('inbox-user-filter')?.value || '';
+    // multi-select considera "filtrando" quando há SOME (não-todos e não-vazio).
+    // Vazio = "ver tudo" (mesmo que tudo selecionado), por design.
+    const accountSelected = MultiSelect.getSelectedIds('inbox-account-filter');
+    const userSelected    = MultiSelect.getSelectedIds('inbox-user-filter');
+    const accountTotal = MultiSelect.getTotalOptions('inbox-account-filter');
+    const userTotal    = MultiSelect.getTotalOptions('inbox-user-filter');
+    const accountFiltering = accountSelected.length > 0 && accountSelected.length < accountTotal;
+    const userFiltering    = userSelected.length > 0 && userSelected.length < userTotal;
     const hasFilter = currentTypeFilter !== 'all'
         || currentFilter !== 'all'
-        || !!accountVal
-        || !!userVal;
+        || accountFiltering
+        || userFiltering;
     if (dot) dot.classList.toggle('show', hasFilter);
 }
+
+// ─── MultiSelect Component ───────────────────────────────────────────
+// Dropdown com checkboxes. Default: tudo marcado = "ver tudo".
+// Desmarcar tudo também = "ver tudo" (1 modo só, simplifica UX).
+//
+// API:
+//   MultiSelect.init(elementId, items, { onChange, storageKey })
+//   MultiSelect.getSelectedIds(elementId)          → array de IDs marcados
+//   MultiSelect.getEffectiveIds(elementId)         → IDs pra mandar pro backend
+//                                                    (vazio se "ver tudo")
+//   MultiSelect.setSelectedIds(elementId, ids)     → atualiza programaticamente
+//   MultiSelect.getTotalOptions(elementId)         → total de opções (pra dot)
+//
+// items: [{ id: string, label: string }, ...]
+const MultiSelect = (() => {
+    const _state = new Map();
+
+    function _persist(s) {
+        if (!s.storageKey) return;
+        try { localStorage.setItem(s.storageKey, JSON.stringify(Array.from(s.selectedIds))); } catch {}
+    }
+
+    function _restore(storageKey) {
+        if (!storageKey) return null;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return null;
+            return new Set(JSON.parse(raw));
+        } catch { return null; }
+    }
+
+    function _renderTrigger(elementId) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        const s = _state.get(elementId);
+        if (!s) return;
+        const labelEl = el.querySelector('.multi-select-label');
+        if (!labelEl) return;
+        const total = s.items.length;
+        const sel = s.selectedIds.size;
+        const allLabel = el.dataset.emptyLabel || 'Todos';
+
+        let text;
+        if (sel === 0 || sel === total) {
+            text = allLabel;
+        } else if (sel === 1) {
+            const id = Array.from(s.selectedIds)[0];
+            const item = s.items.find(i => i.id === id);
+            text = item ? item.label : '1 selecionado';
+        } else {
+            text = `${sel} selecionados`;
+        }
+        labelEl.textContent = text;
+    }
+
+    // Constrói as options via DOM (sem innerHTML) pra evitar qualquer chance de XSS
+    function _renderOptions(elementId) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        const s = _state.get(elementId);
+        if (!s) return;
+        const optsEl = el.querySelector('.multi-select-options');
+        if (!optsEl) return;
+        optsEl.replaceChildren();
+        for (const item of s.items) {
+            const label = document.createElement('label');
+            label.className = 'multi-select-option';
+            label.dataset.id = item.id;
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = s.selectedIds.has(item.id);
+
+            const span = document.createElement('span');
+            span.className = 'multi-select-option-label';
+            span.textContent = item.label;
+
+            label.appendChild(cb);
+            label.appendChild(span);
+            optsEl.appendChild(label);
+        }
+    }
+
+    function _emit(elementId) {
+        const s = _state.get(elementId);
+        if (!s) return;
+        _persist(s);
+        _renderTrigger(elementId);
+        try { s.onChange?.(getEffectiveIds(elementId)); } catch (e) { console.error(e); }
+    }
+
+    function init(elementId, items, { onChange, storageKey } = {}) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        // Estado inicial: restaura do storage OU todos marcados
+        const restored = _restore(storageKey);
+        const initial = restored
+            ? new Set(items.filter(i => restored.has(i.id)).map(i => i.id))
+            : new Set(items.map(i => i.id));
+
+        const s = { items, onChange, storageKey, selectedIds: initial };
+        _state.set(elementId, s);
+
+        _renderOptions(elementId);
+        _renderTrigger(elementId);
+
+        // Wire events 1x por elemento (idempotente em re-init)
+        if (!el.dataset.wired) {
+            el.dataset.wired = '1';
+
+            el.querySelector('.multi-select-trigger').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = el.querySelector('.multi-select-menu');
+                const trigger = el.querySelector('.multi-select-trigger');
+                const isOpen = !menu.hidden;
+                // Fecha outros menus abertos
+                document.querySelectorAll('.multi-select-menu').forEach(m => {
+                    if (m !== menu) {
+                        m.hidden = true;
+                        m.parentElement?.querySelector('.multi-select-trigger')?.setAttribute('aria-expanded', 'false');
+                    }
+                });
+                menu.hidden = isOpen;
+                trigger.setAttribute('aria-expanded', String(!isOpen));
+            });
+
+            el.querySelector('.multi-select-options').addEventListener('change', (e) => {
+                const opt = e.target.closest('.multi-select-option');
+                if (!opt) return;
+                const id = opt.dataset.id;
+                const checked = e.target.checked;
+                const st = _state.get(elementId);
+                if (!st) return;
+                if (checked) st.selectedIds.add(id);
+                else st.selectedIds.delete(id);
+                _emit(elementId);
+            });
+
+            el.querySelector('[data-action="multi-select-all"]').addEventListener('click', () => {
+                const st = _state.get(elementId);
+                if (!st) return;
+                st.selectedIds = new Set(st.items.map(i => i.id));
+                _renderOptions(elementId);
+                _emit(elementId);
+            });
+            el.querySelector('[data-action="multi-clear-all"]').addEventListener('click', () => {
+                const st = _state.get(elementId);
+                if (!st) return;
+                st.selectedIds = new Set();
+                _renderOptions(elementId);
+                _emit(elementId);
+            });
+        }
+
+        return s;
+    }
+
+    function getSelectedIds(elementId) {
+        const s = _state.get(elementId);
+        return s ? Array.from(s.selectedIds) : [];
+    }
+
+    function getTotalOptions(elementId) {
+        const s = _state.get(elementId);
+        return s ? s.items.length : 0;
+    }
+
+    // IDs pra mandar pro backend: vazio quando "ver tudo" (todos OU nenhum
+    // selecionado), senão array filtrado.
+    function getEffectiveIds(elementId) {
+        const s = _state.get(elementId);
+        if (!s) return [];
+        const sel = s.selectedIds.size;
+        if (sel === 0 || sel === s.items.length) return [];
+        return Array.from(s.selectedIds);
+    }
+
+    function setSelectedIds(elementId, ids) {
+        const s = _state.get(elementId);
+        if (!s) return;
+        s.selectedIds = new Set(ids);
+        _renderOptions(elementId);
+        _emit(elementId);
+    }
+
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.multi-select').forEach(el => {
+            if (!el.contains(e.target)) {
+                const menu = el.querySelector('.multi-select-menu');
+                const trigger = el.querySelector('.multi-select-trigger');
+                if (menu) menu.hidden = true;
+                trigger?.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+
+    return { init, getSelectedIds, getTotalOptions, getEffectiveIds, setSelectedIds };
+})();
 
 // --- Route Dropdown in Chat Header ---
 function toggleRouteDropdown() {
@@ -715,11 +920,13 @@ function setupInboxFilters() {
     const userGroup = document.getElementById('filter-user-group');
     if (userFilterEl && currentUser?.role === 'Admin') {
         if (userGroup) userGroup.style.display = '';
-        userFilterEl.addEventListener('change', () => loadInbox());
         apiFetch('/api/users').then(data => {
             const users = data.users || [];
-            userFilterEl.innerHTML = '<option value="">Todos os usuarios</option>' +
-                users.map(u => `<option value="${u.id}">${escHtml(u.name)} (${u.role})</option>`).join('');
+            const items = users.map(u => ({ id: u.id, label: `${u.name} (${u.role})` }));
+            MultiSelect.init('inbox-user-filter', items, {
+                storageKey: 'inbox.filter.user_ids',
+                onChange: () => { updateFilterDot(); loadInbox(); },
+            });
         }).catch(() => {});
     }
 
@@ -733,21 +940,19 @@ function setupInboxFilters() {
 
     if (accountFilterEl && showAccountFilter) {
         if (accountGroup) accountGroup.style.display = '';
-        accountFilterEl.addEventListener('change', () => {
-            updateFilterDot();
-            loadInbox();
-        });
         apiFetch('/api/whatsapp/accounts').then(data => {
             const accounts = (data.accounts || []).filter(a =>
                 isAdmin || myAccounts.includes(a.id)
             );
-            accountFilterEl.innerHTML = '<option value="">Todos os atendentes</option>' +
-                accounts.map(a => {
-                    // Prefere o nome do atendente (Harylanne, Ricardo, Gio).
-                    // Se não tem, mostra o número como fallback.
-                    const label = a.display_name || a.phone_number || a.name || a.id;
-                    return `<option value="${a.id}">${escHtml(label)}</option>`;
-                }).join('');
+            const items = accounts.map(a => ({
+                id: a.id,
+                // Prefere display_name (Harylanne, Ricardo, Gio). Fallback: número.
+                label: a.display_name || a.phone_number || a.name || a.id,
+            }));
+            MultiSelect.init('inbox-account-filter', items, {
+                storageKey: 'inbox.filter.account_ids',
+                onChange: () => { updateFilterDot(); loadInbox(); },
+            });
         }).catch(() => {});
     }
 
@@ -821,10 +1026,11 @@ let _lastInboxHash = '';
 async function loadInbox(silent = false) {
     try {
         const typeParam = currentTypeFilter !== 'all' ? `&type=${currentTypeFilter}` : '';
-        const userFilter = document.getElementById('inbox-user-filter')?.value;
-        const userParam = userFilter ? `&filter_user_id=${userFilter}` : '';
-        const accountFilter = document.getElementById('inbox-account-filter')?.value;
-        const accountParam = accountFilter ? `&filter_account_id=${accountFilter}` : '';
+        // Multi-select: vazio = "ver tudo" (não envia param). Senão, csv.
+        const userIds = MultiSelect.getEffectiveIds('inbox-user-filter');
+        const userParam = userIds.length ? `&filter_user_ids=${encodeURIComponent(userIds.join(','))}` : '';
+        const accountIds = MultiSelect.getEffectiveIds('inbox-account-filter');
+        const accountParam = accountIds.length ? `&filter_account_ids=${encodeURIComponent(accountIds.join(','))}` : '';
         const archivedParam = currentFilter === 'archived' ? '&archived=true' : '';
         const data = await apiFetch(`/api/inbox?limit=100${typeParam}${userParam}${accountParam}${archivedParam}`);
         const newConversations = data.conversations || [];

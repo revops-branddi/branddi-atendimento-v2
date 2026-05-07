@@ -150,15 +150,35 @@
                                 </div>
                                 <div class="filter-group" id="filter-account-group" style="display:none">
                                     <div class="filter-group-label">Atendente</div>
-                                    <select class="sidebar-search" id="inbox-account-filter" style="font-size:12px;padding:6px 8px">
-                                        <option value="">Todos os atendentes</option>
-                                    </select>
+                                    <div class="multi-select" id="inbox-account-filter" data-empty-label="Todos os atendentes">
+                                        <button type="button" class="multi-select-trigger" data-action="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="multi-select-label">Todos os atendentes</span>
+                                            <span class="multi-select-caret" aria-hidden="true">▾</span>
+                                        </button>
+                                        <div class="multi-select-menu" role="listbox" hidden>
+                                            <div class="multi-select-actions">
+                                                <button type="button" class="multi-select-action" data-action="multi-select-all">Selecionar tudo</button>
+                                                <button type="button" class="multi-select-action" data-action="multi-clear-all">Limpar</button>
+                                            </div>
+                                            <div class="multi-select-options"></div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="filter-group" id="filter-user-group" style="display:none">
                                     <div class="filter-group-label">Usuario</div>
-                                    <select class="sidebar-search" id="inbox-user-filter" style="font-size:12px;padding:6px 8px">
-                                        <option value="">Todos os usuarios</option>
-                                    </select>
+                                    <div class="multi-select" id="inbox-user-filter" data-empty-label="Todos os usuarios">
+                                        <button type="button" class="multi-select-trigger" data-action="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="multi-select-label">Todos os usuarios</span>
+                                            <span class="multi-select-caret" aria-hidden="true">▾</span>
+                                        </button>
+                                        <div class="multi-select-menu" role="listbox" hidden>
+                                            <div class="multi-select-actions">
+                                                <button type="button" class="multi-select-action" data-action="multi-select-all">Selecionar tudo</button>
+                                                <button type="button" class="multi-select-action" data-action="multi-clear-all">Limpar</button>
+                                            </div>
+                                            <div class="multi-select-options"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

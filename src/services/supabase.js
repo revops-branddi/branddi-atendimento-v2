@@ -252,10 +252,19 @@ export async function getInbox({
     status, assigned_to, limit = 50,
     type, role, user_id, allowed_types,
     allowed_accounts, // números WhatsApp que o não-Admin pode ver (permissions.whatsapp_accounts)
-    filter_user_id, // Admin pode filtrar por usuário específico
-    filter_account_id, // qualquer user pode filtrar por 1 número dos seus permitidos
+    filter_user_id, // legado (1 user). Use filter_user_ids pra multi-select.
+    filter_account_id, // legado (1 número). Use filter_account_ids pra multi-select.
+    filter_user_ids, // array — Admin pode filtrar por N usuários
+    filter_account_ids, // array — qualquer user pode filtrar por N números
     archived = false, // true = lista só arquivadas (Admin)
 } = {}) {
+    // Normaliza singular → array (backwards compat)
+    const userIds = Array.isArray(filter_user_ids) && filter_user_ids.length
+        ? filter_user_ids
+        : (filter_user_id ? [filter_user_id] : null);
+    const accountIds = Array.isArray(filter_account_ids) && filter_account_ids.length
+        ? filter_account_ids
+        : (filter_account_id ? [filter_account_id] : null);
     let query = supabase
         .from('conversations')
         .select(`
@@ -287,40 +296,44 @@ export async function getInbox({
     // Filtro por usuário: Admin vê tudo (com filtro opcional). Não-Admin vê só
     // conversas dos números WhatsApp atribuídos a ele em permissions.whatsapp_accounts.
     //
-    // Quando Admin filtra por um usuário específico (filter_user_id), queremos ver
-    // as conversas dos NÚMEROS vinculados àquele usuário (não assigned_user_id, que
-    // é atribuição manual e quase nunca usada).
+    // Quando Admin filtra por usuários (userIds), queremos ver as conversas dos
+    // NÚMEROS vinculados àqueles usuários — UNIÃO das permissions.whatsapp_accounts
+    // de cada user selecionado.
     if (role === 'Admin') {
-        if (filter_user_id) {
-            const { data: targetUser } = await supabase
+        if (userIds && userIds.length > 0) {
+            const { data: targetUsers } = await supabase
                 .from('platform_users')
                 .select('permissions')
-                .eq('id', filter_user_id)
-                .maybeSingle();
-            const targetAccounts = targetUser?.permissions?.whatsapp_accounts || [];
+                .in('id', userIds);
+            const targetAccounts = Array.from(new Set(
+                (targetUsers || []).flatMap(u => u.permissions?.whatsapp_accounts || [])
+            ));
             if (targetAccounts.length === 0) {
-                return []; // user não tem número atribuído
+                return []; // nenhum dos selecionados tem número
             }
             query = query.in('whatsapp_account_id', targetAccounts);
         }
-        // Sem filter_user_id, Admin vê tudo
+        // Sem userIds, Admin vê tudo
     } else {
         const accounts = Array.isArray(allowed_accounts) ? allowed_accounts : [];
         if (accounts.length === 0) {
             // Sem números atribuídos = inbox vazio (regra de negócio explícita)
             return [];
         }
-        // Se o user pediu filtro por número específico, valida que pertence aos permitidos
-        if (filter_account_id && accounts.includes(filter_account_id)) {
-            query = query.eq('whatsapp_account_id', filter_account_id);
-        } else {
-            query = query.in('whatsapp_account_id', accounts);
+        // Se pediu filtro por números específicos, intersecta com os permitidos
+        // (segurança: não-admin não pode ver fora do que tem permission)
+        const intersect = accountIds && accountIds.length > 0
+            ? accountIds.filter(id => accounts.includes(id))
+            : accounts;
+        if (intersect.length === 0) {
+            return []; // selecionou só números fora dos permitidos
         }
+        query = query.in('whatsapp_account_id', intersect);
     }
 
-    // Admin filtrando por número (independente de user_id)
-    if (role === 'Admin' && filter_account_id) {
-        query = query.eq('whatsapp_account_id', filter_account_id);
+    // Admin filtrando por números (independente dos usuários)
+    if (role === 'Admin' && accountIds && accountIds.length > 0) {
+        query = query.in('whatsapp_account_id', accountIds);
     }
 
     if (assigned_to) {
