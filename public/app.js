@@ -943,56 +943,56 @@ function renderGruposList() {
         return;
     }
 
+    // Layout 2 linhas (mesmo padrão do inbox principal):
+    //   linha 1: 👥 nome | hora
+    //   linha 2: prefixo "Sender: " + preview da última msg (vazio se sem msgs)
     for (const g of items) {
+        const isActive = currentGrupo?.id === g.id;
+        const hasUnread = g.unread_count > 0;
+
         const item = document.createElement('div');
-        item.className = 'conv-item' + (currentGrupo?.id === g.id ? ' active' : '');
+        const klasses = ['conv-item'];
+        if (isActive) klasses.push('active');
+        if (hasUnread) klasses.push('unread');
+        item.className = klasses.join(' ');
         item.dataset.id = g.id;
 
-        const avatar = document.createElement('div');
-        avatar.className = 'conv-avatar';
-        avatar.style.background = 'var(--bg-elev-2)';
-        avatar.style.fontSize = '18px';
-        avatar.textContent = '👥';
-
-        const meta = document.createElement('div');
-        meta.className = 'conv-meta';
+        const main = document.createElement('div');
+        main.className = 'conv-main';
 
         const top = document.createElement('div');
-        top.className = 'conv-top';
+        top.className = 'conv-item-top';
         const name = document.createElement('span');
         name.className = 'conv-name';
-        name.textContent = g.group_subject || '(grupo sem nome)';
+        // Prefix com 👥 inline em vez de avatar separado (mais compacto)
+        name.textContent = `👥 ${g.group_subject || '(grupo sem nome)'}`;
         const time = document.createElement('span');
         time.className = 'conv-time';
         time.textContent = g.last_message_at ? formatTime(g.last_message_at) : '';
         top.appendChild(name);
         top.appendChild(time);
 
-        const bottom = document.createElement('div');
-        bottom.className = 'conv-bottom';
+        const snippet = document.createElement('div');
+        snippet.className = 'conv-snippet';
         const lastMsg = (g.messages || [])[0];
-        const preview = document.createElement('span');
-        preview.className = 'conv-preview';
         if (lastMsg) {
             const senderPrefix = lastMsg.sender_name && lastMsg.direction === 'inbound'
                 ? `${lastMsg.sender_name}: `
                 : '';
-            preview.textContent = senderPrefix + (lastMsg.content || '(mídia)').slice(0, 80);
-        } else {
-            preview.textContent = `${(g.group_participants || []).length} membros`;
+            snippet.textContent = senderPrefix + (lastMsg.content || '(mídia)').slice(0, 80);
         }
-        bottom.appendChild(preview);
-        if (g.unread_count > 0) {
+        // sem msg → snippet vazio (não polui com "X membros")
+
+        main.appendChild(top);
+        main.appendChild(snippet);
+        item.appendChild(main);
+
+        if (hasUnread) {
             const unread = document.createElement('span');
             unread.className = 'conv-unread';
             unread.textContent = String(g.unread_count);
-            bottom.appendChild(unread);
+            item.appendChild(unread);
         }
-
-        meta.appendChild(top);
-        meta.appendChild(bottom);
-        item.appendChild(avatar);
-        item.appendChild(meta);
 
         item.addEventListener('click', () => openGrupo(g.id));
         listEl.appendChild(item);
