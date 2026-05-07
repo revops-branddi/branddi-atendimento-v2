@@ -1024,9 +1024,9 @@ function renderGrupoChat(grupo) {
     if (!area) return;
     area.replaceChildren();
 
+    // Header
     const header = document.createElement('header');
     header.className = 'chat-header';
-
     const left = document.createElement('div');
     left.className = 'ch-info chat-header-left';
     const ava = document.createElement('div');
@@ -1048,6 +1048,7 @@ function renderGrupoChat(grupo) {
     header.appendChild(left);
     area.appendChild(header);
 
+    // Messages wrap (flex:1, overflow-y:auto vem do CSS .messages-wrap)
     const wrap = document.createElement('div');
     wrap.className = 'messages-wrap';
     wrap.id = 'grupos-messages-wrap';
@@ -1057,6 +1058,68 @@ function renderGrupoChat(grupo) {
     empty.textContent = 'Carregando mensagens...';
     wrap.appendChild(empty);
     area.appendChild(wrap);
+
+    // Composer (input + botão enviar) — mesma estrutura que o inbox usa
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'chat-input-wrap';
+    inputWrap.id = 'grupos-input-wrap';
+
+    const inputRow = document.createElement('div');
+    inputRow.className = 'chat-input-row';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'chat-textarea';
+    textarea.id = 'grupos-input';
+    textarea.placeholder = 'Digite sua mensagem... (Cmd/Ctrl+Enter para enviar)';
+    textarea.rows = 1;
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            sendGrupoMessage();
+        }
+    });
+
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'send-btn';
+    sendBtn.id = 'grupos-send-btn';
+    sendBtn.type = 'button';
+    sendBtn.textContent = '▶';
+    sendBtn.addEventListener('click', sendGrupoMessage);
+
+    inputRow.appendChild(textarea);
+    inputRow.appendChild(sendBtn);
+    inputWrap.appendChild(inputRow);
+    area.appendChild(inputWrap);
+}
+
+let _grupoSending = false;
+async function sendGrupoMessage() {
+    if (_grupoSending || !currentGrupo) return;
+    const input = document.getElementById('grupos-input');
+    const sendBtn = document.getElementById('grupos-send-btn');
+    if (!input) return;
+    const text = (input.value || '').trim();
+    if (!text) return;
+
+    _grupoSending = true;
+    if (sendBtn) sendBtn.disabled = true;
+    try {
+        // Reusa o endpoint padrão de envio de mensagens — funciona pra group chat
+        // (a API Unipile aceita o mesmo POST /chats/:id/messages)
+        await apiFetch(`/api/messages/${currentGrupo.id}/send`, {
+            method: 'POST',
+            body: JSON.stringify({ text }),
+        });
+        input.value = '';
+        // Recarrega mensagens pra ver o que enviamos
+        const data = await apiFetch(`/api/messages/${currentGrupo.id}?limit=100`);
+        renderGrupoMessages(currentGrupo, data.messages || []);
+    } catch (err) {
+        toast(`❌ Falha ao enviar: ${err.message}`, 'error');
+    } finally {
+        _grupoSending = false;
+        if (sendBtn) sendBtn.disabled = false;
+    }
 }
 
 function renderGrupoMessages(grupo, msgs) {
