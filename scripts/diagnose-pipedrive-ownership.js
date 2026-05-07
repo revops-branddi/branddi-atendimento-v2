@@ -1,17 +1,17 @@
 /**
- * Diagnose: por que atividades do Pipedrive estão saindo no nome errado.
- * READ-ONLY — não modifica nada.
+ * Diagnose: atribuição de atividades Pipedrive (READ-ONLY).
  *
- * Verifica:
- *  1. platform_users: quem tem pipedrive_api_token? E pipedrive_user_id?
- *  2. whatsapp_accounts: quem é connected_by_user_id de cada conta?
- *  3. Pipedrive /users/me: o token de cada user resolve pra quem mesmo?
+ * Replica a cascata REAL usada em src/services/auto-activities.js:
+ *   1. permissions.whatsapp_accounts (match único + token setado) → user
+ *      atribuído
+ *   2. fallback global (PIPEDRIVE_API_TOKEN)
  *
- * Saída redacted: só mostra os 4 últimos chars do token (pra não logar
- * segredos no terminal).
+ * connected_by_user_id é mostrado como informação histórica mas NÃO entra
+ * mais na resolução (admin que conecta não é dono).
+ *
+ * Saída redacted: só os 4 últimos chars do token (segurança).
  *
  * Uso: node scripts/diagnose-pipedrive-ownership.js [--user=<name>]
- *      node scripts/diagnose-pipedrive-ownership.js --user=Kaiky
  */
 import 'dotenv/config';
 import supabase from '../src/services/supabase.js';
@@ -116,23 +116,56 @@ async function main() {
         process.exit(1);
     }
 
+    // Carrega TODOS os users pra resolver atribuição via permissions
+    const { data: allUsersForResolve } = await supabase
+        .from('platform_users')
+        .select('id, name, email, pipedrive_api_token, permissions');
+
+    function resolveOwner(unipileAccountId) {
+        const matches = (allUsersForResolve || []).filter(u =>
+            (u.permissions?.whatsapp_accounts || []).includes(unipileAccountId)
+        );
+        const withToken = matches.filter(u => u.pipedrive_api_token);
+        if (withToken.length === 1) {
+            return { source: 'permissions (match único)', user: withToken[0] };
+        }
+        if (withToken.length > 1) {
+            return {
+                source: `permissions ambíguo (${withToken.length} users) → fallback global`,
+                user: null,
+                ambiguous: withToken.map(u => u.name),
+            };
+        }
+        if (matches.length > 0) {
+            return {
+                source: `${matches.length} user(s) atribuído(s) mas sem token → fallback global`,
+                user: null,
+                noToken: matches.map(u => u.name),
+            };
+        }
+        return { source: 'sem atribuição → fallback global', user: null };
+    }
+
     console.log(`[whatsapp_accounts] (${accounts.length} contas)`);
     for (const a of accounts) {
-        const owner = a.platform_users;
+        const connBy = a.platform_users;
         console.log(`\n  ${a.display_label || a.label || a.phone_number} [${a.status}]`);
         console.log(`    unipile_account_id:    ${a.unipile_account_id}`);
-        console.log(`    connected_by_user_id:  ${a.connected_by_user_id || '(NULL)'}`);
-        console.log(`    connected_by_name:     ${owner?.name || '(sem owner)'} <${owner?.email || '—'}>`);
-        console.log(`    owner_token:           ${suffix(owner?.pipedrive_api_token)}`);
+        console.log(`    connected_by:          ${connBy?.name || '(NULL)'} ${connBy?.email ? '<' + connBy.email + '>' : ''} (informativo, não usado)`);
 
-        if (owner?.pipedrive_api_token) {
-            const me = await pdUsersMe(owner.pipedrive_api_token);
-            if (me.error) console.log(`    → /users/me ERROR: ${me.error}`);
+        const r = resolveOwner(a.unipile_account_id);
+        console.log(`    resolves via:          ${r.source}`);
+        if (r.ambiguous) console.log(`      └── ${r.ambiguous.join(', ')}`);
+        if (r.noToken) console.log(`      └── ${r.noToken.join(', ')}`);
+
+        if (r.user) {
+            const me = await pdUsersMe(r.user.pipedrive_api_token);
+            if (me.error) console.log(`    ⚠️  /users/me ERROR: ${me.error} — token quebrado, atividade vai falhar`);
             else console.log(`    → atividades dessa conta vão sair como: "${me.name}" (id=${me.id})`);
-        } else if (a.connected_by_user_id) {
-            console.log(`    ⚠️  Owner sem pipedrive_api_token → fallback global → atividades como: dono do GLOBAL`);
         } else {
-            console.log(`    ⚠️  Sem connected_by_user_id → fallback global → atividades como: dono do GLOBAL`);
+            const me = await pdUsersMe(GLOBAL_TOKEN);
+            const who = me.error ? '(token global inválido)' : `"${me.name}" (id=${me.id})`;
+            console.log(`    → atividades dessa conta vão sair como: ${who}  ← GLOBAL`);
         }
     }
     console.log();

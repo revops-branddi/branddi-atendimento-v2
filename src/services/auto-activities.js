@@ -60,20 +60,21 @@ async function getConversationDealInfo(conversationId) {
 }
 
 /**
- * Descobre o token Pipedrive do dono da conta WhatsApp por onde veio a conversa.
- * Assim atividades ficam no nome do SDR certo (não do token global).
+ * Descobre o token Pipedrive do dono da conta WhatsApp.
  *
- * Cascata (fonte de verdade = quem ATENDE o número, não quem conectou):
- *   1. permissions.whatsapp_accounts: user com esse account na lista E
- *      pipedrive_api_token setado. SÓ aceita se for match ÚNICO (1 user) —
- *      ambiguidade cai no próximo passo pra evitar atribuição errada.
- *   2. whatsapp_accounts.connected_by_user_id: legado — quem clicou Connect.
- *   3. process.env.PIPEDRIVE_API_TOKEN: fallback global.
+ * Princípio: dono = quem TEM o número atribuído via permissions. Admin que
+ * fez o Connect tecnicamente NÃO é dono (era a regra antiga, removida).
+ *
+ *   1. permissions.whatsapp_accounts: user único com esse account na lista E
+ *      pipedrive_api_token setado. Match único é exigido — ambiguidade
+ *      (múltiplos users compartilhando) cai no global pra evitar atribuir
+ *      ao SDR errado.
+ *   2. process.env.PIPEDRIVE_API_TOKEN: fallback global (quando ninguém
+ *      tem o número atribuído ou a atribuição é ambígua).
  */
 async function getTokenByWhatsAppAccount(unipileAccountId) {
     if (!unipileAccountId) return process.env.PIPEDRIVE_API_TOKEN;
 
-    // (1) Match via permissions.whatsapp_accounts (atribuição de atendente)
     try {
         const { data: assigned } = await supabase
             .from('platform_users')
@@ -86,7 +87,7 @@ async function getTokenByWhatsAppAccount(unipileAccountId) {
             return withToken[0].pipedrive_api_token;
         }
         if (withToken.length > 1) {
-            logger.warn('Conta WhatsApp atribuída a múltiplos users — usando fallback', {
+            logger.warn('Conta WhatsApp atribuída a múltiplos users com token — usando fallback global', {
                 unipile_account_id: unipileAccountId,
                 user_count: withToken.length,
                 user_names: withToken.map(u => u.name),
@@ -99,18 +100,6 @@ async function getTokenByWhatsAppAccount(unipileAccountId) {
         });
     }
 
-    // (2) Legado: connected_by_user_id (quem clicou Connect)
-    try {
-        const { data } = await supabase
-            .from('whatsapp_accounts')
-            .select('connected_by_user_id, platform_users:connected_by_user_id(pipedrive_api_token)')
-            .eq('unipile_account_id', unipileAccountId)
-            .maybeSingle();
-        const personalToken = data?.platform_users?.pipedrive_api_token;
-        if (personalToken) return personalToken;
-    } catch { /* cai no global */ }
-
-    // (3) Fallback global
     return process.env.PIPEDRIVE_API_TOKEN;
 }
 
