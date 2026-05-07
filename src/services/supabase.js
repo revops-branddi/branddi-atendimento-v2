@@ -359,11 +359,17 @@ export async function getInbox({
  * Permite ao caller saber que a mensagem já existe e pular processamento.
  */
 export async function saveMessage(data) {
+    // IMPORTANTE: maybeSingle() (não single()) — com ignoreDuplicates=true,
+    // duplicatas devolvem 0 linhas. single() lançaria PGRST116 ("no rows"),
+    // que NÃO bate em error.code='23505' nem error.message.includes('duplicate'),
+    // e o throw quebrava o loop do polling perdendo todas as msgs seguintes.
+    // Com maybeSingle(), 0 linhas → msg=null, sem erro → retornamos null
+    // (sinalização correta de "duplicata, já estava no DB").
     const { data: msg, error } = await supabase
         .from('messages')
         .upsert([data], { onConflict: 'unipile_message_id', ignoreDuplicates: true })
         .select()
-        .single();
+        .maybeSingle();
     if (error) {
         if (error.message?.includes('duplicate') || error.code === '23505') {
             return null;
@@ -375,16 +381,16 @@ export async function saveMessage(data) {
                 .from('messages')
                 .upsert([safeData], { onConflict: 'unipile_message_id', ignoreDuplicates: true })
                 .select()
-                .single();
+                .maybeSingle();
             if (retry.error) {
                 if (retry.error.message?.includes('duplicate') || retry.error.code === '23505') return null;
                 throw retry.error;
             }
-            return retry.data;
+            return retry.data; // pode ser null em caso de duplicata — esperado
         }
         throw error;
     }
-    return msg;
+    return msg; // null = duplicata silenciosa, objeto = msg recém-inserida
 }
 
 export async function getMessages(conversationId, { limit = 50, before } = {}) {

@@ -382,6 +382,27 @@ router.delete('/inbox/:id', requireRole('Admin'), async (req, res) => {
 // ─── POST /api/inbox/:id/push-to-pipedrive — Envia conversa ao Pipedrive
 // Cria Person + Org + Deal + Note (qualificação) + Activity (transcript).
 // Qualquer atendente pode disparar. Bloqueado para leads classificados como OPEC.
+// ─── POST /api/inbox/:id/resync — Re-puxa últimas msgs do Unipile ─────
+// Usado pra recuperar mensagens que o polling possa ter perdido.
+// O saveMessage interno deduplica por unipile_message_id; só msgs faltantes
+// entram no DB.
+router.post('/inbox/:id/resync', async (req, res) => {
+    try {
+        const { resyncConversation } = await import('../services/unipile.js');
+        const limit = Math.min(Math.max(parseInt(req.body?.limit || 50, 10) || 50, 10), 200);
+        const result = await resyncConversation(req.params.id, { limit });
+        logger.info('Resync requisitado por usuário', {
+            user_id: req.user?.id,
+            conversation_id: req.params.id,
+            result,
+        });
+        res.json({ success: true, ...result });
+    } catch (err) {
+        logger.warn('Resync falhou', { conversation_id: req.params.id, error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/inbox/:id/push-to-pipedrive', async (req, res) => {
     try {
         const { getConversationById } = await import('../services/supabase.js');
