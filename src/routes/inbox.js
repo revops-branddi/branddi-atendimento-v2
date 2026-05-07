@@ -22,6 +22,7 @@ router.get('/inbox', async (req, res) => {
             filter_user_id, filter_account_id,        // legado (singular)
             filter_user_ids, filter_account_ids,      // novo: csv
             archived,
+            is_group,                                  // 'true' lista grupos
         } = req.query;
         const user   = req.user || {};
         const role   = user.role;
@@ -50,8 +51,34 @@ router.get('/inbox', async (req, res) => {
             filter_account_id:  filter_account_id || null,
             filter_account_ids: accountIds,
             archived: showArchived,
+            is_group: is_group === 'true',
         });
         res.json({ conversations, total: conversations.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── GET /api/groups — lista de grupos (atalho de /inbox?is_group=true) ──
+router.get('/groups', async (req, res) => {
+    try {
+        const { limit = 50, filter_account_ids } = req.query;
+        const user = req.user || {};
+        const role = user.role;
+        const permissions = user.permissions || {};
+
+        const parseCsv = (csv) => csv ? String(csv).split(',').map(s => s.trim()).filter(Boolean) : null;
+        const accountIds = parseCsv(filter_account_ids);
+
+        const conversations = await getInbox({
+            limit: parseInt(limit),
+            role,
+            user_id: user.id,
+            allowed_accounts: role === 'Admin' ? null : (permissions.whatsapp_accounts || []),
+            filter_account_ids: accountIds,
+            is_group: true,
+        });
+        res.json({ groups: conversations, total: conversations.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

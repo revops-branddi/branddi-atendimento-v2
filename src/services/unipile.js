@@ -574,8 +574,154 @@ export async function resyncConversation(conversationId, { limit = 50 } = {}) {
     return { fetched: allMsgs.length, inserted, skipped, errored };
 }
 
+// Detecta se um chat da Unipile é um grupo WhatsApp.
+// Heurísticas: chat.type === 1 (Unipile flag) OU provider_id termina em @g.us (formato WA grupos).
+function isGroupChat(chat) {
+    return chat?.type === 1 || String(chat?.provider_id || '').endsWith('@g.us');
+}
+
+// Mapeia attendees do Unipile pro shape simples que salvamos em group_participants.
+function normalizeParticipants(attendees) {
+    return (attendees || []).map(a => ({
+        provider_id: a.provider_id || a.id || null,
+        name: a.name || null,
+        phone: a.specifics?.phone_number || a.phone_number || null,
+        is_self: !!a.is_self,
+    }));
+}
+
+// Processa chat de grupo. Diferenças em relação a DM:
+//   - Sem lead vinculado (lead_id = null) — grupos não viram leads
+//   - group_subject = chat.name; group_participants = todos attendees
+//   - Mensagens inbound usam msg.senderName real (não nome de "lead")
+//   - Sem onInboundMessage (não tem deal pra criar atividade Pipedrive)
+async function processGroupChat(chat) {
+    try {
+        let conversation = await findConversationByChat(chat.id);
+        const isNewConversation = !conversation;
+
+        const attendees = (await getChatAttendees(chat.id)).items || [];
+        const participants = normalizeParticipants(attendees);
+
+        if (isNewConversation) {
+            // Tipo da conversa segue default da conta WhatsApp (mesmo critério das DMs)
+            let convType = 'inbound';
+            if (chat.account_id) {
+                try {
+                    const { default: sb } = await import('./supabase.js');
+                    const { data: acc } = await sb
+                        .from('whatsapp_accounts')
+                        .select('default_conversation_type')
+                        .eq('unipile_account_id', chat.account_id)
+                        .maybeSingle();
+                    if (acc?.default_conversation_type) convType = acc.default_conversation_type;
+                } catch { /* fallback inbound */ }
+            }
+
+            conversation = await createConversation({
+                lead_id:             null,
+                whatsapp_chat_id:    chat.id,
+                whatsapp_account_id: chat.account_id || null,
+                channel:             'whatsapp_group',
+                type:                convType,
+                status:              'in_progress',
+                chatbot_stage:       'human',
+                last_message_at:     new Date().toISOString(),
+                is_group:            true,
+                group_subject:       chat.name || null,
+                group_participants:  participants,
+            });
+
+            logger.info('Grupo WhatsApp criado', {
+                chat_id: chat.id, subject: chat.name, members: participants.length,
+            });
+        } else {
+            // Atualiza subject e participants se mudou (entrada/saída de membros, rename)
+            const updates = {};
+            if (chat.name && chat.name !== conversation.group_subject) {
+                updates.group_subject = chat.name;
+            }
+            // Update participants se contagem ou IDs divergem (set diff barato)
+            const oldIds = new Set((conversation.group_participants || []).map(p => p.provider_id));
+            const newIds = new Set(participants.map(p => p.provider_id));
+            const sameSet = oldIds.size === newIds.size && [...oldIds].every(id => newIds.has(id));
+            if (!sameSet) updates.group_participants = participants;
+
+            if (Object.keys(updates).length > 0) {
+                await updateConversation(conversation.id, updates);
+                Object.assign(conversation, updates);
+            }
+        }
+
+        // Busca mensagens: novo → histórico maior; existente → janela do polling
+        const fetchLimit = isNewConversation ? 50 : 10;
+        const msgs = await getMessages(chat.id, { limit: fetchLimit });
+        const allMsgs = msgs.items || [];
+
+        const newMsgs = isNewConversation
+            ? allMsgs
+            : allMsgs.filter(m => new Date(m.timestamp) > new Date(_lastPollTime - 5_000));
+
+        for (const rawMsg of newMsgs) {
+            try {
+                const msg = whatsapp.normalizeMessage(rawMsg);
+                const isOutbound = msg.direction === 'outbound';
+
+                // EM GRUPO: nome do remetente real, não "lead". Outbound = quem da
+                // nossa conta mandou (geralmente atendente único atribuído à account).
+                let senderName;
+                if (isOutbound) {
+                    senderName = await resolveOutboundSenderName(chat.account_id);
+                } else {
+                    senderName = msg.senderName || 'Membro';
+                }
+
+                await saveMessage({
+                    conversation_id:    conversation.id,
+                    direction:          msg.direction,
+                    sender_type:        isOutbound ? 'human' : 'lead',
+                    sender_name:        senderName,
+                    content:            msg.text,
+                    attachments:        msg.attachments,
+                    unipile_message_id: msg.id,
+                    created_at:         msg.timestamp,
+                    delivered:          !!msg.delivered,
+                    seen:               !!msg.seen,
+                });
+                // Sem onInboundMessage — grupos não criam atividade Pipedrive
+            } catch (err) {
+                logger.warn('Polling: erro processando msg de grupo, seguindo', {
+                    chat_id: chat.id, msg_id: rawMsg?.id, error: err.message,
+                });
+            }
+        }
+
+        if (newMsgs.length > 0) {
+            await updateConversation(conversation.id, {
+                last_message_at: new Date().toISOString(),
+            });
+        }
+    } catch (err) {
+        logger.warn('Erro ao processar grupo', { chat_id: chat.id, error: err.message });
+    }
+}
+
+// Pra outbound em grupo: quem é o "atendente"? Resolve via account owner
+// (mesma cascata por permissions usada pra atribuição Pipedrive).
+async function resolveOutboundSenderName(accountId) {
+    if (!accountId) return 'Atendente';
+    const owner = await getAccountOwner(accountId);
+    return owner?.user_name || 'Atendente';
+}
+
 async function processChat(chat) {
     try {
+        // Grupos seguem um caminho dedicado — sem lead, sem deal, sem auto-activity.
+        // (Ver processGroupChat abaixo)
+        if (isGroupChat(chat)) {
+            return await processGroupChat(chat);
+        }
+
         let conversation = await findConversationByChat(chat.id);
         let isNewConversation = false;
 
