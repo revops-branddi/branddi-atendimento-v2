@@ -381,10 +381,11 @@
 
 <!-- ════════════ GRUPOS TAB ════════════ -->
 <section class="tab-panel" id="panel-grupos">
-    <div class="app-layout-inner inbox-layout">
-        <aside class="conversations-sidebar grupos-sidebar">
+    <div class="inbox-layout">
+        <!-- Sidebar: lista de grupos -->
+        <aside class="inbox-sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-title-row">
+                <div class="sidebar-header-row">
                     <h2 class="sidebar-title">Grupos WhatsApp</h2>
                 </div>
                 <input type="search" class="sidebar-search" id="grupos-search" placeholder="Buscar grupo..." autocomplete="off">
@@ -393,17 +394,20 @@
                 <div class="empty-state" style="padding:40px 0"><span>Carregando grupos...</span></div>
             </div>
         </aside>
+
+        <!-- Chat area (renderizado dinamicamente em renderGrupoChat) -->
         <section class="chat-area" id="grupos-chat-area">
-            <div class="empty-state empty-chat">
-                <div style="font-size:32px;margin-bottom:8px">👥</div>
-                <div>Selecione um grupo para ver as mensagens</div>
+            <div class="chat-placeholder">
+                <div class="placeholder-icon" style="font-size:32px;display:flex;align-items:center;justify-content:center">👥</div>
+                <h3>Selecione um grupo</h3>
+                <p>Escolha um grupo na lista para ver as mensagens.</p>
             </div>
         </section>
-        <aside class="lead-info-panel" id="grupos-info-panel" style="display:none">
-            <div class="panel-header">
-                <h3 class="panel-section-title">Membros</h3>
-            </div>
-            <div class="lead-info-content" id="grupos-members-list"></div>
+
+        <!-- Painel direito: membros do grupo -->
+        <aside class="lead-panel" id="grupos-info-panel" style="display:none">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border-md);font-size:13px;font-weight:600;color:var(--text-1)">Membros</div>
+            <div class="lead-panel-content" id="grupos-members-list"></div>
         </aside>
     </div>
 </section>
