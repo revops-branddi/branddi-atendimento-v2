@@ -366,8 +366,7 @@ function updateFilterDot() {
     const userTotal    = MultiSelect.getTotalOptions('inbox-user-filter');
     const accountFiltering = accountSelected.length > 0 && accountSelected.length < accountTotal;
     const userFiltering    = userSelected.length > 0 && userSelected.length < userTotal;
-    const hasFilter = currentTypeFilter !== 'all'
-        || currentFilter !== 'all'
+    const hasFilter = currentFilter !== 'all'
         || accountFiltering
         || userFiltering;
     if (dot) dot.classList.toggle('show', hasFilter);
@@ -1220,8 +1219,6 @@ function setupGruposSearch() {
 
 // --- INBOX ---
 
-// Estado da aba de tipo selecionada
-let currentTypeFilter = 'all'; // 'all' | 'inbound' | 'prospecting'
 let inboxSearchTerm = '';
 
 function setupInboxFilters() {
@@ -1283,43 +1280,10 @@ function setupInboxFilters() {
         }).catch(() => {});
     }
 
-    // Abas de tipo (Inbound / Prospeccao)
-    document.querySelectorAll('.type-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            currentTypeFilter = tab.dataset.type;
-            loadInbox();
-            updateFilterDot();
-        });
-    });
-
-    // Controle de visibilidade das abas por permissions
-    if (currentUser && currentUser.role !== 'Admin') {
-        const tabAll = document.getElementById('type-tab-all');
-        const tabInbound = document.getElementById('type-tab-inbound');
-        const tabProspecting = document.getElementById('type-tab-prospecting');
-        const perms = currentUser.permissions || {};
-        const allowedTypes = perms.conversation_types || [];
-
-        if (allowedTypes.length > 0) {
-            const hasInbound = allowedTypes.includes('inbound');
-            const hasProspecting = allowedTypes.includes('prospecting');
-
-            if (hasInbound && hasProspecting) {
-                // Ambos — mostra tudo normalmente
-            } else if (hasInbound) {
-                if (tabAll) tabAll.style.display = 'none';
-                if (tabProspecting) tabProspecting.style.display = 'none';
-                if (tabInbound) { tabInbound.classList.add('active'); currentTypeFilter = 'inbound'; }
-            } else if (hasProspecting) {
-                if (tabAll) tabAll.style.display = 'none';
-                if (tabInbound) tabInbound.style.display = 'none';
-                if (tabProspecting) { tabProspecting.classList.add('active'); currentTypeFilter = 'prospecting'; }
-            }
-        }
-        // Sem permissions definidas = vê tudo (filtro é por assigned_user_id no backend)
-    }
+    // Abas "Tudo / Site / Prospecao" foram removidas — hoje 100% das conversas
+    // são prospecting. Backend ainda aceita ?type= por compat, mas frontend
+    // não envia mais. Filtragem por permissions.conversation_types continua
+    // sendo aplicada server-side em getInbox via allowed_types.
 }
 
 function setupInboxSearch() {
@@ -1339,27 +1303,17 @@ function setInboxFilter(filter) {
     renderConversationList();
 }
 
-function setInboxType(type) {
-    currentTypeFilter = type;
-    document.querySelectorAll('.type-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.type === type);
-    });
-    loadInbox();
-}
-
-
 let _lastInboxHash = '';
 
 async function loadInbox(silent = false) {
     try {
-        const typeParam = currentTypeFilter !== 'all' ? `&type=${currentTypeFilter}` : '';
         // Multi-select: vazio = "ver tudo" (não envia param). Senão, csv.
         const userIds = MultiSelect.getEffectiveIds('inbox-user-filter');
         const userParam = userIds.length ? `&filter_user_ids=${encodeURIComponent(userIds.join(','))}` : '';
         const accountIds = MultiSelect.getEffectiveIds('inbox-account-filter');
         const accountParam = accountIds.length ? `&filter_account_ids=${encodeURIComponent(accountIds.join(','))}` : '';
         const archivedParam = currentFilter === 'archived' ? '&archived=true' : '';
-        const data = await apiFetch(`/api/inbox?limit=100${typeParam}${userParam}${accountParam}${archivedParam}`);
+        const data = await apiFetch(`/api/inbox?limit=100${userParam}${accountParam}${archivedParam}`);
         const newConversations = data.conversations || [];
 
         // Hash rápido para detectar mudanças e evitar re-render desnecessário (flicker)
@@ -4439,13 +4393,7 @@ async function sendOutbound() {
         closeDealContactsModal();
         switchTab('inbox');
 
-        // Força filtro pra Prospecção (a conversa nova é desse tipo).
-        // Sem isso, se a aba ativa era "Inbound" ou "Todos", a conversa
-        // recém-criada cai fora do filtro e selectConversation falha silente.
-        currentTypeFilter = 'prospecting';
-        document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
-        document.getElementById('type-tab-prospecting')?.classList.add('active');
-
+        // (Tabs Tudo/Site/Prospecao removidas — todas conversas são prospecting)
         await loadInbox();
 
         // Seleciona a conversa recém criada — selectConversation tem fallback
@@ -4497,7 +4445,6 @@ window.handleInputKey     = handleInputKey;
 window.toggleScriptsMenu  = toggleScriptsMenu;
 window.applyScript        = applyScript;
 window.setInboxFilter     = setInboxFilter;
-window.setInboxType       = setInboxType;
 
 // Routing
 window.routeConv = routeConv;

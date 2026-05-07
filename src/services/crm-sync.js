@@ -11,6 +11,7 @@ import {
     createPerson, findPersonByPhone, findOrCreateOrg, createDeal, createWhatsAppActivity,
     createDealNote, pdPost
 } from './pipedrive.js';
+import { getTokenByWhatsAppAccount } from './auto-activities.js';
 import logger from './logger.js';
 
 // ─── Worker Principal ─────────────────────────────────────────────────
@@ -174,11 +175,17 @@ async function syncConversationAsActivity(conversationId, payload = {}) {
         return `[${time}] ${sender}: ${m.content}`;
     }).join('\n');
 
+    // Resolve token do atendente atribuído ao número (via permissions).
+    // Sem isso, atividade saía no nome do dono do token global (Sergio).
+    const conv = await getConversationById(conversationId).catch(() => null);
+    const token = await getTokenByWhatsAppAccount(conv?.whatsapp_account_id);
+
     const activity = await createWhatsAppActivity({
         dealId,
         personId,
         subject: `WhatsApp — ${leadName || 'Lead'}`,
         transcript,
+        tokenOverride: token,
     });
 
     return activity;
@@ -218,6 +225,10 @@ export async function syncConversationToPipedrive(conversationId) {
     if (conv.crm_deal_id) {
         return { already_synced: true, deal_id: conv.crm_deal_id };
     }
+
+    // Token do atendente atribuído (não admin que conectou). Aplicado em
+    // createDealNote e createWhatsAppActivity abaixo.
+    const ownerToken = await getTokenByWhatsAppAccount(conv.whatsapp_account_id);
 
     // 1) Person (reusa ou cria)
     let personId = lead.crm_person_id ? parseInt(lead.crm_person_id) : null;
@@ -279,6 +290,7 @@ export async function syncConversationToPipedrive(conversationId) {
             dealId:  deal.id,
             content: noteLines.join('<br>'),
             pinned:  true,
+            tokenOverride: ownerToken,
         });
     } catch (err) {
         logger.warn('Falha ao criar nota no deal (não crítico)', { error: err.message });
@@ -303,6 +315,7 @@ export async function syncConversationToPipedrive(conversationId) {
             personId,
             subject:  `WhatsApp — ${lead.name || 'Lead'}`,
             transcript,
+            tokenOverride: ownerToken,
         });
     } catch (err) {
         logger.warn('Falha ao criar activity (não crítico)', { error: err.message });
