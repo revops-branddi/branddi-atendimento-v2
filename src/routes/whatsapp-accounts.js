@@ -210,6 +210,41 @@ router.post('/whatsapp/accounts/:id/reconnect-link', async (req, res) => {
     }
 });
 
+// ─── PATCH /api/whatsapp/accounts/:id/label — Edita display_label ────
+// Admin-only. Atualiza apenas o rótulo amigável; não toca em outros campos.
+// Passar display_label='' ou null limpa o rótulo.
+router.patch('/whatsapp/accounts/:id/label', async (req, res) => {
+    try {
+        if (req.user?.role !== 'Admin') {
+            return res.status(403).json({ error: 'Apenas Admin pode editar labels' });
+        }
+        const raw = req.body?.display_label;
+        const display_label = raw == null || String(raw).trim() === ''
+            ? null
+            : String(raw).trim().slice(0, 80);
+
+        const { data, error } = await supabase
+            .from('whatsapp_accounts')
+            .update({ display_label, updated_at: new Date().toISOString() })
+            .eq('unipile_account_id', req.params.id)
+            .select('unipile_account_id, display_label')
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ error: 'Conta não encontrada localmente' });
+
+        logger.info('Display label atualizado', {
+            account_id: req.params.id,
+            new_label: display_label,
+            user_id: req.user?.id,
+        });
+        res.json({ success: true, ...data });
+    } catch (err) {
+        logger.error('label patch error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── DELETE /api/whatsapp/accounts/:id — Desconecta conta ────────────
 router.delete('/whatsapp/accounts/:id', async (req, res) => {
     try {

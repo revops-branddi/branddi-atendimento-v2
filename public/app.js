@@ -3443,36 +3443,109 @@ async function renderWaAccountsInModal() {
         return;
     }
 
+    const isAdmin = currentUser?.role === 'Admin';
+    const myIds = new Set(currentUser?.permissions?.whatsapp_accounts || []);
+
+    // Pra Admin: divide em 2 grupos — "Suas contas" (em permissions) + "Outras"
+    // Pra non-admin: o backend já filtra; mostra tudo sem seção
+    const mine = accounts.filter(a => myIds.has(a.id));
+    const others = accounts.filter(a => !myIds.has(a.id));
+
+    if (isAdmin && mine.length > 0 && others.length > 0) {
+        listEl.appendChild(_makeSectionHeader('Suas contas'));
+        for (const a of mine) listEl.appendChild(_makeAccountRow(a, true));
+        listEl.appendChild(_makeSectionHeader('Outras contas'));
+        for (const a of others) listEl.appendChild(_makeAccountRow(a, false));
+    } else {
+        for (const a of accounts) listEl.appendChild(_makeAccountRow(a, myIds.has(a.id)));
+    }
+}
+
+function _makeSectionHeader(text) {
+    const h = document.createElement('div');
+    h.style.cssText = 'font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3);padding:6px 4px 2px;margin-top:6px';
+    h.textContent = text;
+    return h;
+}
+
+function _makeAccountRow(a, isMine) {
     const isConnected = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
-    for (const a of accounts) {
-        const ok = isConnected(a.status);
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-tertiary);border-radius:8px';
+    const ok = isConnected(a.status);
+    const isAdmin = currentUser?.role === 'Admin';
 
-        const dot = document.createElement('span');
-        dot.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${ok ? '#10b981' : '#f59e0b'}`;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-tertiary);border-radius:8px';
+    if (isMine) row.style.outline = '1.5px solid var(--accent-mid)';
 
-        const info = document.createElement('div');
-        info.style.cssText = 'flex:1;min-width:0';
-        const label = document.createElement('div');
-        label.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-        label.textContent = a.display_name || a.phone_number || a.name || a.id;
-        const status = document.createElement('div');
-        status.style.cssText = 'font-size:11px;color:var(--text-3);margin-top:2px';
-        status.textContent = ok ? 'Conectado' : `Desconectado (${a.status || 'unknown'}) — religue`;
-        info.appendChild(label);
-        info.appendChild(status);
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${ok ? '#10b981' : '#f59e0b'}`;
 
-        const btn = document.createElement('button');
-        btn.className = ok ? 'btn-secondary' : 'btn-primary';
-        btn.style.cssText = 'padding:6px 12px;font-size:12px;flex-shrink:0';
-        btn.textContent = ok ? 'Religar' : '🔌 Religar';
-        btn.addEventListener('click', () => startReconnect(a));
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
 
-        row.appendChild(dot);
-        row.appendChild(info);
-        row.appendChild(btn);
-        listEl.appendChild(row);
+    const labelRow = document.createElement('div');
+    labelRow.style.cssText = 'display:flex;align-items:center;gap:6px';
+
+    if (isMine) {
+        const star = document.createElement('span');
+        star.title = 'Você opera essa conta';
+        star.style.cssText = 'color:var(--accent);font-size:11px';
+        star.textContent = '⭐';
+        labelRow.appendChild(star);
+    }
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1';
+    label.textContent = a.display_name || a.phone_number || a.name || a.id;
+    labelRow.appendChild(label);
+
+    if (isAdmin) {
+        const editBtn = document.createElement('button');
+        editBtn.title = 'Editar label';
+        editBtn.style.cssText = 'background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:11px;padding:2px 4px';
+        editBtn.textContent = '✏️';
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _editAccountLabel(a);
+        });
+        labelRow.appendChild(editBtn);
+    }
+
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:11px;color:var(--text-3);margin-top:2px';
+    status.textContent = ok ? 'Conectado' : `Desconectado (${a.status || 'unknown'}) — religue`;
+
+    info.appendChild(labelRow);
+    info.appendChild(status);
+
+    const btn = document.createElement('button');
+    btn.className = ok ? 'btn-secondary' : 'btn-primary';
+    btn.style.cssText = 'padding:6px 12px;font-size:12px;flex-shrink:0';
+    btn.textContent = ok ? 'Religar' : '🔌 Religar';
+    btn.addEventListener('click', () => startReconnect(a));
+
+    row.appendChild(dot);
+    row.appendChild(info);
+    row.appendChild(btn);
+    return row;
+}
+
+// Inline edit do display_label (admin only)
+async function _editAccountLabel(account) {
+    const current = account.display_name || account.phone_number || '';
+    const newLabel = prompt(`Novo label pra "${current}":`, current);
+    if (newLabel === null) return;
+    const trimmed = newLabel.trim();
+
+    try {
+        await apiFetch(`/api/whatsapp/accounts/${account.id}/label`, {
+            method: 'PATCH',
+            body: JSON.stringify({ display_label: trimmed || null }),
+        });
+        toast(trimmed ? `Label atualizado: "${trimmed}"` : 'Label removido', 'success');
+        renderWaAccountsInModal();
+    } catch (err) {
+        toast(`Erro: ${err.message}`, 'error');
     }
 }
 
