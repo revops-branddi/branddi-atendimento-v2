@@ -121,6 +121,84 @@ router.post('/webhook/test', (req, res) => {
     res.json({ received: true, body: req.body });
 });
 
+// ─── Webhook Unipile: status de contas em tempo real ──────────────────
+//
+// Eventos relevantes do Unipile (source=users):
+//   - account.connected         (status → OK)
+//   - account.disconnected      (status → CREDENTIALS / CONNECTING)
+//   - account.connection_lost
+//   - account.qr_required       (precisa scan novo)
+//
+// Auth: header `x-webhook-secret` precisa bater com env UNIPILE_WEBHOOK_SECRET.
+// Sem secret configurado = aceita tudo (modo dev).
+router.post('/webhooks/unipile', async (req, res) => {
+    try {
+        const expected = process.env.UNIPILE_WEBHOOK_SECRET;
+        if (expected) {
+            const provided = req.headers['x-webhook-secret'];
+            if (provided !== expected) {
+                logger.warn('Webhook Unipile: secret inválido', {
+                    ip: req.headers['x-forwarded-for'] || req.ip,
+                });
+                return res.status(401).json({ error: 'unauthorized' });
+            }
+        }
+
+        const body = req.body || {};
+        // Unipile manda um envelope no formato:
+        //   { event: 'account.disconnected', account: { id, status, ... }, ... }
+        // ou:
+        //   { type: 'account.status', account_id, status, ... }
+        // Aceita os 2 formatos pra robustez.
+        const eventType = body.event || body.type || 'unknown';
+        const accountId = body.account?.id || body.account_id || body.id;
+        const status    = body.account?.status || body.status || body.account?.sources?.[0]?.status;
+
+        if (!accountId) {
+            logger.warn('Webhook Unipile sem account_id', { eventType, body_keys: Object.keys(body) });
+            return res.json({ received: true, ignored: true });
+        }
+
+        // Status anterior pra detectar transição
+        const { data: prev } = await supabase
+            .from('whatsapp_accounts')
+            .select('status')
+            .eq('unipile_account_id', accountId)
+            .maybeSingle();
+
+        // Atualiza status atual no DB (se a conta existir localmente)
+        if (status) {
+            await supabase
+                .from('whatsapp_accounts')
+                .update({ status, updated_at: new Date().toISOString() })
+                .eq('unipile_account_id', accountId);
+        }
+
+        // Append em status_events (sempre — append-only é fonte de verdade
+        // pra análise de padrões depois)
+        await supabase.from('whatsapp_account_status_events').insert({
+            unipile_account_id: accountId,
+            status:             status || null,
+            previous_status:    prev?.status || null,
+            source:             'webhook',
+            event_type:         eventType,
+            raw:                body,
+        });
+
+        logger.info('Webhook Unipile recebido', {
+            event_type: eventType,
+            account_id: accountId,
+            status,
+            previous: prev?.status,
+        });
+
+        res.json({ received: true });
+    } catch (err) {
+        logger.error('Webhook Unipile erro', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Webhook Apollo: recebe número revelado (reveal_phone_number async) ─
 // URL: /api/webhooks/apollo
 //

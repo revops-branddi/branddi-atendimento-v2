@@ -463,7 +463,10 @@ export function getAttachmentUrl(uri) {
 
 // ─── Polling ──────────────────────────────────────────────────────────
 
-export async function startPolling(intervalMs = 10_000) {
+// Polling agora é fallback: webhook em /api/webhooks/unipile dá real-time.
+// 10s → 60s reduz carga sem perder cobertura (webhook pega o que importa).
+// Override via env UNIPILE_POLL_INTERVAL_MS pra ajuste pontual.
+export async function startPolling(intervalMs = parseInt(process.env.UNIPILE_POLL_INTERVAL_MS || '60000', 10)) {
     if (!isAvailable()) {
         logger.warn('Unipile não configurado — polling desativado');
         return;

@@ -629,6 +629,38 @@ function setupTopbarObservers() {
         new MutationObserver(updateTopbarWaPill).observe(dot, { attributes: true, attributeFilter: ['class'] });
     }
 }
+
+// ─── Topbar: badge de contas caídas (do user logado) ─────────────────
+// Bate em /api/whatsapp/accounts/my-status periodicamente. Backend leu DB
+// (rápido), sem round-trip à Unipile. Webhook do Unipile mantém o DB
+// fresh em segundos quando algo cai. 30s é cadência confortável pra UI.
+let _myStatusPoll = null;
+async function refreshMyAccountsStatus() {
+    if (!currentUser) return;
+    const badge = document.getElementById('topbar-down-badge');
+    const text = document.getElementById('topbar-down-badge-text');
+    if (!badge || !text) return;
+    try {
+        const data = await apiFetch('/api/whatsapp/accounts/my-status');
+        const down = data.down_count || 0;
+        if (down === 0) {
+            badge.style.display = 'none';
+            return;
+        }
+        const downAccs = (data.accounts || []).filter(a => !a.ok);
+        const labels = downAccs.map(a => a.label).slice(0, 2).join(', ');
+        const more = downAccs.length > 2 ? ` +${downAccs.length - 2}` : '';
+        text.textContent = down === 1
+            ? `⚠️ ${labels} caiu`
+            : `⚠️ ${down} contas caídas: ${labels}${more}`;
+        badge.style.display = '';
+    } catch { /* silencia — pode ser deploy ou auth */ }
+}
+function setupMyAccountsStatusPolling() {
+    if (_myStatusPoll) return;
+    refreshMyAccountsStatus();
+    _myStatusPoll = setInterval(refreshMyAccountsStatus, 30_000);
+}
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupTopbarObservers);
 } else {
@@ -772,6 +804,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupScriptForm(); } catch (e) { console.warn('setupScriptForm:', e); }
     try { setupInboxSearch(); } catch (e) { console.warn('setupInboxSearch:', e); }
     try { setupGruposSearch(); } catch (e) { console.warn('setupGruposSearch:', e); }
+    try { setupMyAccountsStatusPolling(); } catch (e) { console.warn('setupMyAccountsStatusPolling:', e); }
     try { setupLeadFilters(); } catch (e) { console.warn('setupLeadFilters:', e); }
     try { setupHistoryFilters(); } catch (e) { console.warn('setupHistoryFilters:', e); }
     try { setupDashPeriod(); } catch (e) { console.warn('setupDashPeriod:', e); }
@@ -3566,10 +3599,32 @@ async function startReconnect(acc) {
     qrEl.replaceChildren();
     const loading = document.createElement('span');
     loading.style.cssText = 'color:#666;font-size:13px';
-    loading.textContent = '⏳ Gerando link...';
+    loading.textContent = '⚙️ Tentando religar sem QR...';
     qrEl.appendChild(loading);
     urlEl.value = '';
 
+    // Tentativa 1: restart sem QR. ~30% das quedas resolvem aqui.
+    try {
+        const restart = await apiFetch(`/api/whatsapp/accounts/${acc.id}/restart-session`, { method: 'POST' });
+        if (restart?.success) {
+            qrEl.replaceChildren();
+            const ok = document.createElement('span');
+            ok.style.cssText = 'color:#10b981;font-size:14px;font-weight:600';
+            ok.textContent = '✅ Religada sem QR! Aguardando confirmação da Unipile...';
+            qrEl.appendChild(ok);
+            toast('Sessão restaurada — sem QR', 'success');
+            // dispara refresh do status global pra topbar atualizar
+            if (typeof refreshMyAccountsStatus === 'function') refreshMyAccountsStatus();
+            // recarrega o modal pra refletir
+            setTimeout(() => { renderWaAccountsInModal(); }, 2500);
+            return;
+        }
+    } catch (err) {
+        console.warn('Restart falhou, indo pra QR:', err.message);
+    }
+
+    // Tentativa 2: QR scan via hosted link
+    loading.textContent = '⏳ Gerando QR...';
     try {
         const data = await apiFetch(`/api/whatsapp/accounts/${acc.id}/reconnect-link`, { method: 'POST' });
         const url = data.url;

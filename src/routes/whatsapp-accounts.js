@@ -210,6 +210,87 @@ router.post('/whatsapp/accounts/:id/reconnect-link', async (req, res) => {
     }
 });
 
+// ─── POST /api/whatsapp/accounts/:id/restart-session ─────────────────
+// Tenta restart sem QR. Em ~30% dos casos (sessão revalidada), volta
+// imediatamente. Quando falha (AccountFailedToRestart), cliente cai
+// no fluxo de QR scan (reconnect-link).
+router.post('/whatsapp/accounts/:id/restart-session', async (req, res) => {
+    try {
+        const accountId = req.params.id;
+        const user = req.user || {};
+        const isAdmin = user.role === 'Admin';
+        const allowed = (user.permissions?.whatsapp_accounts || []).includes(accountId);
+        if (!isAdmin && !allowed) {
+            return res.status(403).json({ error: 'Sem permissão pra essa conta WhatsApp' });
+        }
+
+        const config = getUnipileConfig();
+        if (!config) return res.status(500).json({ error: 'Unipile não configurado' });
+
+        // Unipile responde { object: 'AccountFailedToRestart' } em status 200
+        // quando sessão tá morta de vez (precisa QR scan).
+        const result = await unipileFetch(`/accounts/${accountId}/restart`, {
+            method: 'POST',
+        }, 10000);
+
+        const isOk = result?.object && result.object !== 'AccountFailedToRestart';
+        logger.info('Restart session', {
+            account_id: accountId,
+            user_id: user.id,
+            result_object: result?.object,
+            ok: isOk,
+        });
+
+        res.json({
+            success: isOk,
+            requires_qr: !isOk,
+            raw: result,
+        });
+    } catch (err) {
+        logger.error('restart-session error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── GET /api/whatsapp/accounts/my-status ────────────────────────────
+// Resumo enxuto pra topbar: contas do user logado + status.
+// Frontend usa pra mostrar badge "⚠️ N caída(s)" sem round-trip Unipile.
+router.get('/whatsapp/accounts/my-status', async (req, res) => {
+    try {
+        const user = req.user || {};
+        const isAdmin = user.role === 'Admin';
+        const myIds = user.permissions?.whatsapp_accounts || [];
+
+        let query = supabase
+            .from('whatsapp_accounts')
+            .select('unipile_account_id, display_label, phone_number, status, updated_at');
+        if (!isAdmin) {
+            if (myIds.length === 0) return res.json({ accounts: [], down_count: 0 });
+            query = query.in('unipile_account_id', myIds);
+        } else if (myIds.length > 0) {
+            // Admin com contas atribuídas: foca nas dele (que ele opera)
+            query = query.in('unipile_account_id', myIds);
+        }
+        // Admin sem permissions: vê todas
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const isOk = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
+        const accounts = (data || []).map(a => ({
+            id: a.unipile_account_id,
+            label: a.display_label || a.phone_number || 'Conta',
+            status: a.status,
+            ok: isOk(a.status),
+        }));
+        const down_count = accounts.filter(a => !a.ok).length;
+
+        res.json({ accounts, down_count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── PATCH /api/whatsapp/accounts/:id/label — Edita display_label ────
 // Admin-only. Atualiza apenas o rótulo amigável; não toca em outros campos.
 // Passar display_label='' ou null limpa o rótulo.
