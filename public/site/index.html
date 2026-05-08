@@ -70,6 +70,7 @@
             justify-content: space-between;
             padding: 14px 16px;
             border-bottom: 1px solid var(--border-md);
+            gap: 8px;
         }
         .site-header h1 {
             font-size: 15px;
@@ -88,6 +89,52 @@
             border-radius: 50%;
             background: var(--accent);
         }
+        .site-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* Pill de status — espelha .status-pill do app principal (style-v2.css) */
+        .site-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: var(--r-pill);
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .site-status-pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: site-status-pulse 2s ease-in-out infinite;
+        }
+        @keyframes site-status-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .site-status-pill.offline {
+            background: rgba(225, 29, 72, 0.10);
+            color: #BE123C;
+        }
+        .site-status-pill.offline .dot { background: var(--danger); }
+        .site-status-pill.connecting {
+            background: rgba(245, 158, 11, 0.14);
+            color: #92400E;
+        }
+        .site-status-pill.connecting .dot { background: var(--warning); }
+        .site-status-pill.unknown {
+            background: var(--bg-elev-2);
+            color: var(--text-3);
+        }
+        .site-status-pill.unknown .dot { background: var(--text-3); animation: none; }
         .site-back {
             color: var(--text-2);
             text-decoration: none;
@@ -491,7 +538,13 @@
     <aside class="site-sidebar">
         <div class="site-header">
             <h1>Atendimento Site</h1>
-            <a href="/" class="site-back">← Voltar</a>
+            <div class="site-header-right">
+                <span class="site-status-pill unknown" id="site-status-pill" title="Status da conta WhatsApp do site">
+                    <span class="dot"></span>
+                    <span class="site-status-pill-text">Verificando…</span>
+                </span>
+                <a href="/" class="site-back">← Voltar</a>
+            </div>
         </div>
         <div class="site-filters" id="filters">
             <button class="filter-btn active" data-filter="all">Todas</button>

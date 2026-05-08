@@ -8,6 +8,7 @@
 const API = '/api/site';
 const LIST_POLL_MS = 8_000;
 const THREAD_POLL_MS = 5_000;
+const STATUS_POLL_MS = 30_000;
 
 // ─── Auth + fetch helpers ────────────────────────────────────────────
 
@@ -103,8 +104,9 @@ const state = {
     me:           getUser(),
 };
 
-let listPollHandle  = null;
+let listPollHandle   = null;
 let threadPollHandle = null;
+let statusPollHandle = null;
 
 // ─── List rendering ──────────────────────────────────────────────────
 
@@ -377,29 +379,78 @@ async function patchConv(patch) {
     }
 }
 
+// ─── Status pill (conta WhatsApp do site) ────────────────────────────
+// Lê de /whatsapp-accounts: cada conta vem com `status` (DB) e `live_status`
+// (best-effort do Unipile). Considera "online" se alguma conta tem live OK
+// — analogo ao /api/health do app principal, mas usando só contas do site.
+
+const OK_STATUS_RX = /^(ok|connected|running|ok_for_now)$/i;
+const CONNECTING_RX = /^(connecting|checkpoint|qr)/i;
+
+function pickPillState(accounts) {
+    if (!accounts || !accounts.length) {
+        return { variant: 'unknown', label: 'Sem conta' };
+    }
+    const liveOrDb = (a) => a.live_status || a.status || 'unknown';
+    const anyOk         = accounts.some(a => OK_STATUS_RX.test(liveOrDb(a)));
+    if (anyOk) return { variant: 'online', label: 'Site conectado' };
+
+    const anyConnecting = accounts.some(a => CONNECTING_RX.test(liveOrDb(a)));
+    if (anyConnecting)  return { variant: 'connecting', label: 'Conectando…' };
+
+    return { variant: 'offline', label: 'Site desconectado' };
+}
+
+function applyPill({ variant, label }) {
+    const pill = document.getElementById('site-status-pill');
+    if (!pill) return;
+    pill.classList.remove('online', 'offline', 'connecting', 'unknown');
+    pill.classList.add(variant);
+    const txt = pill.querySelector('.site-status-pill-text');
+    if (txt) txt.textContent = label;
+}
+
+async function refreshSiteStatus() {
+    try {
+        const accounts = await api('/whatsapp-accounts');
+        applyPill(pickPillState(accounts));
+    } catch {
+        applyPill({ variant: 'unknown', label: 'Status indisponível' });
+    }
+}
+
 // ─── Polling ─────────────────────────────────────────────────────────
 
-function startPolling() {
-    listPollHandle = setInterval(() => loadConversations({ silent: true }), LIST_POLL_MS);
+function clearAllPolls() {
+    clearInterval(listPollHandle);   listPollHandle   = null;
+    clearInterval(threadPollHandle); threadPollHandle = null;
+    clearInterval(statusPollHandle); statusPollHandle = null;
+}
+
+function startAllPolls() {
+    listPollHandle   = setInterval(() => loadConversations({ silent: true }), LIST_POLL_MS);
     threadPollHandle = setInterval(() => {
         if (state.activeConvId) renderConversation();
     }, THREAD_POLL_MS);
+    statusPollHandle = setInterval(refreshSiteStatus, STATUS_POLL_MS);
+}
+
+function startPolling() {
+    startAllPolls();
     // Pausa quando aba some de foco pra economizar requests.
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            clearInterval(listPollHandle); listPollHandle = null;
-            clearInterval(threadPollHandle); threadPollHandle = null;
+            clearAllPolls();
         } else if (!listPollHandle) {
             loadConversations({ silent: true });
             if (state.activeConvId) renderConversation();
-            listPollHandle   = setInterval(() => loadConversations({ silent: true }), LIST_POLL_MS);
-            threadPollHandle = setInterval(() => {
-                if (state.activeConvId) renderConversation();
-            }, THREAD_POLL_MS);
+            refreshSiteStatus();
+            startAllPolls();
         }
     });
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────
 
+refreshSiteStatus();
 loadConversations().then(startPolling);
