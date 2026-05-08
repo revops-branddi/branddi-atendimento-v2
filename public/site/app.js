@@ -403,11 +403,18 @@ function pickPillState(accounts) {
 
 function applyPill({ variant, label }) {
     const pill = document.getElementById('site-status-pill');
-    if (!pill) return;
-    pill.classList.remove('online', 'offline', 'connecting', 'unknown');
-    pill.classList.add(variant);
-    const txt = pill.querySelector('.site-status-pill-text');
-    if (txt) txt.textContent = label;
+    if (pill) {
+        // O pill usa .status-pill (do style-v2) com .offline padrão. Adicionamos
+        // .connecting e .unknown como variantes locais. .online é o estado padrão
+        // (sem modifier).
+        pill.classList.remove('offline', 'connecting', 'unknown');
+        if (variant !== 'online') pill.classList.add(variant);
+        const txt = pill.querySelector('.site-status-pill-text');
+        if (txt) txt.textContent = label;
+    }
+    // Espelha no #status-dot do rodape da side-nav (paridade com main app).
+    const dot = document.getElementById('status-dot');
+    if (dot) dot.classList.toggle('offline', variant === 'offline' || variant === 'unknown');
 }
 
 async function refreshSiteStatus() {
@@ -450,7 +457,71 @@ function startPolling() {
     });
 }
 
+// ─── Topbar: user chip + dropdown ────────────────────────────────────
+// Logica espelha public/app.js (setupTopbarUser + setupTopbarUserMenu).
+// Mantemos local em vez de compartilhar pra nao acoplar /site ao app.js
+// principal, que tem muito mais responsabilidade.
+
+function updateTopbarUser() {
+    const me = state.me || {};
+    const avatar = document.getElementById('topbar-user-avatar');
+    const name   = document.getElementById('topbar-user-name');
+    const role   = document.getElementById('topbar-user-role');
+    if (avatar) avatar.textContent = (me.name || '?').split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+    if (name)   name.textContent   = me.name || me.email || '—';
+    if (role)   role.textContent   = me.role || '—';
+}
+
+function setupTopbarUserMenu() {
+    const trigger = document.getElementById('topbar-user-chip');
+    const menu    = document.getElementById('topbar-user-menu');
+    if (!trigger || !menu) return;
+
+    const close = () => {
+        if (menu.hidden) return;
+        menu.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', onDocClick, true);
+        document.removeEventListener('keydown', onKey);
+    };
+    const open = () => {
+        if (!menu.hidden) return;
+        menu.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+        document.addEventListener('click', onDocClick, true);
+        document.addEventListener('keydown', onKey);
+    };
+    const onDocClick = (e) => {
+        if (!trigger.contains(e.target) && !menu.contains(e.target)) close();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { close(); trigger.focus(); } };
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.hidden ? open() : close();
+    });
+    menu.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-action]')?.dataset.action;
+        if (action === 'logout') {
+            localStorage.removeItem('ba_token');
+            localStorage.removeItem('ba_user');
+            window.location.href = '/login.html';
+        }
+        close();
+    });
+}
+
+// Mostra Dashboard só pra Admin (paridade com setRoleVisibility do main app)
+function applySiteRoleVisibility() {
+    const isAdmin = state.me?.role === 'Admin';
+    const dashLink = document.getElementById('nav-dashboard');
+    if (dashLink) dashLink.style.display = isAdmin ? '' : 'none';
+}
+
 // ─── Boot ────────────────────────────────────────────────────────────
 
+updateTopbarUser();
+applySiteRoleVisibility();
+setupTopbarUserMenu();
 refreshSiteStatus();
 loadConversations().then(startPolling);

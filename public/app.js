@@ -882,6 +882,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupEventDelegation(); } catch (e) { console.warn('setupEventDelegation:', e); }
     try { setupMobile(); } catch (e) { console.warn('setupMobile:', e); }
 
+    // Deep-link via ?tab=X — usado por links externos (ex: side-nav do /site).
+    // Tabs válidas: as que existem no markup (data-tab). Inválidas são ignoradas.
+    try {
+        const tabParam = new URLSearchParams(location.search).get('tab');
+        if (tabParam && document.querySelector(`.nav-btn[data-tab="${tabParam}"]`)) {
+            switchTab(tabParam);
+        }
+    } catch (e) { console.warn('tab param:', e); }
+
     // Deals tab events
     document.getElementById('btn-send-outbound')?.addEventListener('click', sendOutbound);
     document.getElementById('btn-import-history')?.addEventListener('click', importWhatsAppHistory);
