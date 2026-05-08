@@ -628,6 +628,44 @@ function setupTopbarObservers() {
         updateTopbarWaPill();
         new MutationObserver(updateTopbarWaPill).observe(dot, { attributes: true, attributeFilter: ['class'] });
     }
+    setupTopbarUserMenu();
+}
+
+// Dropdown do user-chip na topbar: clique abre, clique fora / Esc fecha.
+// O item "Sair" usa data-action="logout", então o dispatcher global trata.
+function setupTopbarUserMenu() {
+    const trigger = document.getElementById('topbar-user-chip');
+    const menu = document.getElementById('topbar-user-menu');
+    if (!trigger || !menu || trigger.dataset.menuBound === '1') return;
+    trigger.dataset.menuBound = '1';
+
+    const close = () => {
+        if (menu.hidden) return;
+        menu.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', onDocClick, true);
+        document.removeEventListener('keydown', onKey);
+    };
+    const open = () => {
+        if (!menu.hidden) return;
+        menu.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+        document.addEventListener('click', onDocClick, true);
+        document.addEventListener('keydown', onKey);
+    };
+    const onDocClick = (e) => {
+        if (!trigger.contains(e.target) && !menu.contains(e.target)) close();
+    };
+    const onKey = (e) => {
+        if (e.key === 'Escape') { close(); trigger.focus(); }
+    };
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.hidden ? open() : close();
+    });
+    // Fecha ao clicar em qualquer item (logout dispara via dispatcher global)
+    menu.addEventListener('click', () => close());
 }
 
 // ─── Topbar: badge de contas caídas (do user logado) ─────────────────
@@ -3275,18 +3313,13 @@ function setupCurrentUser() {
     if (!currentUser) return;
 
     const container = document.getElementById('side-nav-user');
-    if (!container) return;
-
-    const roleColors = { Admin: '#a78bfa', Usuario: '#34d399' };
-    const roleColor  = roleColors[currentUser.role] || '#8b949e';
-
-    container.className = 'side-nav-user';
-    container.title = `${currentUser.name} (${currentUser.role})`;
-    container.innerHTML = `
-        <div class="user-avatar">${currentUser.name.charAt(0).toUpperCase()}</div>
-        <span class="user-role-dot" style="color:${roleColor}">${currentUser.role}</span>
-        <button class="btn-logout" data-action="logout" title="Sair">&#x2715;</button>
-    `;
+    if (container) {
+        // Avatar + logout movidos pro chip da topbar (dropdown). Mantém o
+        // container vazio pra não quebrar seletores legados.
+        container.replaceChildren();
+        container.removeAttribute('title');
+        container.className = 'side-nav-user is-empty';
+    }
 
     // SPEC v2 §8 — preenche o user chip do topbar
     if (typeof updateTopbarUser === 'function') updateTopbarUser();

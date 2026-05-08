@@ -3173,10 +3173,28 @@ select.settings-input { appearance: auto; padding-right: 28px; }
 }
 .status-pill.offline .dot { background: var(--danger); }
 
+.user-chip-wrap { position: relative; }
 .user-chip {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 8px 4px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.user-chip:hover { background: var(--bg-elevated); border-color: var(--border); }
+.user-chip[aria-expanded="true"] {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+.user-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .user-chip-avatar {
   width: 32px;
@@ -3191,7 +3209,7 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   font-weight: 600;
   flex-shrink: 0;
 }
-.user-chip-meta { display: flex; flex-direction: column; line-height: 1.2; }
+.user-chip-meta { display: flex; flex-direction: column; line-height: 1.2; align-items: flex-start; }
 .user-chip-name {
   font-size: 13px;
   font-weight: 600;
@@ -3204,6 +3222,53 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
+.user-chip-caret {
+  color: var(--text-3);
+  margin-left: 2px;
+  transition: transform 0.15s var(--ease);
+}
+.user-chip[aria-expanded="true"] .user-chip-caret { transform: rotate(180deg); }
+
+/* Dropdown menu do user-chip — segue o padrão visual do filter-dropdown */
+.user-chip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 100;
+}
+.user-chip-menu[hidden] { display: none; }
+.user-chip-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+.user-chip-menu-item:hover { background: var(--bg-base); color: var(--text-1); }
+.user-chip-menu-item.is-danger:hover {
+  background: rgba(225, 29, 72, 0.08);
+  color: var(--danger);
+}
+.user-chip-menu-item svg { flex-shrink: 0; }
+
+/* side-nav-user vazio (avatar S removido — agora é só o chip da topbar) */
+.side-nav-user.is-empty { display: none; }
 
 /* ============================================================
    v2 §7 — Light shell completo (overrides do legacy dark)
