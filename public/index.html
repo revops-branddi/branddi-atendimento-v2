@@ -797,8 +797,20 @@
             <button class="modal-close" onclick="closeWaConnect()">✕</button>
         </div>
         <div class="modal-body" style="padding:20px 24px">
-            <!-- Lista de contas do user (preenchida via JS) -->
-            <div id="wa-accounts-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+            <!-- Seção 1: SEU número (filtrado por is_mine no backend) -->
+            <div id="wa-my-account-section" style="margin-bottom:16px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Seu número WhatsApp</div>
+                <div id="wa-my-account-content" style="display:flex;flex-direction:column;gap:10px"></div>
+            </div>
+
+            <!-- Seção 2: Outras contas da equipe (Admin only, oculto se vazio) -->
+            <div id="wa-team-accounts-section" style="display:none;margin-bottom:16px;border-top:1px solid var(--border-md);padding-top:14px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Outras contas da equipe (admin)</div>
+                <div id="wa-team-accounts-list" style="display:flex;flex-direction:column;gap:10px"></div>
+            </div>
+
+            <!-- Lista legada (mantida só pra compat — sempre vazia agora) -->
+            <div id="wa-accounts-list" style="display:none"></div>
 
             <!-- Painel de RELIGAR (mostrado ao clicar Religar numa conta) -->
             <div id="wa-reconnect-area" style="display:none;background:var(--bg-tertiary);border-radius:10px;padding:16px;margin-bottom:16px">
