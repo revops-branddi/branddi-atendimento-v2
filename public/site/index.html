@@ -42,18 +42,33 @@
         html, body { margin: 0; padding: 0; height: 100%; min-height: 0; }
         body {
             display: flex;
+            flex-direction: row;
             height: 100vh;
+            overflow: hidden;
             font-family: 'Inter', system-ui, sans-serif;
             font-size: 14px;
             background: var(--bg-base);
             color: var(--text-1);
         }
 
+        /* App-layout interno: topbar (auto) + site-shell (flex 1) */
+        .app-layout {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-base);
+        }
+
         .site-shell {
             display: grid;
             grid-template-columns: 340px 1fr;
-            width: 100%;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
 
         /* === Sidebar === */
@@ -64,89 +79,28 @@
             flex-direction: column;
             min-height: 0;
         }
-        .site-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        /* Header da sidebar de conversas (não da app inteira — topbar cuida disso) */
+        .site-conv-header {
             padding: 14px 16px;
             border-bottom: 1px solid var(--border-md);
-            gap: 8px;
-        }
-        .site-header h1 {
-            font-size: 15px;
-            margin: 0;
+            font-size: 13px;
             font-weight: 600;
-            color: var(--text-1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .site-header h1::before {
-            content: '';
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent);
-        }
-        .site-header-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        /* Pill de status — espelha .status-pill do app principal (style-v2.css) */
-        .site-status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: var(--r-pill);
-            background: rgba(16, 185, 129, 0.12);
-            color: #047857;
-            font-size: 11px;
-            font-weight: 600;
+            color: var(--text-2);
             text-transform: uppercase;
             letter-spacing: 0.4px;
-            transition: background 0.15s, color 0.15s;
         }
-        .site-status-pill .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--success);
-            animation: site-status-pulse 2s ease-in-out infinite;
-        }
-        @keyframes site-status-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .site-status-pill.offline {
-            background: rgba(225, 29, 72, 0.10);
-            color: #BE123C;
-        }
-        .site-status-pill.offline .dot { background: var(--danger); }
-        .site-status-pill.connecting {
+        /* Pill no topbar: variantes além do online/offline padrão do style-v2.
+           As 4 variantes são: default (online verde), .offline, .connecting, .unknown */
+        #site-status-pill.connecting {
             background: rgba(245, 158, 11, 0.14);
             color: #92400E;
         }
-        .site-status-pill.connecting .dot { background: var(--warning); }
-        .site-status-pill.unknown {
+        #site-status-pill.connecting .dot { background: var(--warning); }
+        #site-status-pill.unknown {
             background: var(--bg-elev-2);
             color: var(--text-3);
         }
-        .site-status-pill.unknown .dot { background: var(--text-3); animation: none; }
-        .site-back {
-            color: var(--text-2);
-            text-decoration: none;
-            font-size: 13px;
-            padding: 4px 10px;
-            border-radius: var(--r-md);
-            transition: background 0.12s;
-        }
-        .site-back:hover {
-            color: var(--text-1);
-            background: var(--bg-elev-2);
-        }
+        #site-status-pill.unknown .dot { background: var(--text-3); animation: none; }
 
         .site-filters {
             display: flex;
@@ -534,33 +488,124 @@
     </style>
 </head>
 <body>
-<div class="site-shell">
-    <aside class="site-sidebar">
-        <div class="site-header">
-            <h1>Atendimento Site</h1>
-            <div class="site-header-right">
-                <span class="site-status-pill unknown" id="site-status-pill" title="Status da conta WhatsApp do site">
-                    <span class="dot"></span>
-                    <span class="site-status-pill-text">Verificando…</span>
-                </span>
-                <a href="/" class="site-back">← Voltar</a>
+<!-- ─── Side Nav (mesma do app principal) ───────────────────────── -->
+<nav class="side-nav">
+    <div class="side-nav-brand" title="Branddi Atendimento">
+        <a href="/" style="color:inherit;display:flex;align-items:center;justify-content:center;text-decoration:none">
+            <svg width="28" height="42" viewBox="0 0 135 203" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M71.3695 118.333L58.0337 104.944C57.1945 107.772 55.6961 110.329 53.6283 112.405L14.1301 152.06C13.291 152.903 12.8115 154.046 12.8115 155.249C12.8115 156.453 13.291 157.596 14.1301 158.439L43.9486 188.375L70.0509 162.079C82.2181 148.961 83.9862 130.999 71.3695 118.302V118.333Z" fill="currentColor" opacity="0.65"/>
+                <path d="M116.741 70.6442L50.032 3.7007C47.6645 1.32383 44.5179 0 41.1614 0C37.805 0 34.6583 1.32383 32.2908 3.7007L3.64115 32.5541C-1.21372 37.4583 -1.21372 45.4313 3.64115 50.3355L39.0037 85.9284L45.8664 92.8484C49.6125 96.7297 49.5825 102.928 45.7765 106.779L6.27835 146.433C3.91086 148.81 2.59226 151.969 2.59226 155.339C2.59226 158.709 3.91086 161.868 6.27835 164.245L43.8885 202.004L74.8757 170.894L116.741 128.863C132.715 112.826 132.715 86.7107 116.741 70.6743V70.6442ZM70.0508 162.109L43.9485 188.405L14.13 158.468C13.2909 157.626 12.8114 156.482 12.8114 155.279C12.8114 154.075 13.2909 152.932 14.13 152.09L53.6282 112.435C55.696 110.359 57.1945 107.802 58.0336 104.973L71.3695 118.362C83.9861 131.029 82.218 149.021 70.0508 162.139V162.109ZM109.999 122.093L89.8299 142.342C90.0097 130.517 85.4845 119.114 77.0035 110.6L52.7592 86.2594L10.384 43.596C9.21524 42.4226 9.21524 40.4971 10.384 39.3237L39.0337 10.4703C40.1725 9.32697 42.1504 9.32697 43.2892 10.4703L109.999 77.4439C122.256 89.7495 122.256 109.787 109.999 122.093Z" fill="currentColor"/>
+            </svg>
+        </a>
+    </div>
+    <div class="side-nav-links">
+        <a href="/?tab=inbox" class="nav-btn" title="Inbox">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-inbox"></use></svg></span>
+            <span class="nav-label">Inbox</span>
+            <span class="nav-badge" id="badge-inbox">0</span>
+        </a>
+        <a href="/?tab=grupos" class="nav-btn" title="Grupos WhatsApp">
+            <span class="nav-icon" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;font-size:18px">👥</span>
+            <span class="nav-label">Grupos</span>
+            <span class="nav-badge" id="badge-grupos">0</span>
+        </a>
+        <a href="/?tab=deals" class="nav-btn" title="Deals Pipedrive">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-pipedrive"></use></svg></span>
+            <span class="nav-label">Deals</span>
+        </a>
+        <a href="/?tab=leads" class="nav-btn" title="Leads">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-users"></use></svg></span>
+            <span class="nav-label">Leads</span>
+        </a>
+        <a href="/?tab=scripts" class="nav-btn" title="Scripts">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-clipboard"></use></svg></span>
+            <span class="nav-label">Scripts</span>
+        </a>
+        <a href="/?tab=history" class="nav-btn" title="Histórico">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-clock"></use></svg></span>
+            <span class="nav-label">Histórico</span>
+        </a>
+        <a href="/?tab=dashboard" class="nav-btn" title="Dashboard" id="nav-dashboard" style="display:none">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-chart"></use></svg></span>
+            <span class="nav-label">Dashboard</span>
+        </a>
+    </div>
+    <div class="side-nav-bottom">
+        <!-- placeholder pra paridade com main app (avatar foi pro topbar) -->
+        <div id="side-nav-user"></div>
+        <a href="/site" class="nav-btn active" title="Atendimento Site" id="btn-site">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-globe"></use></svg></span>
+            <span class="nav-label">Site</span>
+            <span class="nav-badge" id="badge-site">0</span>
+        </a>
+        <a href="/" class="nav-btn" title="Configurações (no app principal)" id="btn-settings">
+            <span class="nav-icon"><svg class="icon"><use href="/icons.svg#icon-settings"></use></svg></span>
+            <span class="nav-label">Config</span>
+        </a>
+        <div class="side-status" title="Status WhatsApp do site">
+            <div class="status-dot" id="status-dot"></div>
+        </div>
+    </div>
+</nav>
+
+<!-- ─── Main Layout ─────────────────────────────────────────── -->
+<main class="app-layout">
+    <header class="app-topbar">
+        <div class="crumb">
+            <span id="crumb-title">Site</span>
+            <span class="crumb-sep">/</span>
+            <span class="crumb-sub">Atendimento</span>
+        </div>
+        <div class="topbar-actions">
+            <span class="status-pill unknown" id="site-status-pill" aria-label="Status WhatsApp do site" title="Status da conta WhatsApp do site">
+                <span class="dot"></span>
+                <span class="site-status-pill-text">Verificando…</span>
+            </span>
+            <div class="user-chip-wrap">
+                <button type="button" class="user-chip" id="topbar-user-chip"
+                        aria-haspopup="menu" aria-expanded="false"
+                        aria-controls="topbar-user-menu" title="Conta">
+                    <div class="user-chip-avatar" id="topbar-user-avatar">—</div>
+                    <div class="user-chip-meta">
+                        <div class="user-chip-name" id="topbar-user-name">—</div>
+                        <div class="user-chip-role" id="topbar-user-role">—</div>
+                    </div>
+                    <svg class="user-chip-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                        <path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="user-chip-menu" id="topbar-user-menu" role="menu" hidden>
+                    <button type="button" class="user-chip-menu-item is-danger" role="menuitem" data-action="logout">
+                        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Sair</span>
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="site-filters" id="filters">
-            <button class="filter-btn active" data-filter="all">Todas</button>
-            <button class="filter-btn" data-filter="waiting_human">Aguardando</button>
-            <button class="filter-btn" data-filter="mine">Minhas</button>
-            <button class="filter-btn" data-filter="in_progress">Em andamento</button>
-            <button class="filter-btn" data-filter="resolved">Resolvidas</button>
-        </div>
-        <div id="conv-list" class="conv-list">
-            <div class="site-empty" style="border:none;box-shadow:none;background:transparent;margin:32px auto">Carregando…</div>
-        </div>
-    </aside>
-    <main class="site-main">
-        <div id="conv-viewer" class="site-empty" style="margin: auto;">Selecione uma conversa</div>
-    </main>
-</div>
+    </header>
+
+    <div class="site-shell">
+        <aside class="site-sidebar">
+            <div class="site-conv-header">Conversas</div>
+            <div class="site-filters" id="filters">
+                <button class="filter-btn active" data-filter="all">Todas</button>
+                <button class="filter-btn" data-filter="waiting_human">Aguardando</button>
+                <button class="filter-btn" data-filter="mine">Minhas</button>
+                <button class="filter-btn" data-filter="in_progress">Em andamento</button>
+                <button class="filter-btn" data-filter="resolved">Resolvidas</button>
+            </div>
+            <div id="conv-list" class="conv-list">
+                <div class="site-empty" style="border:none;box-shadow:none;background:transparent;margin:32px auto">Carregando…</div>
+            </div>
+        </aside>
+        <main class="site-main">
+            <div id="conv-viewer" class="site-empty" style="margin: auto;">Selecione uma conversa</div>
+        </main>
+    </div>
+</main>
+
 <div id="toast" class="toast"></div>
 <script src="app.js" type="module"></script>
 </body>
