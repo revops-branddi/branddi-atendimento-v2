@@ -40,8 +40,8 @@
 <!-- v2 §6 — WA desconectado banner (auto-sync via #status-dot MutationObserver em app.js) -->
 <div id="wa-disconnected-banner" class="wa-banner" style="display:none" role="alert" aria-live="polite">
     <span class="wa-banner-icon">⚠</span>
-    <span class="wa-banner-text">WhatsApp desconectado.</span>
-    <button class="wa-banner-cta" type="button" onclick="openWaConnect()">→ Conectar agora</button>
+    <span class="wa-banner-text">Algum número WhatsApp seu caiu.</span>
+    <button class="wa-banner-cta" type="button" onclick="openWaConnect()">→ Religar agora</button>
 </div>
 
 <!-- ─── Side Nav ─────────────────────────────────────────────── -->
@@ -769,38 +769,56 @@
 
 <!-- ─── Modal: Conectar WhatsApp via QR Code ──────────── -->
 <div class="modal-overlay" id="modal-wa-connect" style="display:none" onclick="if(event.target===this)closeWaConnect()">
-    <div class="modal" style="max-width:420px;text-align:center">
+    <div class="modal" style="max-width:480px">
         <div class="modal-header">
             <h3 style="display:flex;align-items:center;gap:8px">📱 Conectar WhatsApp</h3>
             <button class="modal-close" onclick="closeWaConnect()">✕</button>
         </div>
-        <div class="modal-body" style="padding:24px">
-            <!-- Status atual -->
-            <div id="wa-current-status" style="margin-bottom:20px;padding:12px 16px;border-radius:10px;background:var(--bg-tertiary);text-align:left">
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Status da conta WhatsApp</div>
-                <div id="wa-status-detail" style="font-size:14px;font-weight:500">⏳ Verificando...</div>
-            </div>
+        <div class="modal-body" style="padding:20px 24px">
+            <!-- Lista de contas do user (preenchida via JS) -->
+            <div id="wa-accounts-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
 
-            <!-- Area do QR Code -->
-            <div id="wa-qr-area" style="display:none">
-                <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px;line-height:1.5">
-                    Abra o WhatsApp no celular → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → escaneie o QR abaixo:
+            <!-- Painel de RELIGAR (mostrado ao clicar Religar numa conta) -->
+            <div id="wa-reconnect-area" style="display:none;background:var(--bg-tertiary);border-radius:10px;padding:16px;margin-bottom:16px">
+                <div style="font-size:13px;color:var(--text-2);margin-bottom:8px" id="wa-reconnect-target"></div>
+                <p style="color:var(--text-secondary);font-size:12px;margin-bottom:16px;line-height:1.5">
+                    Abra o link abaixo no celular dono do número → <strong>Aparelhos conectados</strong> → escaneie o QR.
                 </p>
-                <div id="wa-qr-container" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:white;border-radius:12px;padding:16px;margin:0 auto;max-width:260px">
-                    <span style="color:#666">⏳ Gerando QR code...</span>
+                <div id="wa-reconnect-qr" style="min-height:220px;display:flex;align-items:center;justify-content:center;background:white;border-radius:8px;padding:12px;margin:0 auto 12px;max-width:260px">
+                    <span style="color:#666;font-size:13px">⏳ Gerando link...</span>
                 </div>
-                <p style="font-size:11px;color:var(--text-muted);margin-top:12px">O QR code expira em poucos minutos. Escaneie rapidamente.</p>
+                <div style="display:flex;gap:8px;align-items:center;background:var(--bg-elev-1);padding:8px 10px;border-radius:6px;margin-bottom:8px">
+                    <input type="text" id="wa-reconnect-url" readonly style="flex:1;background:transparent;border:none;color:var(--text-2);font-size:11px;font-family:monospace;outline:none">
+                    <button class="btn-secondary" style="padding:4px 10px;font-size:11px" onclick="copyReconnectUrl()">Copiar</button>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);text-align:center" id="wa-reconnect-hint">
+                    Você também pode mandar esse link pro atendente abrir no celular dele.
+                </p>
+                <div style="text-align:center;margin-top:8px">
+                    <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="closeReconnectArea()">Voltar</button>
+                </div>
             </div>
 
-            <!-- Acoes -->
-            <div id="wa-connect-actions" style="display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap">
-                <button class="btn-primary" id="btn-wa-generate-qr" onclick="generateWaQR()">
-                    📱 Gerar QR Code
+            <!-- Conectar conta NOVA (fallback) -->
+            <div style="border-top:1px solid var(--border-md);padding-top:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Não é uma das contas acima?</div>
+                <button class="btn-secondary" id="btn-wa-add-new" onclick="generateWaQR()" style="font-size:13px">
+                    + Conectar novo número
                 </button>
-                <button class="btn-secondary" id="btn-wa-disconnect" onclick="disconnectWa()" style="display:none">
-                    🔌 Desconectar
-                </button>
+                <div id="wa-qr-area" style="display:none;margin-top:16px">
+                    <div id="wa-qr-container" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:white;border-radius:8px;padding:16px;margin:0 auto;max-width:260px">
+                        <span style="color:#666">⏳ Gerando QR...</span>
+                    </div>
+                    <p style="font-size:11px;color:var(--text-muted);margin-top:8px">QR expira em ~1 min. Escaneie no celular do número novo.</p>
+                </div>
             </div>
+
+            <!-- Estado oculto pra compat com generateWaQR -->
+            <div id="wa-current-status" style="display:none">
+                <div id="wa-status-detail"></div>
+            </div>
+            <button id="btn-wa-generate-qr" style="display:none" onclick="generateWaQR()"></button>
+            <button id="btn-wa-disconnect" style="display:none" onclick="disconnectWa()"></button>
         </div>
     </div>
 </div>

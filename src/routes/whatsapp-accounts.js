@@ -158,6 +158,58 @@ router.post('/whatsapp/connect', async (req, res) => {
     }
 });
 
+// ─── POST /api/whatsapp/accounts/:id/reconnect-link ──────────────────
+// Gera URL temporária da Unipile pra religar UMA conta existente
+// MANTENDO o mesmo unipile_account_id (e portanto suas permissões,
+// conversas vinculadas, etc). Atendente abre essa URL no celular,
+// scaneia QR direto na página da Unipile, sessão volta.
+//
+// Permissão: Admin OU user tem essa conta em permissions.whatsapp_accounts.
+router.post('/whatsapp/accounts/:id/reconnect-link', async (req, res) => {
+    try {
+        const accountId = req.params.id;
+        const user = req.user || {};
+        const isAdmin = user.role === 'Admin';
+        const allowed = (user.permissions?.whatsapp_accounts || []).includes(accountId);
+        if (!isAdmin && !allowed) {
+            return res.status(403).json({ error: 'Sem permissão pra essa conta WhatsApp' });
+        }
+
+        const config = getUnipileConfig();
+        if (!config) return res.status(500).json({ error: 'Unipile não configurado' });
+
+        // Hosted Auth flow — gera URL temporária (validade padrão 1h).
+        // Documentado em Unipile: type='reconnect' + reconnect_account=:id
+        // mantém account_id existente em vez de criar nova conta.
+        const expiresOn = new Date(Date.now() + 60 * 60_000).toISOString();
+        const result = await unipileFetch('/hosted/accounts/link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'reconnect',
+                reconnect_account: accountId,
+                api_url: config.base.replace('/api/v1', ''),
+                expiresOn,
+            }),
+        }, 10000);
+
+        const url = result?.url || result?.hosted_url;
+        if (!url) {
+            logger.warn('Hosted reconnect sem URL', { accountId, result });
+            return res.status(502).json({ error: 'Unipile não retornou URL', raw: result });
+        }
+
+        logger.info('Hosted reconnect URL gerada', {
+            account_id: accountId,
+            user_id: user.id,
+        });
+        res.json({ url, expires_on: expiresOn, account_id: accountId });
+    } catch (err) {
+        logger.error('reconnect-link error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── DELETE /api/whatsapp/accounts/:id — Desconecta conta ────────────
 router.delete('/whatsapp/accounts/:id', async (req, res) => {
     try {
