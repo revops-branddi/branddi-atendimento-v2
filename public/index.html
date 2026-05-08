@@ -122,11 +122,26 @@
             <span class="dot"></span>
             <span class="status-pill-text">WA conectado</span>
         </span>
-        <div class="user-chip" id="topbar-user-chip">
-            <div class="user-chip-avatar" id="topbar-user-avatar">—</div>
-            <div class="user-chip-meta">
-                <div class="user-chip-name" id="topbar-user-name">—</div>
-                <div class="user-chip-role" id="topbar-user-role">—</div>
+        <div class="user-chip-wrap">
+            <button type="button" class="user-chip" id="topbar-user-chip"
+                    aria-haspopup="menu" aria-expanded="false"
+                    aria-controls="topbar-user-menu" title="Conta">
+                <div class="user-chip-avatar" id="topbar-user-avatar">—</div>
+                <div class="user-chip-meta">
+                    <div class="user-chip-name" id="topbar-user-name">—</div>
+                    <div class="user-chip-role" id="topbar-user-role">—</div>
+                </div>
+                <svg class="user-chip-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="user-chip-menu" id="topbar-user-menu" role="menu" hidden>
+                <button type="button" class="user-chip-menu-item is-danger" role="menuitem" data-action="logout">
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Sair</span>
+                </button>
             </div>
         </div>
     </div>
