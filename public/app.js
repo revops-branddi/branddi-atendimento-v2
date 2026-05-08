@@ -3405,12 +3405,160 @@ function openWaConnect() {
     openModal('modal-wa-connect');
     const qrArea = document.getElementById('wa-qr-area');
     if (qrArea) qrArea.style.display = 'none';
+    closeReconnectArea();
+    renderWaAccountsInModal();
     checkWaStatus();
 }
 
 function closeWaConnect() {
     closeModal('modal-wa-connect');
+    closeReconnectArea();
+    if (_reconnectPollInterval) { clearInterval(_reconnectPollInterval); _reconnectPollInterval = null; }
     checkHealth();
+}
+
+// ─── Lista de contas no modal + botão Religar por conta ──────────────
+async function renderWaAccountsInModal() {
+    const listEl = document.getElementById('wa-accounts-list');
+    if (!listEl) return;
+    listEl.replaceChildren();
+
+    let accounts = [];
+    try {
+        const data = await apiFetch('/api/whatsapp/accounts');
+        accounts = data.accounts || [];
+    } catch (err) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'padding:12px;color:var(--text-3);font-size:13px;text-align:center';
+        msg.textContent = `Erro ao listar contas: ${err.message}`;
+        listEl.appendChild(msg);
+        return;
+    }
+
+    if (accounts.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:16px;color:var(--text-3);font-size:13px;text-align:center';
+        empty.textContent = 'Nenhum número WhatsApp atribuído a você.';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    const isConnected = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
+    for (const a of accounts) {
+        const ok = isConnected(a.status);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-tertiary);border-radius:8px';
+
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${ok ? '#10b981' : '#f59e0b'}`;
+
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0';
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        label.textContent = a.display_name || a.phone_number || a.name || a.id;
+        const status = document.createElement('div');
+        status.style.cssText = 'font-size:11px;color:var(--text-3);margin-top:2px';
+        status.textContent = ok ? 'Conectado' : `Desconectado (${a.status || 'unknown'}) — religue`;
+        info.appendChild(label);
+        info.appendChild(status);
+
+        const btn = document.createElement('button');
+        btn.className = ok ? 'btn-secondary' : 'btn-primary';
+        btn.style.cssText = 'padding:6px 12px;font-size:12px;flex-shrink:0';
+        btn.textContent = ok ? 'Religar' : '🔌 Religar';
+        btn.addEventListener('click', () => startReconnect(a));
+
+        row.appendChild(dot);
+        row.appendChild(info);
+        row.appendChild(btn);
+        listEl.appendChild(row);
+    }
+}
+
+let _reconnectPollInterval = null;
+let _reconnectUrl = null;
+let _reconnectAccountId = null;
+
+async function startReconnect(acc) {
+    _reconnectAccountId = acc.id;
+    const area = document.getElementById('wa-reconnect-area');
+    const target = document.getElementById('wa-reconnect-target');
+    const qrEl = document.getElementById('wa-reconnect-qr');
+    const urlEl = document.getElementById('wa-reconnect-url');
+    if (!area || !target || !qrEl || !urlEl) return;
+
+    area.style.display = '';
+    target.textContent = `Religando: ${acc.display_name || acc.phone_number || acc.name || acc.id}`;
+    qrEl.replaceChildren();
+    const loading = document.createElement('span');
+    loading.style.cssText = 'color:#666;font-size:13px';
+    loading.textContent = '⏳ Gerando link...';
+    qrEl.appendChild(loading);
+    urlEl.value = '';
+
+    try {
+        const data = await apiFetch(`/api/whatsapp/accounts/${acc.id}/reconnect-link`, { method: 'POST' });
+        const url = data.url;
+        if (!url) throw new Error('Sem URL');
+        _reconnectUrl = url;
+        urlEl.value = url;
+
+        // Render QR da URL hosted
+        qrEl.replaceChildren();
+        const canvas = document.createElement('canvas');
+        qrEl.appendChild(canvas);
+        try {
+            new QRious({ element: canvas, value: url, size: 220, level: 'M', background: 'white', foreground: '#000' });
+        } catch (qrErr) {
+            const fb = document.createElement('a');
+            fb.href = url; fb.target = '_blank';
+            fb.style.cssText = 'color:var(--accent);font-size:12px;word-break:break-all';
+            fb.textContent = url;
+            qrEl.appendChild(fb);
+        }
+
+        // Polling: verifica a cada 4s se a conta voltou pra OK
+        if (_reconnectPollInterval) clearInterval(_reconnectPollInterval);
+        const startTime = Date.now();
+        _reconnectPollInterval = setInterval(async () => {
+            // Timeout 10 min
+            if (Date.now() - startTime > 10 * 60_000) {
+                clearInterval(_reconnectPollInterval); _reconnectPollInterval = null;
+                return;
+            }
+            try {
+                const r = await apiFetch('/api/whatsapp/accounts');
+                const found = (r.accounts || []).find(x => x.id === _reconnectAccountId);
+                if (found && /^(ok|connected|running|ok_for_now)$/i.test(found.status)) {
+                    clearInterval(_reconnectPollInterval); _reconnectPollInterval = null;
+                    toast('✅ Conta religada com sucesso', 'success');
+                    closeReconnectArea();
+                    renderWaAccountsInModal();
+                }
+            } catch { /* ignora erros transitórios de polling */ }
+        }, 4000);
+    } catch (err) {
+        qrEl.replaceChildren();
+        const errEl = document.createElement('span');
+        errEl.style.cssText = 'color:#ef4444;font-size:13px';
+        errEl.textContent = `❌ ${err.message}`;
+        qrEl.appendChild(errEl);
+    }
+}
+
+function closeReconnectArea() {
+    const area = document.getElementById('wa-reconnect-area');
+    if (area) area.style.display = 'none';
+    if (_reconnectPollInterval) { clearInterval(_reconnectPollInterval); _reconnectPollInterval = null; }
+}
+
+function copyReconnectUrl() {
+    if (!_reconnectUrl) return;
+    navigator.clipboard?.writeText(_reconnectUrl).then(
+        () => toast('Link copiado', 'info'),
+        () => toast('Falha ao copiar', 'error')
+    );
 }
 
 async function generateWaQR() {
@@ -4509,6 +4657,8 @@ window.openWaConnect      = openWaConnect;
 window.closeWaConnect     = closeWaConnect;
 window.generateWaQR       = generateWaQR;
 window.disconnectWa       = disconnectWa;
+window.copyReconnectUrl   = copyReconnectUrl;
+window.closeReconnectArea = closeReconnectArea;
 
 // History
 window.openHistoryMessages      = openHistoryMessages;
