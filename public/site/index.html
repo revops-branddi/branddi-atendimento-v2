@@ -51,6 +51,16 @@
             color: var(--text-1);
         }
 
+        /* style-v2.css depende de skeleton flex que vem do style.css (que /site
+           não carrega). Replicamos o mínimo aqui pra que .side-nav-links flex:1
+           empurre o grupo de baixo (Site/Config/Status) pro fundo. */
+        .side-nav {
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100%;
+        }
+
         /* App-layout interno: topbar (auto) + site-shell (flex 1) */
         .app-layout {
             display: flex;
