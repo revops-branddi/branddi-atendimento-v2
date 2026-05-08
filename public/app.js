@@ -699,6 +699,37 @@ function setupMyAccountsStatusPolling() {
     refreshMyAccountsStatus();
     _myStatusPoll = setInterval(refreshMyAccountsStatus, 30_000);
 }
+
+// ─── Side-nav: badge de conversas pendentes do /site ─────────────────
+// Bate em /api/site/conversations?status=waiting_human a cada 30s só pra
+// quem tem site_access (admin sempre, outros via permissions). Pausa quando
+// a aba some pra economizar request. Não monta UI nenhuma do site aqui —
+// só o contador no botão da side-nav que linka pra /site.
+let _siteBadgePoll = null;
+async function refreshSiteWaitingBadge() {
+    const badge = document.getElementById('badge-site');
+    if (!badge) return;
+    try {
+        const convs = await apiFetch('/api/site/conversations?status=waiting_human');
+        const count = Array.isArray(convs) ? convs.length : 0;
+        badge.textContent = count;
+        badge.classList.toggle('show', count > 0);
+    } catch (err) {
+        // 403 = perdeu permissão de site_access → some o badge silenciosamente.
+        // Outros erros (rede/auth) também não devem poluir UI.
+        badge.classList.remove('show');
+    }
+}
+function setupSiteWaitingBadgePolling() {
+    if (_siteBadgePoll) return;
+    const isAdmin = currentUser?.role === 'Admin';
+    const hasSiteAccess = isAdmin || currentUser?.permissions?.site_access === true;
+    if (!hasSiteAccess) return;
+    refreshSiteWaitingBadge();
+    _siteBadgePoll = setInterval(() => {
+        if (!document.hidden) refreshSiteWaitingBadge();
+    }, 30_000);
+}
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupTopbarObservers);
 } else {
@@ -843,6 +874,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { setupInboxSearch(); } catch (e) { console.warn('setupInboxSearch:', e); }
     try { setupGruposSearch(); } catch (e) { console.warn('setupGruposSearch:', e); }
     try { setupMyAccountsStatusPolling(); } catch (e) { console.warn('setupMyAccountsStatusPolling:', e); }
+    try { setupSiteWaitingBadgePolling(); } catch (e) { console.warn('setupSiteWaitingBadgePolling:', e); }
     try { setupLeadFilters(); } catch (e) { console.warn('setupLeadFilters:', e); }
     try { setupHistoryFilters(); } catch (e) { console.warn('setupHistoryFilters:', e); }
     try { setupDashPeriod(); } catch (e) { console.warn('setupDashPeriod:', e); }
