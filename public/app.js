@@ -3434,37 +3434,19 @@ function debounce(fn, ms) {
 let _waAccountId = null;
 
 async function checkWaStatus() {
-    const detail = document.getElementById('wa-status-detail');
-    if (!detail) return;
-    detail.textContent = '⏳ Verificando...';
-
+    // A renderização visual agora vive em renderWaAccountsInModal() (duas
+    // seções: "Seu número" + "Outras contas da equipe"). Essa função foi
+    // simplificada e só mantém _waAccountId apontando pra UMA conta que
+    // SEJA do user atual (is_mine === true). _waAccountId é usado pelo
+    // polling de reconexão e pelo disconnectWa.
     try {
         const data = await apiFetch('/api/whatsapp/accounts');
         const accounts = data.accounts || [];
-
-        if (accounts.length > 0) {
-            const acc = accounts[0];
-            _waAccountId = acc.id;
-            const identifier = acc.name || acc.identifier || acc.id;
-            detail.innerHTML = `<span style="color:#00E5FF">✅ Conectado</span> — ${identifier}`;
-
-            const btnQR = document.getElementById('btn-wa-generate-qr');
-            const btnDis = document.getElementById('btn-wa-disconnect');
-            const qrArea = document.getElementById('wa-qr-area');
-            if (btnQR) btnQR.style.display = 'none';
-            if (btnDis) btnDis.style.display = 'inline-flex';
-            if (qrArea) qrArea.style.display = 'none';
-        } else {
-            _waAccountId = null;
-            detail.innerHTML = `<span style="color:#F59E0B">⚠️ Nenhuma conta conectada</span>`;
-            const btnQR = document.getElementById('btn-wa-generate-qr');
-            const btnDis = document.getElementById('btn-wa-disconnect');
-            if (btnQR) btnQR.style.display = 'inline-flex';
-            if (btnDis) btnDis.style.display = 'none';
-        }
-    } catch (err) {
-        detail.innerHTML = `<span style="color:#EF4444">❌ Erro ao verificar: ${err.message}</span>`;
-    }
+        const mine = accounts.find(a => a.is_mine);
+        _waAccountId = mine ? mine.id : null;
+    } catch { /* silencioso — render principal trata erro */ }
+    // Re-render das seções com estado atualizado
+    renderWaAccountsInModal();
 }
 
 function openWaConnect() {
@@ -3472,7 +3454,7 @@ function openWaConnect() {
     const qrArea = document.getElementById('wa-qr-area');
     if (qrArea) qrArea.style.display = 'none';
     closeReconnectArea();
-    renderWaAccountsInModal();
+    // checkWaStatus() já chama renderWaAccountsInModal() internamente
     checkWaStatus();
 }
 
@@ -3483,11 +3465,16 @@ function closeWaConnect() {
     checkHealth();
 }
 
-// ─── Lista de contas no modal + botão Religar por conta ──────────────
+// ─── Lista de contas no modal — duas seções (Seu número / Outras da equipe) ──
 async function renderWaAccountsInModal() {
-    const listEl = document.getElementById('wa-accounts-list');
-    if (!listEl) return;
-    listEl.replaceChildren();
+    const myContent = document.getElementById('wa-my-account-content');
+    const teamSection = document.getElementById('wa-team-accounts-section');
+    const teamList = document.getElementById('wa-team-accounts-list');
+    if (!myContent) return;
+
+    myContent.replaceChildren();
+    if (teamList) teamList.replaceChildren();
+    if (teamSection) teamSection.style.display = 'none';
 
     let accounts = [];
     try {
@@ -3497,44 +3484,47 @@ async function renderWaAccountsInModal() {
         const msg = document.createElement('div');
         msg.style.cssText = 'padding:12px;color:var(--text-3);font-size:13px;text-align:center';
         msg.textContent = `Erro ao listar contas: ${err.message}`;
-        listEl.appendChild(msg);
+        myContent.appendChild(msg);
         return;
     }
 
-    if (accounts.length === 0) {
+    // Fonte da verdade da ownership = is_mine (backend, baseado em
+    // connected_by_user_id === user.id). NÃO usar permissions.whatsapp_accounts
+    // — esse array pode conter contas que o user só foi autorizado a *ver*, sem
+    // ser dono. Usar isso geraria o mesmo bug visual que estamos corrigindo.
+    const mine   = accounts.filter(a =>  a.is_mine);
+    const others = accounts.filter(a => !a.is_mine);
+
+    // ── Seção "Seu número WhatsApp" ──
+    if (mine.length === 0) {
         const empty = document.createElement('div');
-        empty.style.cssText = 'padding:16px;color:var(--text-3);font-size:13px;text-align:center';
-        empty.textContent = 'Nenhum número WhatsApp atribuído a você.';
-        listEl.appendChild(empty);
-        return;
-    }
-
-    const isAdmin = currentUser?.role === 'Admin';
-    const myIds = new Set(currentUser?.permissions?.whatsapp_accounts || []);
-
-    // Pra Admin: divide em 2 grupos — "Suas contas" (em permissions) + "Outras"
-    // Pra non-admin: o backend já filtra; mostra tudo sem seção
-    const mine = accounts.filter(a => myIds.has(a.id));
-    const others = accounts.filter(a => !myIds.has(a.id));
-
-    if (isAdmin && mine.length > 0 && others.length > 0) {
-        listEl.appendChild(_makeSectionHeader('Suas contas'));
-        for (const a of mine) listEl.appendChild(_makeAccountRow(a, true));
-        listEl.appendChild(_makeSectionHeader('Outras contas'));
-        for (const a of others) listEl.appendChild(_makeAccountRow(a, false));
+        empty.style.cssText = 'padding:14px;color:var(--text-3);font-size:13px;text-align:center;background:var(--bg-tertiary);border-radius:8px;line-height:1.5';
+        const line1 = document.createElement('div');
+        line1.textContent = 'Você ainda não conectou um número próprio.';
+        const line2 = document.createElement('div');
+        line2.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:4px';
+        line2.textContent = 'Use "Conectar novo número" abaixo pra escanear o QR no seu celular.';
+        empty.appendChild(line1);
+        empty.appendChild(line2);
+        myContent.appendChild(empty);
     } else {
-        for (const a of accounts) listEl.appendChild(_makeAccountRow(a, myIds.has(a.id)));
+        for (const a of mine) myContent.appendChild(_makeAccountRow(a, { isMine: true, showOwner: false }));
+    }
+
+    // ── Seção "Outras contas da equipe" (só Admin, só se existir alguma) ──
+    const isAdmin = currentUser?.role === 'Admin';
+    if (isAdmin && others.length > 0 && teamSection && teamList) {
+        teamSection.style.display = '';
+        for (const a of others) teamList.appendChild(_makeAccountRow(a, { isMine: false, showOwner: true }));
     }
 }
 
-function _makeSectionHeader(text) {
-    const h = document.createElement('div');
-    h.style.cssText = 'font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3);padding:6px 4px 2px;margin-top:6px';
-    h.textContent = text;
-    return h;
-}
-
-function _makeAccountRow(a, isMine) {
+function _makeAccountRow(a, opts = {}) {
+    // opts: { isMine: bool, showOwner: bool }
+    // showOwner=true → adiciona "Dono: <nome>" no status (usado pra contas
+    // da equipe na visão Admin, pra deixar claro que aquele número não é seu)
+    const isMine    = !!opts.isMine;
+    const showOwner = !!opts.showOwner;
     const isConnected = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
     const ok = isConnected(a.status);
     const isAdmin = currentUser?.role === 'Admin';
@@ -3579,10 +3569,27 @@ function _makeAccountRow(a, isMine) {
 
     const status = document.createElement('div');
     status.style.cssText = 'font-size:11px;color:var(--text-3);margin-top:2px';
-    status.textContent = ok ? 'Conectado' : `Desconectado (${a.status || 'unknown'}) — religue`;
+    const baseStatusText = ok ? 'Conectado' : `Desconectado (${a.status || 'unknown'}) — religue`;
+    if (showOwner && a.connected_by_user_name) {
+        status.textContent = `${baseStatusText} · Dono: ${a.connected_by_user_name}`;
+    } else if (showOwner) {
+        status.textContent = `${baseStatusText} · Dono: —`;
+    } else {
+        status.textContent = baseStatusText;
+    }
 
     info.appendChild(labelRow);
     info.appendChild(status);
+
+    // Quando o display_name é um apelido (ex: "Ricardo") e diferente do phone,
+    // mostra o número embaixo em monospace pra Admin distinguir contas de
+    // mesmo apelido entre atendentes diferentes.
+    if (a.display_name && a.phone_number && a.display_name !== a.phone_number) {
+        const phone = document.createElement('div');
+        phone.style.cssText = 'font-size:10px;color:var(--text-muted);margin-top:1px;font-family:monospace';
+        phone.textContent = a.phone_number;
+        info.appendChild(phone);
+    }
 
     const btn = document.createElement('button');
     btn.className = ok ? 'btn-secondary' : 'btn-primary';

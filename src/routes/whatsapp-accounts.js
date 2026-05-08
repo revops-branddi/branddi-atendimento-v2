@@ -105,6 +105,7 @@ router.get('/whatsapp/accounts', async (req, res) => {
                 display_name: displayName,
                 status: a.connection_status || a.status || sourceStatus || local.status || 'unknown',
                 connected_by_user_id: local.connected_by_user_id || null,
+                connected_by_user_name: ownerFullName || null,
                 is_mine: local.connected_by_user_id === user.id,
             };
         });
