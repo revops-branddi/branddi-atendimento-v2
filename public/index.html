@@ -111,6 +111,13 @@
         <span class="crumb-sub" id="crumb-sub">Conversas WhatsApp</span>
     </div>
     <div class="topbar-actions">
+        <!-- Badge de contas caídas (visível só quando há queda em conta DELE) -->
+        <button id="topbar-down-badge" type="button"
+                style="display:none;background:#dc2626;color:#fff;border:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;animation:pulse 2s ease-in-out infinite"
+                onclick="openWaConnect()"
+                title="Click pra abrir o modal de religar">
+            <span id="topbar-down-badge-text">⚠️ 1 conta caída</span>
+        </button>
         <span class="status-pill" id="topbar-wa-status" aria-label="Status WhatsApp">
             <span class="dot"></span>
             <span class="status-pill-text">WA conectado</span>
