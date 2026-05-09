@@ -17,32 +17,65 @@ import logger from './logger.js';
 
 // ─── Config ──────────────────────────────────────────────────────────
 
-// Mapping categoria → metadados (responsável + email + env var do webhook).
-// Mover pra DB se algum dia mudar com frequência. Por enquanto hardcoded
-// porque é estável (3 pessoas, 1 webhook cada).
+// Mapping categoria → metadados (responsável + email + User ID do GChat
+// + env var do webhook). User IDs descobertos via People API
+// (people:searchDirectoryPeople) — formato `<users/USER_ID>` no texto da
+// mensagem dispara notificação real pra essa pessoa no space (testado
+// 2026-05-09). Hardcoded porque IDs são estáveis pro tempo de vida da conta.
 export const OPEC_CATEGORIES = {
     bb: {
-        label:       'TakeDown BB',
+        label:              'TakeDown BB',
         notification_email: 'notificacao@brandmonitor.com.br',
-        owner_name:  'Giselle França',
-        owner_email: 'giselle.franca@branddi.com',
-        webhook_env: 'OPEC_GCHAT_WEBHOOK_BB',
+        owner_name:         'Giselle França',
+        owner_email:        'giselle.franca@branddi.com',
+        owner_gchat_id:     '118259783287452386224',
+        webhook_env:        'OPEC_GCHAT_WEBHOOK_BB',
     },
     golpes: {
-        label:       'TakeDown Golpes',
+        label:              'TakeDown Golpes',
         notification_email: 'fraud@branddi.com',
-        owner_name:  'Caroline Cipriani',
-        owner_email: 'caroline.cipriani@branddi.com',
-        webhook_env: 'OPEC_GCHAT_WEBHOOK_GOLPES',
+        owner_name:         'Caroline Cipriani',
+        owner_email:        'caroline.cipriani@branddi.com',
+        owner_gchat_id:     '108129913137826817302',
+        webhook_env:        'OPEC_GCHAT_WEBHOOK_GOLPES',
     },
     vm: {
-        label:       'TakeDown VM',
+        label:              'TakeDown VM',
         notification_email: 'ip-violations-report@brandmonitor.com.br',
-        owner_name:  'João França',
-        owner_email: 'joao.franca@branddi.com',
-        webhook_env: 'OPEC_GCHAT_WEBHOOK_VM',
+        owner_name:         'João França',
+        owner_email:        'joao.franca@branddi.com',
+        owner_gchat_id:     '116608694235179109361',
+        webhook_env:        'OPEC_GCHAT_WEBHOOK_VM',
     },
 };
+
+// ─── Helpers de telefone ─────────────────────────────────────────────
+
+// Strip não-dígitos e garante prefixo BR ('55'). wa.me precisa formato
+// internacional sem "+", sem espaços. Ex: "+55 (71) 98328-1802" → "5571983281802"
+function normalizeForWaMe(phone) {
+    if (!phone) return null;
+    let digits = String(phone).replace(/\D/g, '');
+    if (!digits) return null;
+    // Se começa com 55 e tem ≥12 dígitos, já tá com país. Caso contrário, prepend.
+    if (!digits.startsWith('55')) digits = '55' + digits;
+    return digits;
+}
+
+function formatPhonePretty(phone) {
+    // Tenta formatar pra +55 (DD) 9XXXX-XXXX
+    if (!phone) return null;
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits.length < 10) return phone; // devolve cru se não bate
+    let national = digits.startsWith('55') ? digits.slice(2) : digits;
+    if (national.length === 11) {
+        return `+55 (${national.slice(0,2)}) ${national.slice(2,7)}-${national.slice(7)}`;
+    }
+    if (national.length === 10) {
+        return `+55 (${national.slice(0,2)}) ${national.slice(2,6)}-${national.slice(6)}`;
+    }
+    return `+55 ${national}`;
+}
 
 export function getOpecCategory(category) {
     return OPEC_CATEGORIES[category] || null;
@@ -51,22 +84,46 @@ export function getOpecCategory(category) {
 // ─── Card builder ────────────────────────────────────────────────────
 
 /**
- * Monta o payload cardsV2 que vai pro webhook. Layout:
+ * Monta o payload do webhook: uma mensagem com `text` (que contém o
+ * @mention pra disparar notificação) + cardV2 com os dados estruturados.
+ *
+ * Layout do card:
  *   [Header] Nova solicitação <Categoria>
- *   [Section: Lead] Empresa | Nome | Telefone
- *   [Section: Atribuído] Responsável + email
- *   [Section: Conversa] Texto multilinha (msgs do lead)
+ *   [Section: Lead] Empresa | Nome | Telefone (com botão wa.me)
+ *   [Section: Atribuído] Responsável + email + email de notificação
+ *   [Section: Resumo do atendente]
+ *   [Section: Mensagens do lead]
  */
-function buildCard({ category, lead, conversationText, subject }) {
+function buildPayload({ category, lead, conversationText, subject }) {
     const cat = OPEC_CATEGORIES[category];
     const widgets = [];
 
-    // Lead info
-    if (lead.company_name) widgets.push({ decoratedText: { topLabel: 'Empresa',  text: lead.company_name } });
-    if (lead.name)         widgets.push({ decoratedText: { topLabel: 'Nome',     text: lead.name } });
-    if (lead.phone)        widgets.push({ decoratedText: { topLabel: 'Telefone', text: lead.phone } });
+    // Empresa
+    if (lead.company_name) {
+        widgets.push({ decoratedText: { topLabel: 'Empresa', text: lead.company_name } });
+    }
+    // Nome
+    if (lead.name) {
+        widgets.push({ decoratedText: { topLabel: 'Nome', text: lead.name } });
+    }
+    // Telefone formatado + botão wa.me
+    if (lead.phone) {
+        const waNum  = normalizeForWaMe(lead.phone);
+        const pretty = formatPhonePretty(lead.phone);
+        widgets.push({
+            decoratedText: {
+                topLabel:    'WhatsApp',
+                text:        pretty || lead.phone,
+                bottomLabel: waNum ? `wa.me/${waNum}` : null,
+                button: waNum ? {
+                    text: 'Abrir WhatsApp',
+                    onClick: { openLink: { url: `https://wa.me/${waNum}` } },
+                } : undefined,
+            },
+        });
+    }
 
-    // Atribuído (separador visual)
+    // Atribuído + email de notificação
     widgets.push({ divider: {} });
     widgets.push({ decoratedText: {
         topLabel: 'Atribuído pra',
@@ -78,26 +135,31 @@ function buildCard({ category, lead, conversationText, subject }) {
         text:     cat.notification_email,
     } });
 
-    // Subject (resumo do atendente)
+    // Resumo do atendente
     if (subject) {
         widgets.push({ divider: {} });
         widgets.push({ textParagraph: { text: `<b>Resumo do atendente:</b>\n${escapeXml(subject)}` } });
     }
 
-    // Conversa (mensagens do lead)
+    // Mensagens do lead
     if (conversationText) {
         widgets.push({ divider: {} });
         widgets.push({ textParagraph: { text: `<b>Mensagens do lead:</b>\n${escapeXml(conversationText)}` } });
     }
 
+    // O @mention vai no `text` (fora do card) — formato `<users/ID>` testado
+    // e confirmado em 2026-05-09 (renderiza como tag, dispara notificação).
+    const mentionText = `<users/${cat.owner_gchat_id}> nova solicitação ${cat.label} chegou:`;
+
     return {
+        text: mentionText,
         cardsV2: [{
             cardId: `opec-${category}-${Date.now()}`,
             card: {
                 header: {
-                    title:    `Nova solicitação ${cat.label}`,
-                    subtitle: 'Atendimento Site Branddi',
-                    imageUrl: 'https://atendimento.branddi.com/branddi-mark.svg',
+                    title:     `Nova solicitação ${cat.label}`,
+                    subtitle:  'Atendimento Site Branddi',
+                    imageUrl:  'https://atendimento.branddi.com/branddi-mark.svg',
                     imageType: 'CIRCLE',
                 },
                 sections: [{ widgets }],
@@ -135,7 +197,7 @@ export async function postOpecToGChat({ category, lead, conversationText, subjec
         return { ok: false, error: `Webhook ${cat.webhook_env} não configurado` };
     }
 
-    const payload = buildCard({ category, lead, conversationText, subject });
+    const payload = buildPayload({ category, lead, conversationText, subject });
 
     try {
         const res = await fetch(webhook, {
