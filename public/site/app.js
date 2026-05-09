@@ -89,6 +89,7 @@ function toast(msg, kind = 'info') {
 }
 
 const STATUS_LABEL = {
+    bot:           'Bot triagem',
     waiting_human: 'Aguardando',
     in_progress:   'Em andamento',
     resolved:      'Resolvida',

@@ -14,6 +14,7 @@ import sb from './db.js';
 import * as unipile from './unipile.js';
 import logger from '../../services/logger.js';
 import { normalizePhone } from '../../services/supabase.js';
+import { processBotTurn } from './bot.js';
 
 let _interval = null;
 let _lastPollTime = Date.now() - 60_000;
@@ -119,11 +120,14 @@ async function processChat(chat, account) {
                 origin_metadata: { attendee_id: contact.providerId },
             });
 
+        // Conversa nova entra no bot por default (DB também tem default='bot',
+        // explícito aqui só pra documentar o fluxo).
         conversation = await createConversation({
             lead_id:             lead.id,
             whatsapp_chat_id:    chat.id,
             whatsapp_account_id: accountId,
-            status:              'waiting_human',
+            status:              'bot',
+            bot_stage:           'welcome',
             last_message_at:     new Date().toISOString(),
         });
     }
@@ -135,6 +139,8 @@ async function processChat(chat, account) {
     const fresh = isNew ? items : items.filter(m => new Date(m.timestamp) > new Date(since));
 
     let touched = false;
+    let hasNewInbound = false;
+    let lastInboundText = null;
     for (const raw of fresh) {
         const msg = normalizeMessage(raw);
         const inserted = await insertMessage({
@@ -149,7 +155,15 @@ async function processChat(chat, account) {
             sender_name:        msg.direction === 'outbound' ? null : (conversation.leads?.name || 'Lead'),
             created_at:         msg.timestamp,
         });
-        if (inserted) touched = true;
+        if (inserted) {
+            touched = true;
+            if (msg.direction === 'inbound') {
+                hasNewInbound = true;
+                // Última msg do lead — se tiver várias num batch, pega o texto
+                // da mais recente (items vêm ordenadas desc do Unipile).
+                if (lastInboundText == null) lastInboundText = msg.text || '';
+            }
+        }
         else if (msg.direction === 'outbound') {
             // Atualiza status de entrega se a mensagem já existia.
             await sb.from('messages')
@@ -162,6 +176,24 @@ async function processChat(chat, account) {
         await sb.from('conversations')
             .update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() })
             .eq('id', conversation.id);
+    }
+
+    // Bot turn: chama o bot só se (a) chegou inbound nova nesse poll,
+    // e (b) a conv ainda está sob controle do bot. Reload da conv pra
+    // pegar bot_stage atualizado caso processChat tenha sido chamado em
+    // paralelo.
+    if (hasNewInbound) {
+        const { data: freshConv } = await sb.from('conversations')
+            .select('id, lead_id, status, bot_stage, bot_attempts, whatsapp_chat_id, whatsapp_account_id')
+            .eq('id', conversation.id)
+            .maybeSingle();
+        if (freshConv && freshConv.status === 'bot') {
+            try {
+                await processBotTurn(freshConv, lastInboundText);
+            } catch (err) {
+                logger.error('Bot turn failed', { conv_id: conversation.id, error: err.message });
+            }
+        }
     }
 }
 
