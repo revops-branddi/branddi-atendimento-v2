@@ -921,6 +921,130 @@
             cursor: not-allowed;
         }
 
+        /* === Status pill clicável (admin) === */
+        #site-status-pill.clickable {
+            cursor: pointer;
+            transition: filter 0.12s, background 0.12s;
+        }
+        #site-status-pill.clickable:hover {
+            filter: brightness(0.95);
+        }
+
+        /* === WA Accounts modal — reusa overlay/modal/footer da OPEC modal === */
+        .wa-empty {
+            text-align: center;
+            color: var(--text-2);
+            padding: 32px 16px;
+        }
+        .wa-empty-hint {
+            font-size: 12px;
+            color: var(--text-3);
+            margin-top: 6px;
+        }
+        .wa-acc-item {
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            padding: 12px;
+            margin-bottom: 10px;
+            background: var(--bg-elev-1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .wa-acc-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .wa-acc-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+        .wa-acc-phone {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-1);
+        }
+        .wa-acc-status {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 2px 8px;
+            border-radius: var(--r-pill);
+        }
+        .wa-acc-status.online {
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+        }
+        .wa-acc-status.offline {
+            background: rgba(225, 29, 72, 0.10);
+            color: #BE123C;
+        }
+        .wa-acc-status.connecting {
+            background: rgba(245, 158, 11, 0.14);
+            color: #92400E;
+        }
+        .wa-acc-label-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+        .wa-acc-label-text {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-3);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .wa-acc-label {
+            padding: 6px 8px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-sm);
+            font-size: 13px;
+            color: var(--text-1);
+            background: var(--bg-elev-1);
+            font-family: inherit;
+        }
+        .wa-acc-label:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(15, 157, 143, 0.15);
+        }
+        .wa-acc-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+        }
+        .wa-acc-btn {
+            padding: 6px 12px;
+            border-radius: var(--r-sm);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border-md);
+            background: var(--bg-elev-1);
+            color: var(--text-1);
+            font-family: inherit;
+            transition: all 0.12s;
+        }
+        .wa-acc-btn:hover { background: var(--bg-elev-2); }
+        .wa-acc-btn.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .wa-acc-btn.primary:hover {
+            background: var(--accent-700);
+            border-color: var(--accent-700);
+        }
+        .wa-acc-btn.danger {
+            color: var(--danger);
+            border-color: var(--border-md);
+        }
+        .wa-acc-btn.danger:hover {
+            background: rgba(225, 29, 72, 0.05);
+            border-color: var(--danger);
+        }
+
         /* === Banner pedindo permissão de notificação === */
         .notif-prompt {
             display: flex;

@@ -112,6 +112,57 @@ router.patch('/whatsapp-accounts/:id', requireRole('Admin'), async (req, res) =>
     }
 });
 
+// ─── POST /whatsapp-accounts/connect-link ────────────────────────────
+// Hosted Auth flow pra conta NOVA: gera URL temporária (1h) pra admin
+// abrir no celular, escanear o QR direto na página da Unipile, e a conta
+// já fica vinculada. Mais limpo do que o /connect que retorna QR raw.
+router.post('/whatsapp-accounts/connect-link', requireRole('Admin'), async (req, res) => {
+    try {
+        const expiresOn = new Date(Date.now() + 60 * 60_000).toISOString();
+        const result = await unipile.createHostedAuthLink({ type: 'create', expiresOn });
+        const url = result?.url || result?.hosted_url;
+        if (!url) {
+            return res.status(502).json({ error: 'Unipile não retornou URL', raw: result });
+        }
+        logger.info('Site WA hosted connect link gerada', { user_id: req.user?.id });
+        res.json({ url, expires_on: expiresOn });
+    } catch (err) {
+        logger.error('site connect-link error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── POST /whatsapp-accounts/:id/reconnect-link ──────────────────────
+// Hosted Auth pra religar UMA conta existente mantendo o mesmo
+// unipile_account_id (e portanto conversas vinculadas, etc).
+router.post('/whatsapp-accounts/:id/reconnect-link', requireRole('Admin'), async (req, res) => {
+    try {
+        // Resolve unipile_account_id pela PK local
+        const { data: row } = await sb.from('whatsapp_accounts')
+            .select('unipile_account_id').eq('id', req.params.id).maybeSingle();
+        if (!row?.unipile_account_id) {
+            return res.status(404).json({ error: 'Conta não encontrada' });
+        }
+        const expiresOn = new Date(Date.now() + 60 * 60_000).toISOString();
+        const result = await unipile.createHostedAuthLink({
+            type:       'reconnect',
+            accountId:  row.unipile_account_id,
+            expiresOn,
+        });
+        const url = result?.url || result?.hosted_url;
+        if (!url) {
+            return res.status(502).json({ error: 'Unipile não retornou URL', raw: result });
+        }
+        logger.info('Site WA hosted reconnect link gerada', {
+            account_id: row.unipile_account_id, user_id: req.user?.id,
+        });
+        res.json({ url, expires_on: expiresOn, account_id: row.unipile_account_id });
+    } catch (err) {
+        logger.error('site reconnect-link error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── DELETE /whatsapp-accounts/:id ───────────────────────────────────
 // Marca como disconnected localmente E desconecta no Unipile. Não faz hard
 // delete pra preservar histórico de conversas vinculadas via unipile_account_id.
