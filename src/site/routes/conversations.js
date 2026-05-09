@@ -5,7 +5,9 @@ import {
     updateConversation,
     updateLead,
     getLeadById,
+    getMessages,
 } from '../services/supabase.js'; // site.* schema helpers
+import { postOpecToGChat, getOpecCategory } from '../../services/gchat.js';
 import {
     findPersonByPhone, findOrCreateOrg, createPerson, createDeal,
 } from '../../services/pipedrive.js';
@@ -168,20 +170,66 @@ router.post('/conversations/:id/route-comercial', async (req, res) => {
 });
 
 // ─── POST /conversations/:id/route-opec ──────────────────────────────
-// Marca lead como OPEC. Webhook pro Google Chat virá na Fase 3.
+// Body: { category: 'bb' | 'golpes' | 'vm', subject?: string }
+//
+// Marca lead como OPEC + categoria, posta task no GChat do time correto.
+// Falha do webhook NÃO derruba o fluxo: o lead fica marcado e o response
+// devolve gchat_error pra UI mostrar warning. Atendente pode reenviar
+// manualmente (futura feature) ou avisar o time direto.
 router.post('/conversations/:id/route-opec', async (req, res) => {
     try {
+        const { category, subject = '' } = req.body || {};
+        if (!category || !getOpecCategory(category)) {
+            return res.status(400).json({ error: 'Categoria OPEC inválida (use bb|golpes|vm)' });
+        }
+
         const conv = await getConversationById(req.params.id);
         if (!conv) return res.status(404).json({ error: 'Conversa não encontrada' });
 
         const lead = await getLeadById(conv.lead_id);
         if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
 
-        await updateLead(lead.id, { classification: 'opec' });
+        // Persiste classificação primeiro — garante consistência mesmo
+        // que o webhook caia depois.
+        await updateLead(lead.id, {
+            classification: 'opec',
+            opec_category:  category,
+        });
 
-        logger.info('Site lead routed to OPEC', { lead_id: lead.id });
+        // Monta conversationText com últimas mensagens INBOUND do lead.
+        // Outbound (atendente) não interessa pro time OPEC — eles querem
+        // o que a empresa notificada está dizendo.
+        let conversationText = '';
+        try {
+            const msgs = await getMessages(conv.id, { limit: 100 });
+            conversationText = msgs
+                .filter(m => m.direction === 'inbound')
+                .map(m => `[${new Date(m.created_at).toLocaleString('pt-BR')}] ${m.text || ''}`.trim())
+                .filter(Boolean)
+                .join('\n');
+        } catch (err) {
+            logger.warn('Falha ao buscar messages pra OPEC card', { error: err.message });
+        }
 
-        res.json({ success: true, lead_id: lead.id, classification: 'opec' });
+        const gchatResult = await postOpecToGChat({
+            category,
+            lead,
+            conversationText,
+            subject,
+        });
+
+        logger.info('Site lead routed to OPEC', {
+            lead_id: lead.id, category, gchat_ok: gchatResult.ok,
+        });
+
+        const payload = {
+            success:        true,
+            lead_id:        lead.id,
+            classification: 'opec',
+            opec_category:  category,
+        };
+        if (!gchatResult.ok) payload.gchat_error = gchatResult.error;
+        res.json(payload);
     } catch (err) {
         logger.error('site route-opec', { error: err.message });
         res.status(500).json({ error: err.message || 'Erro ao rotear pra OPEC' });

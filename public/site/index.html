@@ -474,6 +474,151 @@
         }
         .composer.disabled { opacity: 0.6; }
 
+        /* === OPEC Modal === */
+        .opec-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 22, 32, 0.42);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+            padding: 24px;
+            animation: opec-fade 0.15s ease-out;
+        }
+        @keyframes opec-fade { from { opacity: 0; } to { opacity: 1; } }
+        .opec-modal {
+            background: var(--bg-elev-1);
+            border-radius: var(--r-lg);
+            box-shadow: var(--sh-lg);
+            width: 100%;
+            max-width: 540px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .opec-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-md);
+        }
+        .opec-modal-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-1);
+        }
+        .opec-modal-sub {
+            margin-top: 2px;
+            font-size: 12px;
+            color: var(--text-2);
+        }
+        .opec-modal-body {
+            padding: 16px 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .opec-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-2);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin: 0 0 8px;
+        }
+        .opec-section-label:not(:first-child) { margin-top: 16px; }
+        .opec-radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .opec-radio {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            cursor: pointer;
+            transition: background 0.12s, border-color 0.12s;
+        }
+        .opec-radio:hover { background: var(--bg-hover); }
+        .opec-radio:has(input:checked) {
+            border-color: var(--accent);
+            background: var(--accent-50);
+        }
+        .opec-radio input[type="radio"] {
+            margin-top: 3px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        .opec-radio-body { flex: 1; min-width: 0; }
+        .opec-radio-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-1);
+        }
+        .opec-radio-hint {
+            font-size: 11px;
+            color: var(--text-2);
+            margin-top: 2px;
+        }
+        .opec-subject {
+            width: 100%;
+            min-height: 140px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            font-family: inherit;
+            font-size: 13px;
+            background: var(--bg-elev-2);
+            color: var(--text-1);
+            resize: vertical;
+            transition: all 0.12s;
+        }
+        .opec-subject:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+            background: var(--bg-elev-1);
+        }
+        .opec-modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-md);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            background: var(--bg-elev-2);
+        }
+        .opec-modal-footer button {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: var(--r-md);
+            cursor: pointer;
+            transition: all 0.12s;
+        }
+        .opec-cancel {
+            background: var(--bg-elev-1);
+            color: var(--text-1);
+            border: 1px solid var(--border-md);
+        }
+        .opec-cancel:hover { background: var(--bg-elev-2); }
+        .opec-submit {
+            background: var(--accent);
+            color: #fff;
+            border: 1px solid var(--accent);
+        }
+        .opec-submit:hover:not(:disabled) {
+            background: var(--accent-700);
+            border-color: var(--accent-700);
+        }
+        .opec-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         /* === Toast === */
         .toast {
             position: fixed;

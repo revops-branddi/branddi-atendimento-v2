@@ -308,8 +308,8 @@ function renderClassificationButtons(conv, lead) {
             onclick: () => routeLead('comercial'),
         }, 'Comercial'),
         el('button', {
-            title: 'Marca como OPEC (roteamento Gchat virá em seguida)',
-            onclick: () => routeLead('opec'),
+            title: 'Cria task no Google Chat do time OPEC',
+            onclick: () => openOpecModal(conv, lead),
         }, 'OPEC'),
     ];
 }
@@ -317,20 +317,128 @@ function renderClassificationButtons(conv, lead) {
 async function routeLead(target) {
     const id = state.activeConvId;
     if (!id) return;
-    const confirmMsg = target === 'comercial'
-        ? 'Criar Person + Deal no Pipedrive pra esse lead?'
-        : 'Marcar esse lead como OPEC?';
-    if (!confirm(confirmMsg)) return;
+    if (target !== 'comercial') {
+        // OPEC vai pelo modal; aqui só Comercial usa confirm direto.
+        return;
+    }
+    if (!confirm('Criar Person + Deal no Pipedrive pra esse lead?')) return;
     try {
-        const res = await api(`/conversations/${id}/route-${target}`, { method: 'POST' });
-        const msg = target === 'comercial'
-            ? (res.already_routed ? `Já tinha deal #${res.deal_id}` : `Deal #${res.deal_id} criado no Pipedrive`)
-            : 'Lead marcado como OPEC';
+        const res = await api(`/conversations/${id}/route-comercial`, { method: 'POST' });
+        const msg = res.already_routed
+            ? `Já tinha deal #${res.deal_id}`
+            : `Deal #${res.deal_id} criado no Pipedrive`;
         toast(msg, 'success');
         await Promise.all([renderConversation(), loadConversations({ silent: true })]);
     } catch (err) {
         toast(err.message, 'error');
     }
+}
+
+// ─── OPEC Modal ──────────────────────────────────────────────────────
+
+const OPEC_OPTIONS = [
+    { value: 'bb',     label: 'TakeDown BB',     hint: 'notificacao@brandmonitor.com.br · Giselle França' },
+    { value: 'golpes', label: 'TakeDown Golpes', hint: 'fraud@branddi.com · Caroline Cipriani' },
+    { value: 'vm',     label: 'TakeDown VM',     hint: 'ip-violations-report@brandmonitor.com.br · João França' },
+];
+
+async function openOpecModal(conv, lead) {
+    // Pré-preenche textarea com últimas msgs inbound da conversa (lead falou)
+    let prefill = '';
+    try {
+        const msgs = await api(`/messages/${conv.id}`);
+        prefill = (msgs || [])
+            .filter(m => m.direction === 'inbound')
+            .slice(-10)
+            .map(m => (m.text || '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+    } catch { /* segue sem prefill */ }
+
+    const overlay = el('div', { class: 'opec-modal-overlay', onclick: (e) => {
+        if (e.target === overlay) closeOpecModal();
+    } });
+
+    const radioGroup = el('div', { class: 'opec-radio-group' },
+        ...OPEC_OPTIONS.map(opt => el('label', { class: 'opec-radio' },
+            el('input', { type: 'radio', name: 'opec-cat', value: opt.value }),
+            el('div', { class: 'opec-radio-body' },
+                el('div', { class: 'opec-radio-label' }, opt.label),
+                el('div', { class: 'opec-radio-hint' }, opt.hint),
+            ),
+        )),
+    );
+
+    const subjectTa = el('textarea', {
+        class: 'opec-subject',
+        rows: '8',
+        placeholder: 'Resumo / contexto do que o lead quer (edite à vontade)…',
+    });
+    subjectTa.value = prefill;
+
+    const submitBtn = el('button', { class: 'opec-submit', disabled: true }, 'Enviar pro time OPEC');
+    const cancelBtn = el('button', { class: 'opec-cancel', onclick: closeOpecModal }, 'Cancelar');
+
+    radioGroup.addEventListener('change', () => {
+        const selected = radioGroup.querySelector('input[name="opec-cat"]:checked');
+        submitBtn.disabled = !selected;
+    });
+
+    submitBtn.onclick = async () => {
+        const selected = radioGroup.querySelector('input[name="opec-cat"]:checked');
+        if (!selected) return;
+        const category = selected.value;
+        const subject  = subjectTa.value.trim();
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando…';
+        try {
+            const res = await api(`/conversations/${conv.id}/route-opec`, {
+                method: 'POST',
+                body:   JSON.stringify({ category, subject }),
+            });
+            closeOpecModal();
+            if (res.gchat_error) {
+                toast(`Lead marcado como OPEC, mas envio pro GChat falhou: ${res.gchat_error}`, 'error');
+            } else {
+                toast(`Lead enviado pro time ${OPEC_OPTIONS.find(o => o.value === category).label}`, 'success');
+            }
+            await Promise.all([renderConversation(), loadConversations({ silent: true })]);
+        } catch (err) {
+            toast(err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Enviar pro time OPEC';
+        }
+    };
+
+    overlay.append(
+        el('div', { class: 'opec-modal' },
+            el('div', { class: 'opec-modal-header' },
+                el('h3', {}, 'Encaminhar pra OPEC'),
+                el('div', { class: 'opec-modal-sub' },
+                    `${lead.name || lead.phone || ''}${lead.company_name ? ' · ' + lead.company_name : ''}`,
+                ),
+            ),
+            el('div', { class: 'opec-modal-body' },
+                el('div', { class: 'opec-section-label' }, 'Qual time atende esse caso?'),
+                radioGroup,
+                el('div', { class: 'opec-section-label' }, 'Resumo / contexto'),
+                subjectTa,
+            ),
+            el('div', { class: 'opec-modal-footer' },
+                cancelBtn,
+                submitBtn,
+            ),
+        ),
+    );
+
+    document.body.appendChild(overlay);
+    // Foco no primeiro radio pra acessibilidade
+    setTimeout(() => radioGroup.querySelector('input[type="radio"]')?.focus(), 50);
+}
+
+function closeOpecModal() {
+    document.querySelector('.opec-modal-overlay')?.remove();
 }
 
 function renderMessages(msgs) {
