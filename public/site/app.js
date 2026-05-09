@@ -183,6 +183,7 @@ document.getElementById('filters').addEventListener('click', (e) => {
 async function openConversation(id) {
     state.activeConvId = id;
     state._threadHash  = ''; // reset pra forçar render da nova conversa
+    state._panelHash   = ''; // idem pro lead panel
     document.querySelectorAll('.conv-item').forEach(it => it.classList.toggle('active', it.dataset.id === id));
     // Tira o estado vazio do viewer: a classe `site-empty` herda text-align:center
     // e o style inline `margin:auto` quebra o flex da thread. Trocamos pra
@@ -208,12 +209,29 @@ function renderLeadPanel(conv) {
     if (!conv) {
         empty.style.display = '';
         content.style.display = 'none';
+        state._panelHash = '';
         return;
     }
     empty.style.display = 'none';
     content.style.display = '';
 
+    // Hash gate: evita re-render quando atendente está digitando num input
+    // (replaceChildren mata o foco). Só re-renderiza quando dados do lead
+    // realmente mudaram. Polling do thread (msgs) não dispara aqui.
     const lead = conv.leads || {};
+    const panelHash = JSON.stringify({
+        cid:   conv.id,
+        cstat: conv.status,
+        lead: [
+            lead.id, lead.name, lead.job_title, lead.company_name, lead.email,
+            lead.phone, lead.classification, lead.opec_category,
+            lead.crm_deal_id, lead.crm_person_id,
+        ],
+    });
+    if (panelHash === state._panelHash) return;
+    state._panelHash = panelHash;
+
+    const leadId = lead.id || conv.lead_id;
     const initials = (lead.name || lead.phone || '?')
         .split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 
@@ -242,12 +260,9 @@ function renderLeadPanel(conv) {
         classificationBadges.push(el('span', { class: 'lp-field-value muted' }, 'Não classificado'));
     }
 
-    const fields = [
-        { label: 'Telefone',     value: lead.phone || '—' },
-        { label: 'E-mail',       value: lead.email || '—' },
-        { label: 'Empresa',      value: lead.company_name || '—' },
-        { label: 'Origem',       value: lead.origin || 'whatsapp_inbound' },
-    ];
+    // Mostra botão "Criar deal" se OPEC já não pegou esse lead. OPEC vira
+    // resolved automático pelo bot — não faz sentido criar deal lá.
+    const canCreateDeal = !lead.crm_deal_id && lead.classification !== 'opec';
 
     content.replaceChildren(
         el('div', { class: 'lp-avatar-row' },
@@ -269,10 +284,25 @@ function renderLeadPanel(conv) {
 
         el('div', { class: 'lp-section' },
             el('div', { class: 'lp-section-label' }, 'Contato'),
-            ...fields.map(f => el('div', { class: 'lp-field' },
-                el('div', { class: 'lp-field-label' }, f.label),
-                el('div', { class: 'lp-field-value' + (f.value === '—' ? ' muted' : '') }, f.value),
-            )),
+            // Campos editáveis — auto-save no blur. Phone segue read-only.
+            renderEditableField(leadId, 'name',         'Nome',     lead.name),
+            renderEditableField(leadId, 'job_title',    'Cargo',    lead.job_title),
+            renderEditableField(leadId, 'company_name', 'Empresa',  lead.company_name),
+            renderEditableField(leadId, 'email',        'E-mail',   lead.email, 'email'),
+            el('div', { class: 'lp-field' },
+                el('div', { class: 'lp-field-label' }, 'Telefone'),
+                el('div', { class: 'lp-field-value' + (!lead.phone ? ' muted' : '') }, lead.phone || '—'),
+            ),
+        ),
+
+        canCreateDeal && el('div', { class: 'lp-section' },
+            el('button', {
+                class: 'lp-create-deal-btn',
+                onclick: () => createPipedriveDeal(conv.id),
+            }, 'Criar deal no Pipedrive'),
+            el('div', { class: 'lp-help-text' },
+                'Preencha nome, cargo e empresa antes — vai pra Pipedrive como Person + Deal.',
+            ),
         ),
 
         el('div', { class: 'lp-section' },
@@ -287,6 +317,60 @@ function renderLeadPanel(conv) {
             ),
         ),
     );
+}
+
+// Campo editável: input que persiste no blur via PATCH /leads/:id.
+// Usa data-lead-id + data-field pra bind sem closure (poll re-render OK).
+function renderEditableField(leadId, field, label, value, type = 'text') {
+    const wrap   = el('div', { class: 'lp-field' });
+    const labelEl = el('div', { class: 'lp-field-label' }, label);
+    const input  = el('input', {
+        type,
+        class: 'lp-field-input',
+        value: value || '',
+        placeholder: '—',
+        'data-lead-id': leadId,
+        'data-field': field,
+    });
+    input.addEventListener('blur', async () => {
+        const newVal = input.value.trim();
+        if ((value || '') === newVal) return; // sem mudança, skip
+        input.classList.add('saving');
+        try {
+            await api(`/leads/${leadId}`, {
+                method: 'PATCH',
+                body:   JSON.stringify({ [field]: newVal }),
+            });
+            input.classList.remove('saving');
+            input.classList.add('saved');
+            setTimeout(() => input.classList.remove('saved'), 1200);
+            // Atualiza state local pra próximo poll não sobrescrever
+            if (state.activeConv?.leads) state.activeConv.leads[field] = newVal || null;
+        } catch (err) {
+            input.classList.remove('saving');
+            input.classList.add('error');
+            toast(`Erro ao salvar ${label}: ${err.message}`, 'error');
+        }
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+    });
+    wrap.append(labelEl, input);
+    return wrap;
+}
+
+async function createPipedriveDeal(convId) {
+    if (!confirm('Criar Person + Deal no Pipedrive com os dados atuais? (Os campos editados acima serão usados)')) return;
+    try {
+        const res = await api(`/conversations/${convId}/route-comercial`, { method: 'POST' });
+        const msg = res.already_routed
+            ? `Já tinha deal #${res.deal_id} no Pipedrive`
+            : `Deal #${res.deal_id} criado no Pipedrive ✓`;
+        toast(msg, 'success');
+        await Promise.all([renderConversation(), loadConversations({ silent: true })]);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
 }
 
 function statusLabel(conv) {

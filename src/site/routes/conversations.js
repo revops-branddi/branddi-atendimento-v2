@@ -105,7 +105,7 @@ router.post('/conversations/:id/route-comercial', async (req, res) => {
             });
         }
 
-        // Encontra ou cria Person
+        // Encontra ou cria Person — passa job_title se atendente preencheu
         let person = await findPersonByPhone(lead.phone);
         if (!person) {
             person = await createPerson({
@@ -113,6 +113,7 @@ router.post('/conversations/:id/route-comercial', async (req, res) => {
                 phone:        lead.phone,
                 email:        lead.email || null,
                 company_name: lead.company_name || null,
+                job_title:    lead.job_title || null,
             });
         }
         if (!person?.id) {
@@ -125,22 +126,28 @@ router.post('/conversations/:id/route-comercial', async (req, res) => {
             orgId = await findOrCreateOrg(lead.company_name);
         }
 
-        // Settings: pipeline + stage default (pode override via body)
+        // Settings: pipeline + stage default (pode override via body).
+        // Pipeline 5 = "3. Inbound SDR", stage 208 = "MQL - Novo Lead".
+        // Lead que vem do /site é sempre inbound, então default faz sentido.
         const settings = await getSettings();
         const pipelineId = req.body?.pipeline_id || settings?.pipedrive_pipeline_id || 5;
         const stageId    = req.body?.stage_id    || settings?.pipedrive_stage_id    || 208;
+        // Owner: prefere o atendente que clicou (se tem pipedrive_user_id),
+        // senão usa o owner default das settings (inbound SDR — Harylanne).
+        // Garante que deal de inbound nunca fica órfão.
+        const ownerId    = req.user?.pipedrive_user_id || settings?.pipedrive_owner_id || undefined;
 
         const dealTitle = lead.company_name
             ? `${lead.company_name} — Site`
             : `${lead.name || lead.phone} — Site`;
 
         const deal = await createDeal({
-            title:      dealTitle,
-            personId:   person.id,
-            orgId:      orgId || undefined,
+            title:    dealTitle,
+            personId: person.id,
+            orgId:    orgId || undefined,
             pipelineId,
             stageId,
-            ownerId:    req.user?.pipedrive_user_id || undefined,
+            ownerId,
         });
         if (!deal?.id) {
             return res.status(502).json({ error: 'Falha ao criar Deal no Pipedrive' });
