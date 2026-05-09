@@ -339,14 +339,27 @@ function renderMessages(msgs) {
         list.append(emptyMsg('Sem mensagens ainda'));
         return list;
     }
-    msgs.forEach(m => list.append(
-        el('div', { class: `msg ${m.direction}` },
-            el('div', { class: 'who' }, m.sender_name || (m.sender_type === 'human' ? 'Atendente' : 'Lead')),
-            el('div', {}, m.text || ''),
-            el('div', { class: 'when' }, fmtTime(m.created_at)),
-        ),
-    ));
+    const leadName = state.activeConv?.leads?.name || '';
+    msgs.forEach(m => {
+        const senderLabel = m.sender_name || (m.sender_type === 'human' ? 'Atendente' : 'Lead');
+        const fallback    = m.direction === 'inbound' ? leadName : senderLabel;
+        list.append(
+            el('div', { class: `msg ${m.direction}` },
+                el('div', { class: 'who' }, senderLabel),
+                el('div', {}, resolveLidPlaceholders(m.text || '', fallback)),
+                el('div', { class: 'when' }, fmtTime(m.created_at)),
+            ),
+        );
+    });
     return list;
+}
+
+// Substitui placeholders {{<id>@lid}} / {{<id>@s.whatsapp.net}} que o Unipile
+// mete literal em mensagens de reação/evento, pelo nome do lead (DM 1-1 só
+// tem 1 attendee não-self). Mesma lógica de public/app.js:resolveLidPlaceholders.
+function resolveLidPlaceholders(text, fallbackName) {
+    if (!text || !fallbackName) return text;
+    return text.replace(/\{\{[^{}]*?@(?:lid|s\.whatsapp\.net)\}\}/g, fallbackName);
 }
 
 function renderComposer(conv) {
