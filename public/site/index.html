@@ -609,9 +609,129 @@
             border-top: 1px solid var(--border-md);
             background: var(--bg-elev-1);
             display: flex;
+            flex-direction: column;
             gap: 8px;
             flex-shrink: 0;
         }
+        /* .attach-btn + .chat-input-row vêm do style-v2.css. Mas o display:flex
+           dessa última está só no style.css (que /site não carrega — segue o
+           mesmo padrão da side-nav fix). Replicamos mínimo aqui. */
+        .chat-input-row {
+            display: flex;
+            flex: 1;
+        }
+        .chat-input-row textarea {
+            flex: 1;
+            min-width: 0;
+            resize: none;
+        }
+        .composer-preview-slot:empty { display: none; }
+        .composer-preview {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: var(--bg-elev-2);
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+        }
+        .composer-preview-thumb {
+            width: 44px;
+            height: 44px;
+            object-fit: cover;
+            border-radius: var(--r-sm);
+            background: var(--bg-elev-3);
+        }
+        .composer-preview-icon {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            background: var(--bg-elev-3);
+            border-radius: var(--r-sm);
+        }
+        .composer-preview-meta {
+            flex: 1;
+            min-width: 0;
+        }
+        .composer-preview-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-1);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .composer-preview-size {
+            font-size: 11px;
+            color: var(--text-3);
+            margin-top: 2px;
+        }
+        .composer-preview-remove {
+            width: 26px;
+            height: 26px;
+            border: none;
+            background: transparent;
+            color: var(--text-3);
+            cursor: pointer;
+            border-radius: var(--r-sm);
+            font-size: 14px;
+        }
+        .composer-preview-remove:hover {
+            background: var(--bg-elev-3);
+            color: var(--danger);
+        }
+
+        /* === Attachments nas mensagens === */
+        .msg-attachments {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+        }
+        .msg-att-image img {
+            max-width: 280px;
+            max-height: 280px;
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            display: block;
+            background: var(--bg-elev-2);
+        }
+        .msg-att-video video, .msg-att-audio audio {
+            max-width: 280px;
+            border-radius: var(--r-sm);
+            display: block;
+        }
+        .msg-att-file {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--bg-elev-2);
+            border-radius: var(--r-sm);
+            text-decoration: none;
+            color: var(--text-1);
+            font-size: 12px;
+            transition: background 0.12s;
+        }
+        .msg-att-file:hover { background: var(--bg-elev-3); }
+        .msg-att-pending {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--bg-elev-2);
+            border-radius: var(--r-sm);
+            font-size: 12px;
+            color: var(--text-3);
+            font-style: italic;
+        }
+        .msg-att-icon { flex-shrink: 0; }
+        .msg-att-status { color: var(--text-3); font-style: italic; }
+        .msg-text { margin-top: 2px; }
         .composer textarea {
             flex: 1;
             resize: none;

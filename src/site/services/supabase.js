@@ -71,12 +71,13 @@ export async function getMessages(conversationId, { limit = 100 } = {}) {
 }
 
 export async function insertOutboundMessage({
-    conversationId, text, unipileMessageId, senderUserId, senderName,
+    conversationId, text, unipileMessageId, senderUserId, senderName, attachments,
 }) {
     const { data, error } = await sb.from('messages').insert({
         conversation_id:    conversationId,
         direction:          'outbound',
         text,
+        attachments:        attachments || [],
         unipile_message_id: unipileMessageId,
         sender_type:        'human',
         sender_user_id:     senderUserId,
