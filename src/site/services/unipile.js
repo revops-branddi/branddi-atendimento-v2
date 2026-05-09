@@ -90,3 +90,18 @@ export async function sendMessage(chatId, text, attachmentBuffer, attachmentName
 export async function getMessageById(messageId) {
     return unipileFetch(`/messages/${messageId}`);
 }
+
+// Hosted Auth: gera URL temporária pra atendente fazer QR scan na página
+// hospedada da Unipile. Suporta 'reconnect' (mantém account_id existente)
+// e 'create' (conta nova). type='create' precisa providers=['WHATSAPP'].
+export async function createHostedAuthLink({ type, accountId, expiresOn }) {
+    const apiUrl = `https://${DSN}`; // sem /api/v1 — Unipile espera só base
+    const body = { type, api_url: apiUrl, expiresOn };
+    if (type === 'reconnect') body.reconnect_account = accountId;
+    if (type === 'create')    body.providers         = ['WHATSAPP'];
+    return unipileFetch('/hosted/accounts/link', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    }, 10000);
+}
