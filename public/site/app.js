@@ -131,13 +131,18 @@ async function loadConversations({ silent = false } = {}) {
     try {
         const convs = await api(buildListQuery());
         state.convs = convs;
+
+        // Notificação desktop: dispara quando uma conv NOVA entra em
+        // waiting_human (bot handoff Comercial, ou atendente abre fila).
+        // Skip no primeiro poll pra não notificar pra todas as existentes.
+        detectNewWaitingHuman(convs);
+
         if (!convs.length) {
             list.replaceChildren(emptyMsg('Sem conversas'));
             state._listHash = '';
             return;
         }
         // Skip render se nada relevante mudou — evita flicker do polling.
-        // Hash leve: id + last_message_at + status + assigned + nome do lead.
         const hash = JSON.stringify(convs.map(c =>
             [c.id, c.last_message_at, c.status, c.assigned_user_id, c.leads?.name]
         ));
@@ -1037,6 +1042,95 @@ function setupTopbarUserMenu() {
     });
 }
 
+// ─── Desktop notifications ───────────────────────────────────────────
+// Dispara quando uma conv NOVA entra em waiting_human (bot Comercial
+// handoff ou atendente reabre). Só notifica se a aba está em background
+// — quando atendente está olhando, o badge visual basta.
+
+const NOTIF_PERMISSION_DISMISSED_KEY = 'site:notif-permission-dismissed';
+
+function maybeShowNotificationPrompt() {
+    if (!('Notification' in window)) return; // browser sem suporte
+    if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
+    if (localStorage.getItem(NOTIF_PERMISSION_DISMISSED_KEY) === '1') return;
+
+    // Banner discreto no topo da side-panel pedindo permissão
+    const banner = el('div', { class: 'notif-prompt' },
+        el('span', { class: 'notif-prompt-text' }, '🔔 Receba notificações de novas conversas'),
+        el('button', {
+            class: 'notif-prompt-btn',
+            onclick: async () => {
+                const result = await Notification.requestPermission();
+                banner.remove();
+                if (result === 'granted') {
+                    toast('Notificações ativadas', 'success');
+                }
+            },
+        }, 'Ativar'),
+        el('button', {
+            class: 'notif-prompt-dismiss',
+            title: 'Não mostrar mais',
+            onclick: () => {
+                localStorage.setItem(NOTIF_PERMISSION_DISMISSED_KEY, '1');
+                banner.remove();
+            },
+        }, '✕'),
+    );
+
+    const sidebar = document.querySelector('.site-sidebar');
+    if (sidebar) sidebar.insertBefore(banner, sidebar.firstChild);
+}
+
+// Detecta convs novas em waiting_human comparando com snapshot anterior.
+// _waitingBaseline = null no boot; após primeiro poll, vira o Set de IDs
+// já existentes — assim só convs que entrarem DEPOIS disparam notificação.
+function detectNewWaitingHuman(convs) {
+    const currentIds = new Set(
+        convs.filter(c => c.status === 'waiting_human').map(c => c.id),
+    );
+    if (state._waitingBaseline === null || state._waitingBaseline === undefined) {
+        // Primeiro poll: estabelece baseline, não notifica
+        state._waitingBaseline = currentIds;
+        return;
+    }
+    for (const id of currentIds) {
+        if (!state._waitingBaseline.has(id)) {
+            const conv = convs.find(c => c.id === id);
+            if (conv) notifyDesktop(conv);
+        }
+    }
+    state._waitingBaseline = currentIds;
+}
+
+function notifyDesktop(conv) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    // Não notifica se atendente já está vendo a aba (badge basta)
+    if (!document.hidden && document.hasFocus()) return;
+
+    const lead = conv.leads || {};
+    const title = `Nova conversa no Site${lead.name ? ` — ${lead.name}` : ''}`;
+    const body  = lead.company_name
+        ? `${lead.company_name}${lead.phone ? ' · ' + lead.phone : ''}`
+        : (lead.phone || 'Lead aguardando atendimento');
+
+    try {
+        const n = new Notification(title, {
+            body,
+            icon: '/branddi-mark.svg',
+            tag:  `site-conv-${conv.id}`, // mesma conv não dispara 2x
+            requireInteraction: false,
+        });
+        n.onclick = () => {
+            window.focus();
+            n.close();
+            openConversation(conv.id);
+        };
+    } catch (err) {
+        console.warn('notifyDesktop falhou:', err);
+    }
+}
+
 // Mostra Dashboard só pra Admin (paridade com setRoleVisibility do main app)
 function applySiteRoleVisibility() {
     const isAdmin = state.me?.role === 'Admin';
@@ -1050,5 +1144,6 @@ updateTopbarUser();
 applySiteRoleVisibility();
 setupTopbarUserMenu();
 setupLeadPanelToggle();
+maybeShowNotificationPrompt();
 refreshSiteStatus();
 loadConversations().then(startPolling);
