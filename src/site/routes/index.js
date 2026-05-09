@@ -10,6 +10,7 @@ import leadsRouter from './leads.js';
 import conversationsRouter from './conversations.js';
 import messagesRouter from './messages.js';
 import whatsappAccountsRouter from './whatsapp-accounts.js';
+import dashboardRouter from './dashboard.js';
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use(leadsRouter);
 router.use(conversationsRouter);
 router.use(messagesRouter);
 router.use(whatsappAccountsRouter);
+router.use(dashboardRouter);
 
 export default router;
