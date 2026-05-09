@@ -1273,13 +1273,169 @@ async function disconnectWaAccount(accId, overlay) {
     }
 }
 
-// Mostra Dashboard só pra Admin (paridade com setRoleVisibility do main app)
-// Também transforma o status pill em botão clicável que abre o modal de
-// gestão de contas WhatsApp do site (admin only).
+// ─── Modal: Dashboard /site (admin only) ─────────────────────────────
+
+const DASH_PERIODS = [
+    { value: 7,  label: '7 dias' },
+    { value: 30, label: '30 dias' },
+    { value: 90, label: '90 dias' },
+];
+
+async function openSiteDashboardModal() {
+    let currentDays = 7;
+    const overlay = el('div', { class: 'opec-modal-overlay', onclick: (e) => {
+        if (e.target === overlay) overlay.remove();
+    } });
+
+    const periodTabs = el('div', { class: 'dash-period-tabs' });
+    DASH_PERIODS.forEach(p => {
+        const btn = el('button', {
+            class: `dash-period-btn ${p.value === currentDays ? 'active' : ''}`,
+            onclick: () => {
+                currentDays = p.value;
+                periodTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', +b.dataset.value === currentDays));
+                loadAndRender();
+            },
+            'data-value': p.value,
+        }, p.label);
+        periodTabs.append(btn);
+    });
+
+    const body = el('div', { class: 'opec-modal-body' }, emptyMsg('Carregando…'));
+
+    overlay.append(
+        el('div', { class: 'opec-modal dash-modal' },
+            el('div', { class: 'opec-modal-header' },
+                el('h3', {}, 'Dashboard — Atendimento Site'),
+                el('div', { class: 'opec-modal-sub' }, 'KPIs do canal /site (admin)'),
+                periodTabs,
+            ),
+            body,
+            el('div', { class: 'opec-modal-footer' },
+                el('button', { class: 'opec-cancel', onclick: () => overlay.remove() }, 'Fechar'),
+            ),
+        ),
+    );
+    document.body.appendChild(overlay);
+
+    async function loadAndRender() {
+        body.replaceChildren(emptyMsg('Carregando…'));
+        try {
+            const data = await api(`/dashboard?days=${currentDays}`);
+            renderDashboard(body, data);
+        } catch (err) {
+            body.replaceChildren(emptyMsg(`Erro: ${err.message}`));
+        }
+    }
+    loadAndRender();
+}
+
+function renderDashboard(body, data) {
+    const kpiCards = [
+        { label: 'Conversas', value: data.conversations.total, hint: `Em ${data.range.days} dias` },
+        { label: 'OPEC',      value: data.opec.total,          hint: 'Auto-roteadas pelo bot' },
+        { label: 'Comercial', value: data.comercial.total,     hint: `${data.comercial.with_deal} viraram deal (${data.comercial.conversion_rate}%)` },
+        { label: 'Bot handoffs', value: data.bot.handed_off,   hint: `${data.bot.gave_up} desistiu (3 erros)` },
+    ];
+
+    const opecCats = [
+        { key: 'bb',     label: 'TakeDown BB',     count: data.opec.by_category.bb },
+        { key: 'golpes', label: 'TakeDown Golpes', count: data.opec.by_category.golpes },
+        { key: 'vm',     label: 'TakeDown VM',     count: data.opec.by_category.vm },
+    ];
+    const opecMax = Math.max(1, ...opecCats.map(c => c.count));
+
+    const statuses = [
+        { key: 'bot',           label: 'Bot triagem' },
+        { key: 'waiting_human', label: 'Aguardando' },
+        { key: 'in_progress',   label: 'Em andamento' },
+        { key: 'resolved',      label: 'Resolvidas' },
+    ];
+
+    body.replaceChildren(
+        // KPI cards top
+        el('div', { class: 'dash-kpi-grid' },
+            ...kpiCards.map(k => el('div', { class: 'dash-kpi-card' },
+                el('div', { class: 'dash-kpi-label' }, k.label),
+                el('div', { class: 'dash-kpi-value' }, String(k.value)),
+                el('div', { class: 'dash-kpi-hint' }, k.hint),
+            )),
+        ),
+
+        // OPEC breakdown
+        el('div', { class: 'dash-section' },
+            el('div', { class: 'dash-section-title' }, 'OPEC por categoria'),
+            el('div', { class: 'dash-bar-list' },
+                ...opecCats.map(c => el('div', { class: 'dash-bar-item' },
+                    el('div', { class: 'dash-bar-label' }, c.label),
+                    el('div', { class: 'dash-bar-track' },
+                        el('div', { class: 'dash-bar-fill', style: `width: ${(c.count / opecMax) * 100}%` }),
+                    ),
+                    el('div', { class: 'dash-bar-value' }, String(c.count)),
+                )),
+            ),
+        ),
+
+        // Status breakdown
+        el('div', { class: 'dash-section' },
+            el('div', { class: 'dash-section-title' }, 'Distribuição por status'),
+            el('div', { class: 'dash-status-grid' },
+                ...statuses.map(s => el('div', { class: 'dash-status-cell' },
+                    el('div', { class: 'dash-status-label' }, s.label),
+                    el('div', { class: 'dash-status-value' }, String(data.conversations.by_status[s.key] || 0)),
+                )),
+            ),
+        ),
+
+        // Atendentes
+        data.atendentes.length > 0 && el('div', { class: 'dash-section' },
+            el('div', { class: 'dash-section-title' }, 'Por atendente'),
+            el('table', { class: 'dash-table' },
+                el('thead', {},
+                    el('tr', {},
+                        el('th', {}, 'Atendente'),
+                        el('th', {}, 'Atribuídas'),
+                        el('th', {}, 'Resolvidas'),
+                    ),
+                ),
+                el('tbody', {},
+                    ...data.atendentes.map(a => el('tr', {},
+                        el('td', {}, a.name),
+                        el('td', {}, String(a.assigned_count)),
+                        el('td', {}, String(a.resolved_count)),
+                    )),
+                ),
+            ),
+        ),
+
+        // Bot avg attempts
+        data.bot.avg_attempts > 0 && el('div', { class: 'dash-section dash-bot-stats' },
+            el('div', { class: 'dash-section-title' }, 'Bot stats'),
+            el('div', { class: 'dash-bot-stat' },
+                el('span', { class: 'dash-bot-label' }, 'Tentativas médias antes de classificar'),
+                el('span', { class: 'dash-bot-value' }, String(data.bot.avg_attempts)),
+            ),
+        ),
+    );
+}
 function applySiteRoleVisibility() {
     const isAdmin = state.me?.role === 'Admin';
     const dashLink = document.getElementById('nav-dashboard');
-    if (dashLink) dashLink.style.display = isAdmin ? '' : 'none';
+    if (dashLink) {
+        if (isAdmin) {
+            // Sobrescreve o href pra abrir modal do dashboard do /site
+            dashLink.style.display = '';
+            dashLink.removeAttribute('href');
+            dashLink.style.cursor = 'pointer';
+            dashLink.title = 'Dashboard do Site';
+            dashLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                openSiteDashboardModal();
+            });
+        } else {
+            dashLink.style.display = 'none';
+        }
+    }
 
     const pill = document.getElementById('site-status-pill');
     if (pill && isAdmin) {
