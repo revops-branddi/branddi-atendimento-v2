@@ -132,8 +132,16 @@ async function loadConversations({ silent = false } = {}) {
         state.convs = convs;
         if (!convs.length) {
             list.replaceChildren(emptyMsg('Sem conversas'));
+            state._listHash = '';
             return;
         }
+        // Skip render se nada relevante mudou — evita flicker do polling.
+        // Hash leve: id + last_message_at + status + assigned + nome do lead.
+        const hash = JSON.stringify(convs.map(c =>
+            [c.id, c.last_message_at, c.status, c.assigned_user_id, c.leads?.name]
+        ));
+        if (silent && hash === state._listHash) return;
+        state._listHash = hash;
         list.replaceChildren(...convs.map(renderConvItem));
     } catch (err) {
         if (!silent) list.replaceChildren(emptyMsg(`Erro: ${err.message}`));
@@ -173,6 +181,7 @@ document.getElementById('filters').addEventListener('click', (e) => {
 
 async function openConversation(id) {
     state.activeConvId = id;
+    state._threadHash  = ''; // reset pra forçar render da nova conversa
     document.querySelectorAll('.conv-item').forEach(it => it.classList.toggle('active', it.dataset.id === id));
     // Tira o estado vazio do viewer: a classe `site-empty` herda text-align:center
     // e o style inline `margin:auto` quebra o flex da thread. Trocamos pra
@@ -197,6 +206,19 @@ async function renderConversation({ initial = false } = {}) {
         return;
     }
     state.activeConv = conv;
+
+    // Hash de tudo que afeta a renderização — se nada mudou, evita rebuild
+    // (que causa flicker, perda de seleção de texto e scroll-jump no poll).
+    const hash = JSON.stringify({
+        cid:    id,
+        cstatus: conv.status,
+        cassigned: conv.assigned_user_id,
+        ccls: conv.leads?.classification,
+        cdeal: conv.leads?.crm_deal_id,
+        msgs: msgs.map(m => [m.id, m.text, m.delivered, m.seen, m.sender_name]),
+    });
+    if (!initial && hash === state._threadHash) return;
+    state._threadHash = hash;
 
     const header = renderHeader(conv);
     const list   = renderMessages(msgs);

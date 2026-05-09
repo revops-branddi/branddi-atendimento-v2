@@ -60,6 +60,10 @@ async function pollOnce() {
             const res = await unipile.listChats(acc.unipile_account_id, { limit: 20 });
             const chats = res.items || [];
             for (const chat of chats) {
+                // Site é DM 1-1 (lead clicou em wa.me/<número>). Grupos onde o
+                // número foi adicionado caem aqui também — pulamos pra não
+                // misturar contexto de prospecção/comunidade no atendimento.
+                if (isGroupChat(chat)) continue;
                 await processChat(chat, acc);
             }
         } catch (err) {
@@ -68,6 +72,11 @@ async function pollOnce() {
             });
         }
     }
+}
+
+// Mesmas heurísticas do polling de prospecção (src/services/unipile.js).
+function isGroupChat(chat) {
+    return chat?.type === 1 || String(chat?.provider_id || '').endsWith('@g.us');
 }
 
 async function getActiveAccounts() {
