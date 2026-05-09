@@ -181,6 +181,53 @@
             text-decoration: none;
         }
         .lp-field-link:hover { text-decoration: underline; }
+        /* Campo editável (input inline) */
+        .lp-field-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-sm);
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--text-1);
+            background: var(--bg-elev-1);
+            transition: border-color 0.12s, box-shadow 0.12s;
+        }
+        .lp-field-input::placeholder { color: var(--text-3); }
+        .lp-field-input:hover  { border-color: var(--border-lg); }
+        .lp-field-input:focus  {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(15, 157, 143, 0.15);
+        }
+        .lp-field-input.saving { opacity: 0.6; }
+        .lp-field-input.saved  { border-color: var(--success); box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18); }
+        .lp-field-input.error  { border-color: var(--danger); }
+
+        /* Botão "Criar deal no Pipedrive" */
+        .lp-create-deal-btn {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--accent);
+            color: #fff;
+            border: 1px solid var(--accent);
+            border-radius: var(--r-md);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.12s, border-color 0.12s;
+        }
+        .lp-create-deal-btn:hover {
+            background: var(--accent-700);
+            border-color: var(--accent-700);
+        }
+        .lp-help-text {
+            font-size: 11px;
+            color: var(--text-3);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
         .lp-classification-row {
             display: flex;
             flex-wrap: wrap;

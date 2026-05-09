@@ -133,10 +133,11 @@ function normalizePhoneTerms(phone) {
 
 // ─── Person ───────────────────────────────────────────────────────────
 
-export async function createPerson({ name, phone, email, company_name }) {
+export async function createPerson({ name, phone, email, company_name, job_title }) {
     const payload = { name };
-    if (phone) payload.phone = [{ value: phone, label: 'mobile', primary: true }];
-    if (email) payload.email = [{ value: email, label: 'work', primary: true }];
+    if (phone)     payload.phone = [{ value: phone, label: 'mobile', primary: true }];
+    if (email)     payload.email = [{ value: email, label: 'work', primary: true }];
+    if (job_title) payload.job_title = job_title;
 
     if (company_name) {
         const orgId = await findOrCreateOrg(company_name);
