@@ -60,8 +60,15 @@ router.post('/messages/:conversationId', async (req, res) => {
         });
 
         // Primeira resposta humana → tira da fila de espera.
+        // Se atendente enviar manualmente em conv ainda no bot, força saída
+        // do bot (status='in_progress', bot_stage='human') — atendente tomou
+        // o controle.
         const patch = { last_message_at: new Date().toISOString() };
         if (conv.status === 'waiting_human') patch.status = 'in_progress';
+        if (conv.status === 'bot') {
+            patch.status    = 'in_progress';
+            patch.bot_stage = 'human';
+        }
         if (!req.body?._skipAssign && req.user?.id) patch.assigned_user_id = req.user.id;
         await updateConversation(conv.id, patch);
 
