@@ -96,21 +96,20 @@ export function getOpecCategory(category) {
  */
 function buildPayload({ category, lead, conversationText, subject }) {
     const cat = OPEC_CATEGORIES[category];
-    const widgets = [];
 
-    // Empresa
+    // ─── Section 1: Lead + routing ──────────────────────────────────
+    const leadWidgets = [];
+
     if (lead.company_name) {
-        widgets.push({ decoratedText: { topLabel: 'Empresa', text: lead.company_name } });
+        leadWidgets.push({ decoratedText: { topLabel: 'Empresa', text: lead.company_name } });
     }
-    // Nome
     if (lead.name) {
-        widgets.push({ decoratedText: { topLabel: 'Nome', text: lead.name } });
+        leadWidgets.push({ decoratedText: { topLabel: 'Nome', text: lead.name } });
     }
-    // Telefone formatado + botão wa.me
     if (lead.phone) {
         const waNum  = normalizeForWaMe(lead.phone);
         const pretty = formatPhonePretty(lead.phone);
-        widgets.push({
+        leadWidgets.push({
             decoratedText: {
                 topLabel:    'WhatsApp',
                 text:        pretty || lead.phone,
@@ -122,29 +121,30 @@ function buildPayload({ category, lead, conversationText, subject }) {
             },
         });
     }
-
-    // Atribuído + email de notificação
-    widgets.push({ divider: {} });
-    widgets.push({ decoratedText: {
-        topLabel: 'Atribuído pra',
-        text:     `<b>${cat.owner_name}</b>`,
+    leadWidgets.push({ divider: {} });
+    leadWidgets.push({ decoratedText: {
+        topLabel:    'Atribuído pra',
+        text:        `<b>${cat.owner_name}</b>`,
         bottomLabel: cat.owner_email,
     } });
-    widgets.push({ decoratedText: {
+    leadWidgets.push({ decoratedText: {
         topLabel: 'Email de notificação',
         text:     cat.notification_email,
     } });
 
-    // Resumo do atendente
+    // ─── Section 2: Detalhes (resumo + msgs do lead) ────────────────
+    const detalhesWidgets = [];
     if (subject) {
-        widgets.push({ divider: {} });
-        widgets.push({ textParagraph: { text: `<b>Resumo do atendente:</b>\n${escapeXml(subject)}` } });
+        detalhesWidgets.push({ textParagraph: { text: `<b>Resumo do atendente:</b>\n${escapeXml(subject)}` } });
+    }
+    if (conversationText) {
+        if (subject) detalhesWidgets.push({ divider: {} });
+        detalhesWidgets.push({ textParagraph: { text: `<b>Mensagens do lead:</b>\n${escapeXml(conversationText)}` } });
     }
 
-    // Mensagens do lead
-    if (conversationText) {
-        widgets.push({ divider: {} });
-        widgets.push({ textParagraph: { text: `<b>Mensagens do lead:</b>\n${escapeXml(conversationText)}` } });
+    const sections = [{ widgets: leadWidgets }];
+    if (detalhesWidgets.length) {
+        sections.push({ header: 'Detalhes', collapsible: true, uncollapsibleWidgetsCount: 0, widgets: detalhesWidgets });
     }
 
     // O @mention vai no `text` (fora do card) — formato `<users/ID>` testado
@@ -162,7 +162,7 @@ function buildPayload({ category, lead, conversationText, subject }) {
                     imageUrl:  'https://atendimento.branddi.com/branddi-mark.svg',
                     imageType: 'CIRCLE',
                 },
-                sections: [{ widgets }],
+                sections,
             },
         }],
     };
