@@ -192,6 +192,131 @@ async function openConversation(id) {
     await renderConversation({ initial: true });
 }
 
+// ─── Lead Panel (à direita) ──────────────────────────────────────────
+
+const OPEC_CATEGORY_LABELS = {
+    bb:     'TakeDown BB',
+    golpes: 'TakeDown Golpes',
+    vm:     'TakeDown VM',
+};
+
+function renderLeadPanel(conv) {
+    const empty = document.getElementById('lp-empty');
+    const content = document.getElementById('lp-content');
+    if (!empty || !content) return;
+    if (!conv) {
+        empty.style.display = '';
+        content.style.display = 'none';
+        return;
+    }
+    empty.style.display = 'none';
+    content.style.display = '';
+
+    const lead = conv.leads || {};
+    const initials = (lead.name || lead.phone || '?')
+        .split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+
+    const fmtDate = (iso) => {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    };
+
+    const dealLink = lead.crm_deal_id
+        ? el('a', {
+            class: 'lp-field-link',
+            href: `https://brandmonitor.pipedrive.com/deal/${lead.crm_deal_id}`,
+            target: '_blank',
+            rel: 'noopener',
+          }, `Deal #${lead.crm_deal_id} ↗`)
+        : null;
+
+    const classificationBadges = [];
+    if (lead.classification === 'comercial') {
+        classificationBadges.push(el('span', { class: 'classification-pill comercial' }, 'Comercial'));
+    } else if (lead.classification === 'opec') {
+        const subLabel = OPEC_CATEGORY_LABELS[lead.opec_category] || 'OPEC';
+        classificationBadges.push(el('span', { class: 'classification-pill opec' }, subLabel));
+    } else {
+        classificationBadges.push(el('span', { class: 'lp-field-value muted' }, 'Não classificado'));
+    }
+
+    const fields = [
+        { label: 'Telefone',     value: lead.phone || '—' },
+        { label: 'E-mail',       value: lead.email || '—' },
+        { label: 'Empresa',      value: lead.company_name || '—' },
+        { label: 'Origem',       value: lead.origin || 'whatsapp_inbound' },
+    ];
+
+    content.replaceChildren(
+        el('div', { class: 'lp-avatar-row' },
+            el('div', { class: 'lp-avatar' }, initials),
+            el('div', { class: 'lp-name-block' },
+                el('div', { class: 'lp-name' }, lead.name || lead.phone || 'Sem nome'),
+                el('div', { class: 'lp-name-sub' }, statusLabel(conv)),
+            ),
+        ),
+
+        el('div', { class: 'lp-section' },
+            el('div', { class: 'lp-section-label' }, 'Classificação'),
+            el('div', { class: 'lp-classification-row' }, ...classificationBadges),
+            dealLink && el('div', { class: 'lp-field', style: 'margin-top:8px;border:none' },
+                el('div', { class: 'lp-field-label' }, 'Pipedrive'),
+                el('div', { class: 'lp-field-value' }, dealLink),
+            ),
+        ),
+
+        el('div', { class: 'lp-section' },
+            el('div', { class: 'lp-section-label' }, 'Contato'),
+            ...fields.map(f => el('div', { class: 'lp-field' },
+                el('div', { class: 'lp-field-label' }, f.label),
+                el('div', { class: 'lp-field-value' + (f.value === '—' ? ' muted' : '') }, f.value),
+            )),
+        ),
+
+        el('div', { class: 'lp-section' },
+            el('div', { class: 'lp-section-label' }, 'Datas'),
+            el('div', { class: 'lp-field' },
+                el('div', { class: 'lp-field-label' }, 'Criado em'),
+                el('div', { class: 'lp-field-value' }, fmtDate(lead.created_at || conv.created_at)),
+            ),
+            el('div', { class: 'lp-field' },
+                el('div', { class: 'lp-field-label' }, 'Última mensagem'),
+                el('div', { class: 'lp-field-value' }, fmtDate(conv.last_message_at)),
+            ),
+        ),
+    );
+}
+
+function statusLabel(conv) {
+    const map = {
+        waiting_human: 'Aguardando atendimento',
+        in_progress:   'Em andamento',
+        resolved:      'Resolvida',
+    };
+    return map[conv.status] || conv.status;
+}
+
+// Toggle do painel — persiste preferência em localStorage
+function setupLeadPanelToggle() {
+    const shell  = document.getElementById('site-shell');
+    const toggle = document.getElementById('lp-toggle');
+    if (!shell || !toggle) return;
+
+    const apply = (hidden) => {
+        shell.classList.toggle('lead-panel-hidden', hidden);
+        toggle.textContent = hidden ? '›' : '‹';
+        toggle.title = hidden ? 'Mostrar painel do lead' : 'Ocultar painel do lead';
+    };
+    apply(localStorage.getItem('site:lead-panel-hidden') === '1');
+
+    toggle.addEventListener('click', () => {
+        const nowHidden = !shell.classList.contains('lead-panel-hidden');
+        localStorage.setItem('site:lead-panel-hidden', nowHidden ? '1' : '0');
+        apply(nowHidden);
+    });
+}
+
 async function renderConversation({ initial = false } = {}) {
     const id = state.activeConvId;
     if (!id) return;
@@ -219,6 +344,10 @@ async function renderConversation({ initial = false } = {}) {
     });
     if (!initial && hash === state._threadHash) return;
     state._threadHash = hash;
+
+    // Atualiza lead panel sempre que renderConversation rodar — barato porque
+    // só toca DOM quando o hash mudou (mesma porteira).
+    renderLeadPanel(conv);
 
     const header = renderHeader(conv);
     const list   = renderMessages(msgs);
@@ -666,5 +795,6 @@ function applySiteRoleVisibility() {
 updateTopbarUser();
 applySiteRoleVisibility();
 setupTopbarUserMenu();
+setupLeadPanelToggle();
 refreshSiteStatus();
 loadConversations().then(startPolling);
