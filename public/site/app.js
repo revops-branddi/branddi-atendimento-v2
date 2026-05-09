@@ -425,7 +425,11 @@ async function renderConversation({ initial = false } = {}) {
         cassigned: conv.assigned_user_id,
         ccls: conv.leads?.classification,
         cdeal: conv.leads?.crm_deal_id,
-        msgs: msgs.map(m => [m.id, m.text, m.delivered, m.seen, m.sender_name]),
+        msgs: msgs.map(m => [
+            m.id, m.text, m.delivered, m.seen, m.sender_name,
+            // Inclui atts pra re-renderizar quando backfill chegar
+            (m.attachments || []).map(a => [a.id, a.name, a.mime_type]),
+        ]),
     });
     if (!initial && hash === state._threadHash) return;
     state._threadHash = hash;
@@ -665,15 +669,69 @@ function renderMessages(msgs) {
     msgs.forEach(m => {
         const senderLabel = m.sender_name || (m.sender_type === 'human' ? 'Atendente' : 'Lead');
         const fallback    = m.direction === 'inbound' ? leadName : senderLabel;
+        const text = resolveLidPlaceholders(m.text || '', fallback);
+        const attsHtml = renderMessageAttachments(m);
+
         list.append(
             el('div', { class: `msg ${m.direction}` },
                 el('div', { class: 'who' }, senderLabel),
-                el('div', {}, resolveLidPlaceholders(m.text || '', fallback)),
+                attsHtml,
+                text && el('div', { class: 'msg-text' }, text),
                 el('div', { class: 'when' }, fmtTime(m.created_at)),
             ),
         );
     });
     return list;
+}
+
+// Renderiza atts da mensagem (imagem inline, video player, doc com link).
+// Quando attachment ainda não tem id (recém-enviado, backfill rodando),
+// mostra placeholder até o poll trazer o id.
+function renderMessageAttachments(m) {
+    const atts = m.attachments || [];
+    if (!atts.length) return null;
+    const wrap = el('div', { class: 'msg-attachments' });
+    for (const a of atts) {
+        const mime    = (a.mime_type || a.mimetype || '').toLowerCase();
+        const isImg   = mime.startsWith('image/') || a.type === 'image' || a.type === 'img';
+        const isVideo = mime.startsWith('video/') || a.type === 'video';
+        const isAudio = mime.startsWith('audio/') || a.type === 'audio';
+        const name    = a.name || a.file_name || (isImg ? 'Imagem' : 'Arquivo');
+
+        // Sem unipile_message_id ou sem att.id → ainda em backfill, mostra
+        // placeholder só com nome (atendente sabe que enviou, vai aparecer
+        // a thumb em segundos).
+        if (!m.unipile_message_id || !a.id) {
+            wrap.append(el('div', { class: 'msg-att msg-att-pending' },
+                el('span', { class: 'msg-att-icon' }, isImg ? '🖼️' : isVideo ? '🎬' : isAudio ? '🎵' : '📎'),
+                el('span', { class: 'msg-att-name' }, name),
+                el('span', { class: 'msg-att-status' }, '· enviando…'),
+            ));
+            continue;
+        }
+
+        const url = `/api/site/attachments/${encodeURIComponent(m.unipile_message_id)}/${encodeURIComponent(a.id)}`;
+
+        if (isImg) {
+            wrap.append(el('div', { class: 'msg-att msg-att-image' },
+                el('img', { src: url, alt: name, loading: 'lazy', onclick: () => window.open(url, '_blank') }),
+            ));
+        } else if (isVideo) {
+            wrap.append(el('div', { class: 'msg-att msg-att-video' },
+                el('video', { src: url, controls: true, preload: 'metadata' }),
+            ));
+        } else if (isAudio) {
+            wrap.append(el('div', { class: 'msg-att msg-att-audio' },
+                el('audio', { src: url, controls: true, preload: 'metadata' }),
+            ));
+        } else {
+            wrap.append(el('a', { class: 'msg-att msg-att-file', href: url, target: '_blank', rel: 'noopener' },
+                el('span', { class: 'msg-att-icon' }, '📎'),
+                el('span', { class: 'msg-att-name' }, name),
+            ));
+        }
+    }
+    return wrap;
 }
 
 // Substitui placeholders {{<id>@lid}} / {{<id>@s.whatsapp.net}} que o Unipile
@@ -686,6 +744,49 @@ function resolveLidPlaceholders(text, fallbackName) {
 
 function renderComposer(conv) {
     const isResolved = conv.status === 'resolved';
+
+    const fileInput = el('input', {
+        type: 'file',
+        accept: 'image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip',
+        style: 'display:none',
+        onchange: (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            if (f.size > 16 * 1024 * 1024) {
+                toast('Arquivo maior que 16MB', 'error');
+                e.target.value = '';
+                return;
+            }
+            pendingFile = f;
+            renderFilePreview();
+        },
+    });
+
+    // Mesmo botão validado do prospecção (.attach-btn + SVG paperclip)
+    // já estilizado no style-v2.css. SVG construído via DOM API pra evitar
+    // innerHTML (lint do projeto bloqueia mesmo com string estática).
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const paperclipSvg = document.createElementNS(SVG_NS, 'svg');
+    paperclipSvg.setAttribute('width',  '20');
+    paperclipSvg.setAttribute('height', '20');
+    paperclipSvg.setAttribute('viewBox', '0 0 24 24');
+    paperclipSvg.setAttribute('fill', 'none');
+    paperclipSvg.setAttribute('stroke', 'currentColor');
+    paperclipSvg.setAttribute('stroke-width', '2');
+    paperclipSvg.setAttribute('stroke-linecap', 'round');
+    paperclipSvg.setAttribute('stroke-linejoin', 'round');
+    const paperclipPath = document.createElementNS(SVG_NS, 'path');
+    paperclipPath.setAttribute('d', 'M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48');
+    paperclipSvg.appendChild(paperclipPath);
+
+    const attachBtn = el('button', {
+        type: 'button',
+        class: 'attach-btn',
+        title: 'Anexar arquivo (max 16MB)',
+        disabled: isResolved,
+        onclick: () => fileInput.click(),
+    }, paperclipSvg);
+
     const ta = el('textarea', {
         placeholder: isResolved ? 'Conversa resolvida — reabra pra responder' : 'Escreva uma mensagem…',
         rows: '2',
@@ -699,27 +800,95 @@ function renderComposer(conv) {
     });
     const btn = el('button', { onclick: send, disabled: isResolved }, 'Enviar');
 
+    let pendingFile = null;
+    const previewSlot = el('div', { class: 'composer-preview-slot' });
+
+    function renderFilePreview() {
+        if (!pendingFile) {
+            previewSlot.replaceChildren();
+            return;
+        }
+        const isImage = pendingFile.type?.startsWith('image/');
+        const sizeKb  = Math.round(pendingFile.size / 1024);
+        const removeBtn = el('button', {
+            type: 'button',
+            class: 'composer-preview-remove',
+            title: 'Remover anexo',
+            onclick: () => {
+                pendingFile = null;
+                fileInput.value = '';
+                renderFilePreview();
+            },
+        }, '✕');
+
+        let thumb;
+        if (isImage) {
+            thumb = el('img', {
+                src: URL.createObjectURL(pendingFile),
+                class: 'composer-preview-thumb',
+                onload: (e) => URL.revokeObjectURL(e.target.src),
+            });
+        } else {
+            thumb = el('div', { class: 'composer-preview-icon' }, '📄');
+        }
+
+        previewSlot.replaceChildren(
+            el('div', { class: 'composer-preview' },
+                thumb,
+                el('div', { class: 'composer-preview-meta' },
+                    el('div', { class: 'composer-preview-name', title: pendingFile.name }, pendingFile.name),
+                    el('div', { class: 'composer-preview-size' }, `${sizeKb} KB`),
+                ),
+                removeBtn,
+            ),
+        );
+    }
+
     async function send() {
         const text = ta.value.trim();
-        if (!text) return;
-        btn.disabled = true; ta.disabled = true;
+        if (!text && !pendingFile) return;
+        btn.disabled = true; ta.disabled = true; attachBtn.disabled = true;
         try {
-            await api(`/messages/${conv.id}`, {
-                method: 'POST',
-                body: JSON.stringify({ text }),
-            });
+            if (pendingFile) {
+                // Multipart pra send-media. Não setar Content-Type — browser
+                // adiciona boundary automaticamente.
+                const fd = new FormData();
+                fd.append('file', pendingFile);
+                if (text) fd.append('text', text);
+                await api(`/messages/${conv.id}/send-media`, {
+                    method: 'POST',
+                    body:   fd,
+                });
+                pendingFile = null;
+                fileInput.value = '';
+                renderFilePreview();
+            } else {
+                await api(`/messages/${conv.id}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ text }),
+                });
+            }
             ta.value = '';
             await renderConversation();
             await loadConversations({ silent: true });
         } catch (err) {
             toast(err.message, 'error');
         } finally {
-            btn.disabled = false; ta.disabled = isResolved;
+            btn.disabled = false; ta.disabled = isResolved; attachBtn.disabled = isResolved;
             ta.focus();
         }
     }
 
-    return el('div', { class: `composer ${isResolved ? 'disabled' : ''}` }, ta, btn);
+    return el('div', { class: `composer ${isResolved ? 'disabled' : ''}` },
+        previewSlot,
+        // .chat-input-row já tá estilizada no style-v2.css (gap + align)
+        el('div', { class: 'chat-input-row' },
+            attachBtn,
+            ta,
+            btn,
+            fileInput,
+        ),
+    );
 }
 
 async function patchConv(patch) {

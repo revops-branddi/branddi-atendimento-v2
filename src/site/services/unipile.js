@@ -76,8 +76,17 @@ export async function getMessages(chatId, { limit = 50 } = {}) {
     return unipileFetch(`/chats/${chatId}/messages?limit=${limit}`);
 }
 
-export async function sendMessage(chatId, text) {
+export async function sendMessage(chatId, text, attachmentBuffer, attachmentName) {
     const fd = new FormData();
     if (text) fd.append('text', text);
+    if (attachmentBuffer && attachmentName) {
+        const blob = new Blob([attachmentBuffer]);
+        fd.append('attachments', blob, attachmentName);
+    }
     return unipileFetch(`/chats/${chatId}/messages`, { method: 'POST', body: fd });
+}
+
+// Detalhe da mensagem no Unipile (pra resgatar attachment.id após indexação).
+export async function getMessageById(messageId) {
+    return unipileFetch(`/messages/${messageId}`);
 }
