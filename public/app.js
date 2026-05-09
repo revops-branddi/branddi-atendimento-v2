@@ -1874,7 +1874,14 @@ function renderMessage(msg) {
     // ("-- Unipile cannot display ... --") quando temos attachment renderizado.
     const isUnipilePlaceholder = msg.content && /Unipile cannot display/i.test(msg.content);
     const showText = msg.content && !isUnipilePlaceholder;
-    const textContent = showText ? linkify(escHtml(msg.content)) : (atts.length ? '' : '(mídia)');
+    // Resolve placeholders {{<id>@lid}} / {{<id>@s.whatsapp.net}} que o Unipile
+    // mete literal em mensagens de evento (reações). Em DM 1-1 só há 1 attendee
+    // não-self, então o sender resolvido (acima) ou o lead da conversa cobrem
+    // 100% dos casos. Em grupos esse renderMessage não é usado (rota separada).
+    const resolvedContent = showText
+        ? resolveLidPlaceholders(msg.content, sender || currentConversation?.leads?.name)
+        : '';
+    const textContent = showText ? linkify(escHtml(resolvedContent)) : (atts.length ? '' : '(mídia)');
 
     // Status de entrega — só faz sentido em msgs outbound (humano ou bot)
     let deliveryHtml = '';
@@ -1921,6 +1928,21 @@ function linkify(text) {
             return `<a href="${realUrl}" target="_blank" rel="noopener" class="msg-link">${display}</a>`;
         }
     );
+}
+
+/**
+ * Substitui placeholders `{{<id>@lid}}` ou `{{<id>@s.whatsapp.net}}` que o
+ * Unipile mete literal no `text` de mensagens de evento (reactions, system
+ * messages). Esses ids são WhatsApp Linked Identifiers (LID) ou JIDs que só o
+ * dono dos contatos consegue resolver — Unipile entrega cru e cabe à UI usar
+ * o nome que já temos do attendee da conversa (em DM, é o lead).
+ *
+ * Em grupos esse renderMessage não é usado (há rota separada com
+ * group_participants), por isso o fallback simples (1 nome) é suficiente.
+ */
+function resolveLidPlaceholders(text, fallbackName) {
+    if (!text || !fallbackName) return text;
+    return text.replace(/\{\{[^{}]*?@(?:lid|s\.whatsapp\.net)\}\}/g, fallbackName);
 }
 
 // --- File Attachment ---
