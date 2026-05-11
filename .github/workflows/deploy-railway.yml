@@ -1,14 +1,21 @@
-name: Deploy to Railway
+name: Deploy to Railway (manual fallback)
 
-# Fallback de deploy: se a conexão Railway↔GitHub cair, este workflow
-# garante que todo push em main dispare deploy via railway CLI.
-# Setup necessário: secret RAILWAY_TOKEN no repo (Settings → Secrets →
-# Actions), gerado em Railway dashboard → Account → Tokens (project token
-# do projeto atendimento-branddi).
+# Fallback manual de deploy. O caminho normal é auto-deploy nativo do
+# Railway (Settings → Source → "Auto deploys when pushed to GitHub" ON).
+# Este workflow só roda quando disparado a mão via Actions → Run workflow,
+# pra casos onde a source connection do dashboard cair.
+#
+# Setup necessário pra usar:
+#   1. Railway: Project Settings → Tokens → Create Token (Project Token —
+#      sem dropdown de workspace, escopado ao projeto)
+#   2. GitHub: Settings → Secrets and variables → Actions → New secret
+#      name=RAILWAY_TOKEN, value=token do passo 1
+#   3. Actions tab → "Deploy to Railway (manual fallback)" → Run workflow
+#
+# Desativado em push pra evitar duplicação com o auto-deploy nativo (que
+# dispararia o mesmo deploy em paralelo).
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
