@@ -629,12 +629,32 @@ async function processGroupChat(chat) {
         if (!chat.provider_id && chat.id) {
             try {
                 const full = await getChat(chat.id);
-                if (full?.provider_id) chat.provider_id = full.provider_id;
+                if (full?.provider_id) {
+                    chat.provider_id = full.provider_id;
+                    logger.info('Grupo: provider_id enriquecido via getChat', {
+                        chat_id: chat.id, provider_id: full.provider_id,
+                    });
+                }
             } catch (err) {
-                logger.warn('Falha enriquecendo chat.provider_id, seguindo sem', {
+                logger.warn('Falha enriquecendo chat.provider_id, vai skipar', {
                     chat_id: chat.id, error: err.message,
                 });
             }
+        }
+
+        // GUARD: sem provider_id confirmado, NÃO criar row nova pra evitar
+        // duplicata órfã (com group_provider_id NULL). Se a row já existe
+        // pelo chat.id (legacy), seguimos com merge — mas sem criar nada
+        // novo. Próximo polling tenta de novo.
+        if (!chat.provider_id) {
+            const legacyConv = await findConversationByChat(chat.id);
+            if (!legacyConv) {
+                logger.warn('Grupo SEM provider_id e sem row legacy — SKIP pra não criar órfã', {
+                    chat_id: chat.id, subject: chat.name, account_id: chat.account_id,
+                });
+                return;
+            }
+            // Row legacy existe — segue normal, merge cuidará dos campos.
         }
 
         // Chave canônica: provider_id (JID @g.us) é o mesmo entre contas
