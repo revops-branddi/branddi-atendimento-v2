@@ -5,23 +5,33 @@
  * Contexto: antes da migration 014, cada whatsapp_account que via o mesmo
  * grupo criava sua própria conversation row (whatsapp_chat_id UNIQUE é
  * per-account no Unipile). Pós-migration, queremos UMA row canonical por
- * grupo, com whatsapp_account_ids[] listando as contas membros e
+ * grupo, com whatsapp_account_ids[] listando todas as contas membros e
  * whatsapp_chat_ids = { account_id: chat_id_unipile } pra envio.
  *
+ * Decisão crítica: como o Unipile gera um unipile_message_id DIFERENTE pra
+ * cada conta capturando a mesma msg do WhatsApp (e direction até inverte
+ * entre as cópias quando uma das contas é o sender), NÃO dá pra "merger"
+ * messages das rows redundantes — só dá pra escolher uma versão da verdade.
+ *
+ * Estratégia: eleger uma canonical_account (mesma cascata do pickSendAccount:
+ * conta configurada com display_label/connected_by_user_id antes da órfã).
+ * A row dessa conta vira a canonical; as outras conversation rows são
+ * hard-deletadas (cascade leva as msgs delas — perspectiva da conta órfã
+ * que ninguém via na UI mesmo).
+ *
  * O que o script faz:
- *   1. Lista todas conversations is_group=true
- *   2. Pra cada uma, busca o provider_id (@g.us) no Unipile via GET /chats/:id
- *      — necessário pq antigas não armazenam provider_id no DB
- *   3. Agrupa por provider_id. Pra grupos com mais de 1 row:
- *      - Elege canonical = row mais recente (updated_at desc)
- *      - Migra messages das outras pra canonical (UPDATE conversation_id +
- *        SET via_account_id = whatsapp_account_id da row antiga). Conflito
- *        no UNIQUE de unipile_message_id (mesma msg vista por 2 contas)
- *        deleta a duplicata em vez de migrar.
- *      - Atualiza canonical: group_provider_id, whatsapp_account_ids,
- *        whatsapp_chat_ids
- *      - Hard delete das rows redundantes
- *   4. Rows sem duplicata: só popula group_provider_id + arrays singulares
+ *   1. Carrega whatsapp_accounts no índice (pra cascata canonical_account)
+ *   2. Lista todas conversations is_group=true
+ *   3. Pra cada uma, resolve provider_id (@g.us) via DB ou Unipile
+ *   4. Agrupa por provider_id. Pra grupos com mais de 1 row:
+ *      - Elege canonical_account: conta com display_label OU connected_by_user_id
+ *        (fallback: primeira do array)
+ *      - canonical_conv = a row dessa conta
+ *      - Hard-delete das outras rows (FK ON DELETE CASCADE leva messages)
+ *      - Atualiza canonical_conv: group_provider_id + arrays consolidados
+ *        (whatsapp_account_ids inclui TODAS as contas, incluindo as órfãs,
+ *        pra polling futuro mergear correto em vez de criar row nova)
+ *   5. Rows sem duplicata: só popula group_provider_id + arrays singulares
  *
  * Uso:
  *   node scripts/backfill_group_canonical.js --dry-run    # só loga, não muda
@@ -82,59 +92,50 @@ async function resolveProviderId(row, cache) {
     return pid;
 }
 
-async function migrateMessagesToCanonical(fromConvId, toConvId, viaAccountId, dryRun) {
-    // Pega ids das messages a migrar
-    const { data: msgs, error } = await supabase
-        .from('messages')
-        .select('id, unipile_message_id')
-        .eq('conversation_id', fromConvId);
-    if (error) throw error;
-    if (!msgs || msgs.length === 0) return { migrated: 0, deleted: 0 };
-
-    let migrated = 0;
-    let deleted = 0;
-
-    for (const m of msgs) {
-        if (dryRun) {
-            migrated++;
-            continue;
-        }
-        // Tenta UPDATE direto. Se bater no UNIQUE de unipile_message_id
-        // (duplicata vista por outra conta), deleta a desta row em vez de migrar.
-        const { error: updErr } = await supabase
-            .from('messages')
-            .update({ conversation_id: toConvId, via_account_id: viaAccountId })
-            .eq('id', m.id);
-        if (!updErr) {
-            migrated++;
-        } else if (updErr.code === '23505' || (updErr.message || '').includes('duplicate')) {
-            // Duplicata: canonical já tem essa msg via outra conta. Deleta.
-            const { error: delErr } = await supabase.from('messages').delete().eq('id', m.id);
-            if (delErr) throw delErr;
-            deleted++;
-        } else {
-            throw updErr;
-        }
+// Cascata pra escolher qual conta é a "canonical" de um grupo com múltiplas
+// conversation rows. Igual à do pickSendAccount em runtime, sem o degrau de
+// user permission (backfill não tem user logado).
+//   1. Conta com display_label setado (foi nomeada no app)
+//   2. Conta com connected_by_user_id setado (alguém conectou no app)
+//   3. Fallback: primeira do array
+function chooseCanonicalAccount(accountIds, accountsIndex) {
+    for (const accId of accountIds) {
+        const meta = accountsIndex[accId];
+        if (meta?.display_label) return accId;
     }
-    return { migrated, deleted };
+    for (const accId of accountIds) {
+        const meta = accountsIndex[accId];
+        if (meta?.connected_by_user_id) return accId;
+    }
+    return accountIds[0] || null;
 }
 
-async function processGroup(jid, rows, dryRun) {
-    // Eleger canonical: row com updated_at mais recente
-    const sorted = [...rows].sort((a, b) =>
-        new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-    );
-    const canonical = sorted[0];
-    const others = sorted.slice(1);
-
-    // Monta arrays consolidados
-    const accIds = new Set();
+async function processGroup(jid, rows, accountsIndex, dryRun) {
+    // Monta arrays consolidados — TODAS as contas (incluindo órfãs) entram
+    // no whatsapp_account_ids pra polling futuro mergear corretamente.
+    const accIds = [];
     const chatIdsMap = {};
     for (const r of rows) {
-        if (r.whatsapp_account_id) {
-            accIds.add(r.whatsapp_account_id);
+        if (r.whatsapp_account_id && !accIds.includes(r.whatsapp_account_id)) {
+            accIds.push(r.whatsapp_account_id);
             chatIdsMap[r.whatsapp_account_id] = r.whatsapp_chat_id;
         }
+    }
+
+    // Eleger conta canonical — a row dessa conta será preservada com suas msgs.
+    // Demais rows são hard-deletadas (cascade leva suas msgs, que ninguém via).
+    const canonicalAccountId = chooseCanonicalAccount(accIds, accountsIndex);
+    const canonical = rows.find(r => r.whatsapp_account_id === canonicalAccountId) || rows[0];
+    const others = rows.filter(r => r.id !== canonical.id);
+
+    // Conta msgs descartadas pra log
+    let discardedMsgs = 0;
+    if (others.length > 0) {
+        const { count } = await supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .in('conversation_id', others.map(r => r.id));
+        discardedMsgs = count || 0;
     }
 
     const summary = {
@@ -142,34 +143,30 @@ async function processGroup(jid, rows, dryRun) {
         subject: canonical.group_subject,
         rows_total: rows.length,
         canonical_id: canonical.id,
-        redundant_ids: others.map(r => r.id),
-        accounts: [...accIds],
-        msgs_migrated: 0,
-        msgs_deleted: 0,
+        canonical_account: canonicalAccountId,
+        canonical_account_label: accountsIndex[canonicalAccountId]?.display_label || null,
+        discarded_rows: others.length,
+        discarded_msgs: discardedMsgs,
+        accounts: accIds,
     };
 
-    // Migra messages das redundantes pra canonical
-    for (const o of others) {
-        const { migrated, deleted } = await migrateMessagesToCanonical(
-            o.id, canonical.id, o.whatsapp_account_id, dryRun
-        );
-        summary.msgs_migrated += migrated;
-        summary.msgs_deleted += deleted;
-    }
-
     if (!dryRun) {
-        // Atualiza canonical
+        // 1. Atualiza canonical PRIMEIRO com group_provider_id, antes do delete.
+        //    Importante fazer antes, pq UNIQUE em group_provider_id colide se
+        //    duas rows tentarem o mesmo JID. As outras rows não têm o JID
+        //    setado ainda (são legacy), então delete depois é seguro.
         const { error: updErr } = await supabase
             .from('conversations')
             .update({
                 group_provider_id:    jid,
-                whatsapp_account_ids: [...accIds],
+                whatsapp_account_ids: accIds,
                 whatsapp_chat_ids:    chatIdsMap,
             })
             .eq('id', canonical.id);
         if (updErr) throw updErr;
 
-        // Hard delete das redundantes
+        // 2. Hard-delete das outras rows. FK conversations → messages é
+        //    ON DELETE CASCADE (migration 001), então as msgs delas vão junto.
         if (others.length > 0) {
             const { error: delErr } = await supabase
                 .from('conversations')
@@ -201,6 +198,18 @@ async function backfillSolo(row, providerId, dryRun) {
     return { id: row.id, subject: row.group_subject, jid: providerId };
 }
 
+async function loadAccountsIndex() {
+    const { data, error } = await supabase
+        .from('whatsapp_accounts')
+        .select('unipile_account_id, display_label, connected_by_user_id, phone_number');
+    if (error) throw error;
+    const idx = {};
+    for (const a of (data || [])) {
+        idx[a.unipile_account_id] = a;
+    }
+    return idx;
+}
+
 async function main() {
     const opts = parseArgs();
     if (!BASE) {
@@ -209,6 +218,9 @@ async function main() {
     }
 
     console.log(`\n${opts.dryRun ? '[DRY RUN] ' : ''}Backfill canonical de grupos\n`);
+
+    const accountsIndex = await loadAccountsIndex();
+    console.log(`WhatsApp accounts no DB: ${Object.keys(accountsIndex).length}`);
 
     const rows = await fetchAllGroupConversations(opts.limit);
     console.log(`Grupos no DB: ${rows.length}`);
@@ -234,26 +246,26 @@ async function main() {
     }
 
     console.log(`JIDs únicos: ${byJid.size}`);
-    console.log(`Rows sem JID resolvido: ${orphans.length}`);
+    console.log(`Rows sem JID resolvido: ${orphans.length}\n`);
 
     // Separa grupos com duplicatas vs solos
     let dupGroups = 0;
-    let consolidated = 0;
+    let dupRowsKilled = 0;
+    let totalDiscardedMsgs = 0;
     let soloUpdated = 0;
-    let totalMigrated = 0;
-    let totalDeleted = 0;
 
     for (const [jid, group] of byJid.entries()) {
         if (group.length > 1) {
             dupGroups++;
-            const s = await processGroup(jid, group, opts.dryRun);
-            consolidated += s.redundant_ids.length;
-            totalMigrated += s.msgs_migrated;
-            totalDeleted += s.msgs_deleted;
+            const s = await processGroup(jid, group, accountsIndex, opts.dryRun);
+            dupRowsKilled += s.discarded_rows;
+            totalDiscardedMsgs += s.discarded_msgs;
+            const canonLabel = s.canonical_account_label || s.canonical_account || '???';
             console.log(
                 `  📦 "${s.subject}" — ${s.rows_total} rows → 1` +
-                ` | contas: [${s.accounts.join(', ')}]` +
-                ` | msgs migradas: ${s.msgs_migrated}, deletadas (dup): ${s.msgs_deleted}`
+                ` | canonical: ${canonLabel}` +
+                ` | contas no array: [${s.accounts.join(', ')}]` +
+                ` | msgs descartadas: ${s.discarded_msgs}`
             );
         } else {
             const r = group[0];
@@ -267,10 +279,9 @@ async function main() {
 
     console.log(`\nResumo:`);
     console.log(`  Grupos com duplicatas: ${dupGroups}`);
-    console.log(`  Rows redundantes consolidadas: ${consolidated}`);
+    console.log(`  Rows redundantes deletadas: ${dupRowsKilled}`);
+    console.log(`  Messages descartadas (via cascade da row redundante): ${totalDiscardedMsgs}`);
     console.log(`  Grupos solos atualizados (só popula novos campos): ${soloUpdated}`);
-    console.log(`  Messages migradas pra canonical: ${totalMigrated}`);
-    console.log(`  Messages deletadas (dup pelo unipile_message_id): ${totalDeleted}`);
     console.log(`  Orphans (sem JID resolvido): ${orphans.length}`);
     if (orphans.length > 0) {
         console.log(`    → IDs: ${orphans.slice(0, 10).map(o => o.id).join(', ')}${orphans.length > 10 ? '...' : ''}`);
