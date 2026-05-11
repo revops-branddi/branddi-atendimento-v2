@@ -145,6 +145,20 @@ export async function findConversationByChat(whatsappChatId) {
     return data || null;
 }
 
+// Grupo canônico: chaveado pelo JID @g.us (mesmo entre contas Branddi).
+// Usar isto em vez de findConversationByChat pra grupos — evita criar row
+// duplicada quando 2 contas Branddi são membros do mesmo grupo.
+export async function findGroupByProviderId(providerId) {
+    if (!providerId) return null;
+    const { data } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('is_group', true)
+        .eq('group_provider_id', providerId)
+        .maybeSingle();
+    return data || null;
+}
+
 export async function updateConversation(id, updates) {
     const { data, error } = await supabase
         .from('conversations')
@@ -301,9 +315,15 @@ export async function getInbox({
     // Filtro por usuário: Admin vê tudo (com filtro opcional). Não-Admin vê só
     // conversas dos números WhatsApp atribuídos a ele em permissions.whatsapp_accounts.
     //
-    // Quando Admin filtra por usuários (userIds), queremos ver as conversas dos
-    // NÚMEROS vinculados àqueles usuários — UNIÃO das permissions.whatsapp_accounts
-    // de cada user selecionado.
+    // Grupos pós-014 usam whatsapp_account_ids[] (array) em vez do scalar
+    // whatsapp_account_id — porque o mesmo grupo pode ter N contas Branddi
+    // como membros (canonical row única). Usamos `overlaps` em vez de `in`
+    // pra checar interseção entre o array de permission e o array da conv.
+    const accountCol = is_group ? 'whatsapp_account_ids' : 'whatsapp_account_id';
+    const matchAccounts = (q, ids) => is_group
+        ? q.overlaps(accountCol, ids)
+        : q.in(accountCol, ids);
+
     if (role === 'Admin') {
         if (userIds && userIds.length > 0) {
             const { data: targetUsers } = await supabase
@@ -316,7 +336,7 @@ export async function getInbox({
             if (targetAccounts.length === 0) {
                 return []; // nenhum dos selecionados tem número
             }
-            query = query.in('whatsapp_account_id', targetAccounts);
+            query = matchAccounts(query, targetAccounts);
         }
         // Sem userIds, Admin vê tudo
     } else {
@@ -333,12 +353,12 @@ export async function getInbox({
         if (intersect.length === 0) {
             return []; // selecionou só números fora dos permitidos
         }
-        query = query.in('whatsapp_account_id', intersect);
+        query = matchAccounts(query, intersect);
     }
 
     // Admin filtrando por números (independente dos usuários)
     if (role === 'Admin' && accountIds && accountIds.length > 0) {
-        query = query.in('whatsapp_account_id', accountIds);
+        query = matchAccounts(query, accountIds);
     }
 
     if (assigned_to) {
@@ -355,12 +375,33 @@ export async function getInbox({
 
     return (data || []).map(conv => {
         const msgs = conv.messages || [];
+
+        // Em grupos canonicalizados (whatsapp_account_ids[] populado), resolve
+        // labels de TODAS as contas Branddi membros — usado pelo front pra
+        // mostrar "📱 Caroline, Ricardo" no card e identificar quem envia.
+        let accountLabels = [];
+        if (is_group && Array.isArray(conv.whatsapp_account_ids) && conv.whatsapp_account_ids.length > 0) {
+            accountLabels = conv.whatsapp_account_ids
+                .map(accId => {
+                    const meta = accountOwners[accId];
+                    if (!meta) return null;
+                    return meta.display_label || meta.primary_owner_first_name || null;
+                })
+                .filter(Boolean);
+        }
+
+        // Owner names: pra DMs e grupos legados, cascata via whatsapp_account_id.
+        // Pra grupos canônicos, usa os labels do array (mais informativo).
         const accountMeta = accountOwners[conv.whatsapp_account_id] || null;
-        const ownerNames = resolveOwnerNames(conv, accountMeta);
+        const ownerNames = accountLabels.length > 0
+            ? accountLabels
+            : resolveOwnerNames(conv, accountMeta);
+
         return {
             ...conv,
             account_owner_name: ownerNames[0] || null,        // compat com versão anterior
             account_owner_names: ownerNames,                  // novo: 1+ tags
+            account_display_labels: accountLabels,            // pra grupos: labels de todas as contas Branddi
             last_message: msgs[0] || null,
             unread_count: msgs.filter(m =>
                 m.direction === 'inbound' && !m.read_at
