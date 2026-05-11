@@ -4,7 +4,7 @@
  */
 import 'dotenv/config';
 import {
-    findConversationByChat, createConversation, updateConversation,
+    findConversationByChat, findGroupByProviderId, createConversation, updateConversation,
     findLeadByPhone, findLeadByPhoneFuzzy, createLead, updateLead, saveMessage, normalizePhone
 } from './supabase.js';
 import { onInboundMessage } from './auto-activities.js';
@@ -622,13 +622,22 @@ function resolveGroupSenderName(msg, participants) {
 //   - Sem onInboundMessage (não tem deal pra criar atividade Pipedrive)
 async function processGroupChat(chat) {
     try {
-        let conversation = await findConversationByChat(chat.id);
-        const isNewConversation = !conversation;
+        // Chave canônica: provider_id (JID @g.us) é o mesmo entre contas
+        // Branddi que veem o grupo. Fallback pra chat.id legado pra grupos
+        // antigos sem provider_id ainda backfillado.
+        let conversation = chat.provider_id
+            ? await findGroupByProviderId(chat.provider_id)
+            : null;
+        if (!conversation) {
+            conversation = await findConversationByChat(chat.id);
+        }
+        const preExisted = !!conversation;
+        let wasCreatedNow = false;
 
         const attendees = (await getChatAttendees(chat.id)).items || [];
         const participants = normalizeParticipants(attendees);
 
-        if (isNewConversation) {
+        if (!preExisted) {
             // Tipo da conversa segue default da conta WhatsApp (mesmo critério das DMs)
             let convType = 'inbound';
             if (chat.account_id) {
@@ -643,34 +652,77 @@ async function processGroupChat(chat) {
                 } catch { /* fallback inbound */ }
             }
 
-            conversation = await createConversation({
-                lead_id:             null,
-                whatsapp_chat_id:    chat.id,
-                whatsapp_account_id: chat.account_id || null,
-                channel:             'whatsapp_group',
-                type:                convType,
-                status:              'in_progress',
-                chatbot_stage:       'human',
-                last_message_at:     new Date().toISOString(),
-                is_group:            true,
-                group_subject:       chat.name || null,
-                group_participants:  participants,
-            });
+            const accountId = chat.account_id || null;
+            try {
+                conversation = await createConversation({
+                    lead_id:              null,
+                    whatsapp_chat_id:     chat.id,
+                    whatsapp_account_id:  accountId,
+                    whatsapp_account_ids: accountId ? [accountId] : [],
+                    whatsapp_chat_ids:    accountId ? { [accountId]: chat.id } : {},
+                    group_provider_id:    chat.provider_id || null,
+                    channel:              'whatsapp_group',
+                    type:                 convType,
+                    status:               'in_progress',
+                    chatbot_stage:        'human',
+                    last_message_at:      new Date().toISOString(),
+                    is_group:             true,
+                    group_subject:        chat.name || null,
+                    group_participants:   participants,
+                });
 
-            logger.info('Grupo WhatsApp criado', {
-                chat_id: chat.id, subject: chat.name, members: participants.length,
-            });
-        } else {
-            // Atualiza subject e participants se mudou (entrada/saída de membros, rename)
+                wasCreatedNow = true;
+                logger.info('Grupo WhatsApp criado', {
+                    chat_id: chat.id, provider_id: chat.provider_id,
+                    subject: chat.name, members: participants.length,
+                });
+            } catch (err) {
+                // Race: outra conta criou a row canonical entre o find e o create.
+                // O UNIQUE em group_provider_id força isso (23505). Re-busca e
+                // segue como se fosse existente — o merge abaixo vai adicionar
+                // esta conta ao array.
+                if (err.code === '23505' && chat.provider_id) {
+                    conversation = await findGroupByProviderId(chat.provider_id);
+                    if (!conversation) throw err; // não era race, é outro problema
+                    logger.info('Grupo já criado por outra conta concorrente', {
+                        chat_id: chat.id, provider_id: chat.provider_id,
+                    });
+                } else {
+                    throw err;
+                }
+            }
+        }
+
+        // Merge sempre que a row pré-existia (incluindo race fallback).
+        // Quando criamos agora, os campos já vieram corretos no insert.
+        if (!wasCreatedNow) {
+            // Atualiza subject, participants e o mapping de account → chat_id.
+            // Caso típico: grupo já tem row canonical de outra conta Branddi,
+            // esta conta agora também está vendo o grupo — adiciona ela ao array.
             const updates = {};
             if (chat.name && chat.name !== conversation.group_subject) {
                 updates.group_subject = chat.name;
             }
-            // Update participants se contagem ou IDs divergem (set diff barato)
             const oldIds = new Set((conversation.group_participants || []).map(p => p.provider_id));
             const newIds = new Set(participants.map(p => p.provider_id));
             const sameSet = oldIds.size === newIds.size && [...oldIds].every(id => newIds.has(id));
             if (!sameSet) updates.group_participants = participants;
+
+            // Merge da conta atual no array + mapping (idempotente)
+            if (chat.account_id) {
+                const accIds = new Set(conversation.whatsapp_account_ids || []);
+                const chatIds = { ...(conversation.whatsapp_chat_ids || {}) };
+                if (!accIds.has(chat.account_id) || chatIds[chat.account_id] !== chat.id) {
+                    accIds.add(chat.account_id);
+                    chatIds[chat.account_id] = chat.id;
+                    updates.whatsapp_account_ids = [...accIds];
+                    updates.whatsapp_chat_ids = chatIds;
+                }
+                // Backfill provider_id em rows antigas
+                if (!conversation.group_provider_id && chat.provider_id) {
+                    updates.group_provider_id = chat.provider_id;
+                }
+            }
 
             if (Object.keys(updates).length > 0) {
                 await updateConversation(conversation.id, updates);
@@ -679,11 +731,11 @@ async function processGroupChat(chat) {
         }
 
         // Busca mensagens: novo → histórico maior; existente → janela do polling
-        const fetchLimit = isNewConversation ? 50 : 10;
+        const fetchLimit = wasCreatedNow ? 50 : 10;
         const msgs = await getMessages(chat.id, { limit: fetchLimit });
         const allMsgs = msgs.items || [];
 
-        const newMsgs = isNewConversation
+        const newMsgs = wasCreatedNow
             ? allMsgs
             : allMsgs.filter(m => new Date(m.timestamp) > new Date(_lastPollTime - 5_000));
 
@@ -712,6 +764,7 @@ async function processGroupChat(chat) {
                     created_at:         msg.timestamp,
                     delivered:          !!msg.delivered,
                     seen:               !!msg.seen,
+                    via_account_id:     chat.account_id || null,
                 });
                 // Sem onInboundMessage — grupos não criam atividade Pipedrive
             } catch (err) {
@@ -737,6 +790,54 @@ async function resolveOutboundSenderName(accountId) {
     if (!accountId) return 'Atendente';
     const owner = await getAccountOwner(accountId);
     return owner?.user_name || 'Atendente';
+}
+
+/**
+ * pickSendAccount — escolhe qual conta WhatsApp Branddi vai mandar a msg
+ * num grupo com múltiplas contas membros.
+ *
+ * Cascata (mais específica → mais permissiva):
+ *   1. Conta no `whatsapp_account_ids` da conv que está em `user.permissions.whatsapp_accounts`
+ *      (user tem permissão explícita E é membro)
+ *   2. Conta no array que tem `display_label` ou `connected_by_user_id` setado
+ *      (configurada no app, mesmo que o user logado não tenha permissão direta)
+ *   3. Primeira do array — fallback de emergência (grupo só com contas órfãs)
+ *
+ * Retorna { accountId, chatId } ou null se não há nada utilizável.
+ */
+export async function pickSendAccount(conversation, user) {
+    if (!conversation?.is_group) return null;
+    const accountIds = Array.isArray(conversation.whatsapp_account_ids)
+        ? conversation.whatsapp_account_ids
+        : [];
+    const chatIds = conversation.whatsapp_chat_ids || {};
+    if (accountIds.length === 0) return null;
+
+    const resolve = (accId) => ({
+        accountId: accId,
+        chatId: chatIds[accId] || null,
+    });
+
+    // 1. Match com permissão do user logado
+    const userAccounts = user?.permissions?.whatsapp_accounts || [];
+    const userMatch = accountIds.find(id => userAccounts.includes(id));
+    if (userMatch) return resolve(userMatch);
+
+    // 2. Conta configurada (tem display_label ou connected_by_user_id)
+    try {
+        const { default: sb } = await import('./supabase.js');
+        const { data: configured } = await sb
+            .from('whatsapp_accounts')
+            .select('unipile_account_id, display_label, connected_by_user_id')
+            .in('unipile_account_id', accountIds);
+        const configuredAcc = (configured || []).find(
+            a => a.display_label || a.connected_by_user_id
+        );
+        if (configuredAcc) return resolve(configuredAcc.unipile_account_id);
+    } catch { /* fallback abaixo */ }
+
+    // 3. Fallback
+    return resolve(accountIds[0]);
 }
 
 async function processChat(chat) {

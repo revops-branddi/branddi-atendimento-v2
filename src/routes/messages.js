@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getMessages, saveMessage, markMessagesRead, updateConversation, getLeadById } from '../services/supabase.js';
-import { sendMessage, startNewChat, getAttachmentUrl, getMessageById, isAvailable as unipileAvailable } from '../services/unipile.js';
+import { sendMessage, startNewChat, getAttachmentUrl, getMessageById, isAvailable as unipileAvailable, pickSendAccount } from '../services/unipile.js';
 import whatsapp from '../providers/unipile.js';
 import { applyScriptVariables } from '../services/script-variables.js';
 import { onOutboundMessage } from '../services/auto-activities.js';
@@ -42,11 +42,21 @@ router.post('/messages/:conversationId/send', async (req, res) => {
             // Busca conversa e lead para pegar o telefone
             const { data: conv } = await supabase
                 .from('conversations')
-                .select('id, lead_id, whatsapp_chat_id, whatsapp_account_id')
+                .select('id, lead_id, whatsapp_chat_id, whatsapp_account_id, is_group, whatsapp_account_ids, whatsapp_chat_ids')
                 .eq('id', req.params.conversationId)
                 .single();
 
-            if (conv?.whatsapp_chat_id) {
+            // Grupo canônico: chat_id é per-conta. Escolhe a conta de envio
+            // pela cascata em pickSendAccount (user permission → configurada → fallback).
+            if (conv?.is_group) {
+                const picked = await pickSendAccount(conv, req.user);
+                if (!picked?.chatId) {
+                    return res.status(400).json({
+                        error: 'Grupo sem chat_id de envio resolvido — possivelmente nenhuma conta Branddi membro.'
+                    });
+                }
+                chatId = picked.chatId;
+            } else if (conv?.whatsapp_chat_id) {
                 chatId = conv.whatsapp_chat_id;
             } else if (conv?.lead_id) {
                 const lead = await getLeadById(conv.lead_id);
@@ -191,13 +201,19 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
 
         if (!file && !text) return res.status(400).json({ error: 'Texto ou arquivo é obrigatório' });
         if (!chatId) {
-            // Resolve chatId da conversa
+            // Resolve chatId da conversa. Grupos canônicos exigem cascata
+            // pickSendAccount pra resolver qual conta envia (chat_id é per-conta).
             const { data: conv } = await supabase
                 .from('conversations')
-                .select('whatsapp_chat_id')
+                .select('whatsapp_chat_id, is_group, whatsapp_account_ids, whatsapp_chat_ids')
                 .eq('id', req.params.conversationId)
                 .single();
-            chatId = conv?.whatsapp_chat_id;
+            if (conv?.is_group) {
+                const picked = await pickSendAccount(conv, req.user);
+                chatId = picked?.chatId || null;
+            } else {
+                chatId = conv?.whatsapp_chat_id;
+            }
         }
         if (!chatId) return res.status(400).json({ error: 'Conversa sem chat WhatsApp vinculado' });
 

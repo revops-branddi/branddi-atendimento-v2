@@ -1096,6 +1096,31 @@ function renderGruposList() {
 
         main.appendChild(top);
         main.appendChild(snippet);
+
+        // Badges de contas Branddi que estão no grupo (Caroline, Ricardo, etc).
+        // Útil quando o mesmo grupo tem múltiplas contas — antes da consolidação
+        // canonical viravam linhas duplicadas; agora ficam num só card com tags.
+        const labels = (g.account_display_labels || []).filter(Boolean);
+        if (labels.length > 0) {
+            const tagsRow = document.createElement('div');
+            tagsRow.className = 'conv-account-tags';
+            tagsRow.style.display = 'flex';
+            tagsRow.style.flexWrap = 'wrap';
+            tagsRow.style.gap = '4px';
+            tagsRow.style.marginTop = '4px';
+            for (const label of labels) {
+                const tag = document.createElement('span');
+                tag.textContent = `📱 ${label}`;
+                tag.style.fontSize = '10px';
+                tag.style.padding = '1px 6px';
+                tag.style.borderRadius = '4px';
+                tag.style.background = 'var(--bg-2)';
+                tag.style.color = 'var(--text-2)';
+                tagsRow.appendChild(tag);
+            }
+            main.appendChild(tagsRow);
+        }
+
         item.appendChild(main);
 
         if (hasUnread) {
@@ -1289,6 +1314,34 @@ function renderGrupoMembers(grupo) {
 
     list.replaceChildren();
     const members = grupo.group_participants || [];
+
+    // Seção de contas Branddi membros do grupo (pós-consolidação canonical).
+    // Mostra ANTES dos membros externos pra deixar claro quais contas nossas
+    // estão lá dentro (e quais conseguem mandar msg).
+    const accountLabels = (grupo.account_display_labels || []).filter(Boolean);
+    if (accountLabels.length > 0) {
+        const accHeading = document.createElement('div');
+        accHeading.style.fontSize = '12px';
+        accHeading.style.color = 'var(--text-3)';
+        accHeading.style.padding = '8px 12px 4px';
+        accHeading.style.fontWeight = '600';
+        accHeading.textContent = `Contas Branddi (${accountLabels.length})`;
+        list.appendChild(accHeading);
+        for (const label of accountLabels) {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.padding = '6px 12px';
+            row.style.fontSize = '13px';
+            row.textContent = `📱 ${label}`;
+            list.appendChild(row);
+        }
+        const divider = document.createElement('div');
+        divider.style.borderTop = '1px solid var(--border-md)';
+        divider.style.margin = '8px 0';
+        list.appendChild(divider);
+    }
+
     const heading = document.createElement('div');
     heading.style.fontSize = '12px';
     heading.style.color = 'var(--text-3)';
