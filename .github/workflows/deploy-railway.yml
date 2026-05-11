@@ -27,5 +27,13 @@ jobs:
 
       - name: Deploy
         env:
+          # Aceita Project Token (RAILWAY_TOKEN) ou Account/API Token
+          # (RAILWAY_API_TOKEN). railway CLI usa o que estiver setado.
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service "Atendimento Branddi" --environment production --ci
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway link \
+            --project b43bc2f7-0b90-4f6e-b98e-4280840d4164 \
+            --environment production \
+            --service "Atendimento Branddi"
+          railway up --service "Atendimento Branddi" --environment production --ci
