@@ -622,6 +622,21 @@ function resolveGroupSenderName(msg, participants) {
 //   - Sem onInboundMessage (não tem deal pra criar atividade Pipedrive)
 async function processGroupChat(chat) {
     try {
+        // Enriquece provider_id quando faltando. listChats nem sempre devolve
+        // chat.provider_id (visto em prod com a conta órfã pós-backfill); sem
+        // ele a chave canônica não bate e o código cria row nova. getChat
+        // sempre traz a metadata completa.
+        if (!chat.provider_id && chat.id) {
+            try {
+                const full = await getChat(chat.id);
+                if (full?.provider_id) chat.provider_id = full.provider_id;
+            } catch (err) {
+                logger.warn('Falha enriquecendo chat.provider_id, seguindo sem', {
+                    chat_id: chat.id, error: err.message,
+                });
+            }
+        }
+
         // Chave canônica: provider_id (JID @g.us) é o mesmo entre contas
         // Branddi que veem o grupo. Fallback pra chat.id legado pra grupos
         // antigos sem provider_id ainda backfillado.
