@@ -1,0 +1,31 @@
+name: Deploy to Railway
+
+# Fallback de deploy: se a conexão Railway↔GitHub cair, este workflow
+# garante que todo push em main dispare deploy via railway CLI.
+# Setup necessário: secret RAILWAY_TOKEN no repo (Settings → Secrets →
+# Actions), gerado em Railway dashboard → Account → Tokens (project token
+# do projeto atendimento-branddi).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-railway-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service "Atendimento Branddi" --environment production --ci
