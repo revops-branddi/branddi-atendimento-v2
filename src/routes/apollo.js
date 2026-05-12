@@ -21,6 +21,7 @@ import { Router } from 'express';
 import { getSettingValue, updateLead, normalizePhone, logCommercialEvent } from '../services/supabase.js';
 import supabase from '../services/supabase.js';
 import { isApolloConfigured, matchPerson } from '../services/apollo.js';
+import { checkWhatsAppPresence } from '../services/unipile.js';
 import { pdGet, pdPut } from '../services/pipedrive.js';
 import logger from '../services/logger.js';
 
@@ -172,6 +173,7 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
 
         // sync_returned: Apollo já devolveu o número — grava no Pipedrive + Supabase agora
         let syncPhoneSaved = false;
+        let hasWhatsapp = null; // só checa quando temos phone em mãos (sync_returned)
         if (phoneOutcome === 'sync_returned') {
             try {
                 await pdPut(`/persons/${personId}`, {
@@ -182,6 +184,13 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
             } catch (err) {
                 logger.warn('Apollo sync_returned: erro gravando phone no Pipedrive', { personId, error: err.message });
             }
+            // Pre-flight WA check pra UI sinalizar antes do usuário compor mensagem.
+            // Não bloqueia o response: null em caso de erro = UI mostra "verificação indisponível".
+            const waCheck = await checkWhatsAppPresence(syncPhone);
+            hasWhatsapp = waCheck.has_whatsapp;
+            logger.info('Apollo sync_returned: WA presence check', {
+                personId, phone: syncPhone, has_whatsapp: hasWhatsapp, matched_variant: waCheck.matched_variant,
+            });
         }
 
         const finalStatus = phoneOutcome === 'reveal_pending' ? 'pending' : 'completed';
@@ -191,6 +200,7 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
                 status: finalStatus,
                 apollo_request_id: apolloReqId,
                 phone: phoneOutcome === 'sync_returned' ? syncPhone : null,
+                has_whatsapp: hasWhatsapp,
                 result: { person, pipedrive_updated: updates, phone_outcome: phoneOutcome },
                 completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
             })
@@ -214,6 +224,7 @@ router.post('/apollo/enrich-and-save/:person_id', async (req, res) => {
             phone_outcome: phoneOutcome,
             phone_pending: phoneOutcome === 'reveal_pending', // mantido pra compat
             phone: phoneOutcome === 'sync_returned' ? syncPhone : null,
+            has_whatsapp: hasWhatsapp,
             person: { title: person.title, email: person.email, name: person.name },
         });
     } catch (err) {
@@ -226,7 +237,7 @@ router.get('/apollo/enrichment/:ref', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('apollo_enrichments')
-            .select('ref, status, phone, error, completed_at, pipedrive_person_id, person_name')
+            .select('ref, status, phone, has_whatsapp, error, completed_at, pipedrive_person_id, person_name')
             .eq('ref', req.params.ref)
             .maybeSingle();
         if (error) return res.status(500).json({ error: error.message });
