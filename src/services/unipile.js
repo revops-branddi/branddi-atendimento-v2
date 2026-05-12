@@ -488,39 +488,76 @@ export async function startNewChat(phoneNumber, text, accountId = null, options 
 }
 
 /**
- * Agenda verificação ~20s após criar chat novo. Se a 1ª msg não foi entregue,
- * reenvia na variante alternativa (sem 9 ↔ com 9), atualiza conversation pro
- * novo chat_id e marca a msg original como retry_attempted_at (pra não duplicar
- * com o delivery-retry-worker dos 5min).
+ * Agenda verificação ~20s após criar chat novo. Se NENHUMA msg foi entregue,
+ * trata como ghost chat:
+ *   - Reenvia TODAS as msgs do sender (não só a 1ª) na variante alternativa,
+ *     preservando ordem. Mensagens subsequentes que o atendente mandou antes
+ *     do delivery check disparar ficavam órfãs no chat fantasma.
+ *   - Atualiza conversation.whatsapp_chat_id pro novo chat
+ *   - Marca todas as msgs do ghost chat como failed_at + failed_reason='ghost_chat'
+ *     + retry_attempted_at, pra UI sinalizar e evitar retry duplo do worker dos 5min.
+ *
+ * Bug pré-fix: marcava só "a outbound mais recente sem retry" — quando o atendente
+ * mandava 2 msgs rápidas, marcava a 2ª (errada) e deixava a 1ª como pendente.
  */
 function scheduleDeliveryCheck({ chatId, acct, text, originalPhone, alternatePhone, leadId, conversationId }) {
     setTimeout(async () => {
+        // Snapshot do tempo ANTES de qualquer side-effect — usado pra delimitar
+        // quais msgs do DB pertencem ao ghost chat (created_at <= checkpoint).
+        // As msgs re-enviadas vão entrar com timestamp posterior e não serão marcadas.
+        const checkpoint = new Date().toISOString();
         try {
-            const msgs = await req(`/chats/${chatId}/messages?limit=5`).catch(() => null);
+            const msgs = await req(`/chats/${chatId}/messages?limit=20`).catch(() => null);
             const items = msgs?.items || [];
-            const lastSent = items.find(m => m.is_sender);
+            const senderMsgs = items
+                .filter(m => m.is_sender)
+                .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-            if (lastSent && (lastSent.delivered === 1 || lastSent.seen === 1)) {
-                // Entrega ok — registra a variante que funcionou
+            // Se qualquer msg foi entregue/vista → chat OK, registra variante e sai
+            const anyDelivered = senderMsgs.some(m => m.delivered === 1 || m.seen === 1);
+            if (anyDelivered) {
                 const variant = phoneToVariant(originalPhone);
                 if (leadId && variant) await markLeadWorkingVariant(leadId, variant);
                 return;
             }
 
-            logger.info('Delivery check: ghost chat detectado, reenviando na alternativa', {
-                chat_id: chatId, original: originalPhone, alternate: alternatePhone,
+            // Textos a re-enviar (em ordem). Inclui a `text` original como fallback se
+            // o Unipile não devolveu nada (race com polling).
+            const textsToResend = senderMsgs.length > 0
+                ? senderMsgs.map(m => m.text).filter(Boolean)
+                : [text];
+            if (textsToResend.length === 0) return;
+
+            logger.info('Delivery check: ghost chat detectado, reenviando msgs na alternativa', {
+                chat_id: chatId, msg_count: textsToResend.length,
+                original: originalPhone, alternate: alternatePhone,
                 lead_id: leadId, conversation_id: conversationId,
             });
 
-            const altResult = await startNewChat(alternatePhone, text, acct, {
+            // 1ª msg cria o chat novo via startNewChat (com _isRetry pra não loopar)
+            const altResult = await startNewChat(alternatePhone, textsToResend[0], acct, {
                 leadId, conversationId, _isRetry: true,
             }).catch(err => {
                 logger.warn('Delivery check: alt send falhou', { error: err.message });
                 return null;
             });
             const altChatId = altResult?.id || altResult?.chat_id;
+            if (!altChatId) return;
 
-            if (conversationId && altChatId && altChatId !== chatId) {
+            // Msgs subsequentes vão direto no chat novo (sendMessage), respeitando ordem
+            for (let i = 1; i < textsToResend.length; i++) {
+                try {
+                    await sendMessage(altChatId, textsToResend[i]);
+                    await new Promise(r => setTimeout(r, 800)); // throttle leve
+                } catch (err) {
+                    logger.warn('Delivery check: resend msg subsequente falhou', {
+                        idx: i, error: err.message,
+                    });
+                }
+            }
+
+            // Aponta conversation pro chat novo
+            if (conversationId && altChatId !== chatId) {
                 try {
                     const { default: sb } = await import('./supabase.js');
                     await sb
@@ -530,27 +567,27 @@ function scheduleDeliveryCheck({ chatId, acct, text, originalPhone, alternatePho
                 } catch { /* não crítico */ }
             }
 
-            // Marca a msg outbound original (a que ficou no ghost chat) como já
-            // retentada — evita o worker dos 5min disparar uma terceira tentativa.
+            // Marca TODAS as msgs do ghost chat (todas outbound da conversation criadas
+            // até o checkpoint, ainda sem retry) — não só "a mais recente".
             if (conversationId) {
                 try {
                     const { default: sb } = await import('./supabase.js');
-                    const { data: orig } = await sb
+                    const nowIso = new Date().toISOString();
+                    await sb
                         .from('messages')
-                        .select('id')
+                        .update({
+                            retry_attempted_at: nowIso,
+                            failed_at:          nowIso,
+                            failed_reason:      'ghost_chat',
+                        })
                         .eq('conversation_id', conversationId)
                         .eq('direction', 'outbound')
+                        .eq('delivered', false)
                         .is('retry_attempted_at', null)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-                    if (orig?.id) {
-                        await sb
-                            .from('messages')
-                            .update({ retry_attempted_at: new Date().toISOString() })
-                            .eq('id', orig.id);
-                    }
-                } catch { /* não crítico */ }
+                        .lte('created_at', checkpoint);
+                } catch (err) {
+                    logger.warn('Delivery check: erro marcando msgs ghost', { error: err.message });
+                }
             }
         } catch (err) {
             logger.warn('Delivery check failed', { chat_id: chatId, error: err.message });

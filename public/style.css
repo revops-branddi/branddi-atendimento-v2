@@ -1791,3 +1791,17 @@ a.nav-btn { text-decoration: none; }
 .msg-status.sent      { color: rgba(255,255,255,0.35); }   /* ✓ cinza claro */
 .msg-status.delivered { color: rgba(255,255,255,0.55); }   /* ✓✓ cinza forte */
 .msg-status.seen      { color: #38bdf8; }                  /* ✓✓ azul (lido) */
+
+/* ghost_chat = msg presa no chat fantasma (variante errada do nro WA, nunca entregou).
+   Estilo cinza/translúcido + badge laranja indicando que NÃO chegou ao destinatário. */
+.msg-bubble.msg-ghost-chat { opacity: 0.62; }
+.msg-bubble.msg-ghost-chat .msg-text { text-decoration: line-through; text-decoration-color: rgba(245, 158, 11, 0.55); }
+.msg-check.ghost { color: #f59e0b; }
+.msg-ghost-note {
+    margin-top: 4px;
+    font-size: 10.5px;
+    color: #f59e0b;
+    font-weight: 600;
+    font-style: italic;
+    opacity: 0.92;
+}

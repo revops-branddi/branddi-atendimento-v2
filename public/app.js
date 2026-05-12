@@ -1936,13 +1936,17 @@ function renderMessage(msg) {
         : '';
     const textContent = showText ? linkify(escHtml(resolvedContent)) : (atts.length ? '' : '(mídia)');
 
-    // Status de entrega — só faz sentido em msgs outbound (humano ou bot)
+    // Status de entrega — só faz sentido em msgs outbound (humano ou bot).
+    // ghost_chat = msg ficou presa em chat fantasma (nro WhatsApp na variante errada);
+    // pode ter sido re-enviada na alternativa (1ª msg) ou ficou órfã (msgs subsequentes).
     let deliveryHtml = '';
+    const isGhost = isOut && msg.failed_reason === 'ghost_chat';
     if (isOut && !isNote) {
         const seen = !!msg.seen;
         const delivered = !!msg.delivered;
         let icon, label, klass;
-        if (seen)            { icon = '✓✓'; label = 'Lido';      klass = 'msg-check read'; }
+        if (isGhost)         { icon = '⚠'; label = 'Não entregue (chat fantasma) — variante errada do número'; klass = 'msg-check ghost'; }
+        else if (seen)       { icon = '✓✓'; label = 'Lido';      klass = 'msg-check read'; }
         else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-check delivered'; }
         else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-check sent'; }
         deliveryHtml = `<span class="${klass}" title="${label}">${icon}</span>`;
@@ -1954,7 +1958,8 @@ function renderMessage(msg) {
     }
 
     // Demais tipos: grid 88px meta + 1fr content + auto status (SPEC §3)
-    return `<div class="msg-bubble msg-row msg-${cls} ${cls}">
+    const ghostClass = isGhost ? ' msg-ghost-chat' : '';
+    return `<div class="msg-bubble msg-row msg-${cls} ${cls}${ghostClass}">
         <div class="msg-meta">
             ${typeLabel ? `<div class="msg-type">${typeLabel}</div>` : ''}
             ${sender ? `<div class="msg-author" title="${escHtml(sender)}">${escHtml(sender)}</div>` : ''}
@@ -1962,6 +1967,7 @@ function renderMessage(msg) {
         <div class="msg-content">
             ${attachmentsHtml}
             ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
+            ${isGhost ? '<div class="msg-ghost-note" title="Não chegou ao destinatário — variante do número estava errada">⚠ Não entregue (chat fantasma)</div>' : ''}
         </div>
         <div class="msg-status-col">
             <span class="msg-time">${time}</span>
