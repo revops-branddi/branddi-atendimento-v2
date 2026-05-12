@@ -117,6 +117,26 @@ export function isAvailable() {
 
 // ─── API Request ──────────────────────────────────────────────────────
 
+/**
+ * Erro estruturado da Unipile API. Carrega status HTTP + type/detail
+ * do corpo JSON, pra callers decidirem comportamento (ex: 422
+ * invalid_recipient → marcar msg como failed em vez de retry).
+ */
+export class UnipileError extends Error {
+    constructor(status, body, rawText) {
+        const type   = body?.type   || null;
+        const title  = body?.title  || null;
+        const detail = body?.detail || rawText || '';
+        super(`Unipile (${status}): ${type || title || detail || rawText}`);
+        this.name = 'UnipileError';
+        this.status = status;
+        this.unipileType = type;
+        this.unipileTitle = title;
+        this.unipileDetail = detail;
+        this.unipileRaw = rawText;
+    }
+}
+
 async function req(endpoint, options = {}) {
     if (!isAvailable()) throw new Error('Unipile não configurado');
     const url  = `${BASE}${endpoint}`;
@@ -125,8 +145,10 @@ async function req(endpoint, options = {}) {
         headers: { 'X-API-KEY': API_KEY, 'Accept': 'application/json', ...(options.headers || {}) },
     });
     if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Unipile (${res.status}): ${err}`);
+        const rawText = await res.text();
+        let body = null;
+        try { body = JSON.parse(rawText); } catch { /* not json */ }
+        throw new UnipileError(res.status, body, rawText);
     }
     return res.json();
 }

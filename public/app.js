@@ -2130,7 +2130,22 @@ async function sendMsg() {
         _lastMessagesHash = ''; // Força reload das mensagens
         await loadMessages(currentConversation.id);
     } catch (err) {
-        toast(`Erro ao enviar: ${err.message}`, 'error');
+        // Backend envia error_code estruturado pra erros conhecidos do envio.
+        // err.message já vem amigável pt-BR pelos casos mapeados em
+        // mapSendError() (ex: invalid_recipient). Pra erros desconhecidos
+        // cai no fallback genérico.
+        if (err.code === 'invalid_recipient') {
+            toast(err.message, 'error', 8000);
+        } else if (err.code === 'unipile_error') {
+            const detail = err.body?.unipile_detail ? `: ${err.body.unipile_detail}` : '';
+            toast(`Falha no WhatsApp${detail}. Tente novamente em alguns minutos.`, 'error', 6000);
+        } else {
+            toast(`Erro ao enviar: ${err.message}`, 'error');
+        }
+        // Recarrega mensagens — failed_reason gravado pelo backend aparece
+        // como msg falha no histórico (UI futura pode renderizar diferente).
+        _lastMessagesHash = '';
+        await loadMessages(currentConversation.id).catch(() => {});
     } finally {
         _sending = false;
         if (sendBtn) sendBtn.disabled = false;
@@ -3419,7 +3434,13 @@ async function apiFetch(url, options = {}) {
     }
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || res.statusText);
+        const e = new Error(err.error || res.statusText);
+        e.status = res.status;
+        // Anexa campos estruturados pra o caller decidir UX (ex: erro de
+        // envio do WhatsApp com error_code='invalid_recipient' tem msg amigável)
+        e.code = err.error_code || null;
+        e.body = err;
+        throw e;
     }
     return res.json();
 }
@@ -3474,7 +3495,7 @@ document.querySelectorAll('.modal-overlay')?.forEach(overlay => {
 });
 
 // --- Toast ---
-function toast(msg, type = 'info') {
+function toast(msg, type = 'info', durationMs = 3500) {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const el = document.createElement('div');
@@ -3486,7 +3507,7 @@ function toast(msg, type = 'info') {
     setTimeout(() => {
         el.classList.add('toast-out');
         el.addEventListener('animationend', () => el.remove());
-    }, 3500);
+    }, durationMs);
 }
 
 // --- New Msg Notif ---
