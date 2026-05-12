@@ -8,7 +8,7 @@ import {
     getIgnoredAccountIds
 } from '../services/supabase.js';
 import supabase from '../services/supabase.js';
-import { startNewChat } from '../services/unipile.js';
+import { startNewChat, checkWhatsAppPresence } from '../services/unipile.js';
 import { queueLeadSync } from '../services/crm-sync.js';
 import { pdGet, pdPut } from '../services/pipedrive.js';
 import { syncLeadFromApollo } from './apollo.js';
@@ -297,12 +297,21 @@ router.post('/webhooks/apollo', async (req, res) => {
         }
 
         const pdUpdated = await persistApolloPhone(row.pipedrive_person_id, phoneRaw);
+        const waCheck = await checkWhatsAppPresence(phoneRaw);
         await supabase.from('apollo_enrichments')
-            .update({ status: 'completed', phone: phoneRaw, result: body, completed_at: new Date().toISOString() })
+            .update({
+                status: 'completed',
+                phone: phoneRaw,
+                has_whatsapp: waCheck.has_whatsapp,
+                result: body,
+                completed_at: new Date().toISOString(),
+            })
             .eq('ref', row.ref);
 
-        logger.info('Apollo webhook: número salvo (legacy)', { ref: row.ref, phone: phoneRaw, pdUpdated });
-        res.json({ received: true, phone: phoneRaw, pipedrive_updated: !!pdUpdated });
+        logger.info('Apollo webhook: número salvo (legacy)', {
+            ref: row.ref, phone: phoneRaw, pdUpdated, has_whatsapp: waCheck.has_whatsapp,
+        });
+        res.json({ received: true, phone: phoneRaw, pipedrive_updated: !!pdUpdated, has_whatsapp: waCheck.has_whatsapp });
     } catch (err) {
         logger.error('Apollo webhook error', { ref, error: err.message });
         res.status(500).json({ error: err.message });
@@ -350,18 +359,25 @@ async function processBulkPerson(apolloPerson) {
     }
 
     const pdUpdated = await persistApolloPhone(row.pipedrive_person_id, phoneRaw);
+    const waCheck = await checkWhatsAppPresence(phoneRaw);
 
     await supabase.from('apollo_enrichments')
         .update({
             status: 'completed',
             phone: phoneRaw,
+            has_whatsapp: waCheck.has_whatsapp,
             result: { ...apolloPerson, _bulk: true },
             completed_at: new Date().toISOString(),
         })
         .eq('ref', row.ref);
 
-    logger.info('Apollo bulk: número salvo', { ref: row.ref, apolloId, phone: phoneRaw, pdUpdated });
-    return { apollo_id: apolloId, ref: row.ref, status: 'completed', phone: phoneRaw, pipedrive_updated: !!pdUpdated };
+    logger.info('Apollo bulk: número salvo', {
+        ref: row.ref, apolloId, phone: phoneRaw, pdUpdated, has_whatsapp: waCheck.has_whatsapp,
+    });
+    return {
+        apollo_id: apolloId, ref: row.ref, status: 'completed',
+        phone: phoneRaw, has_whatsapp: waCheck.has_whatsapp, pipedrive_updated: !!pdUpdated,
+    };
 }
 
 // Salva phone no Pipedrive (só se vazio) + sync Supabase lead. Retorna true se Pipedrive foi atualizado.

@@ -1425,6 +1425,23 @@ a.nav-btn { text-decoration: none; }
     font-style: italic;
     padding: 5px 9px;
 }
+.deal-contact-no-whatsapp { opacity: 0.78; }
+.deal-contact-no-whatsapp:hover { border-color: var(--border); background: transparent; cursor: not-allowed; }
+.deal-contact-no-whatsapp .deal-contact-phone { color: var(--text-muted); text-decoration: line-through; }
+.deal-contact-nowa {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.10);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 6px;
+    font-style: normal;
+    font-weight: 600;
+}
+.deal-result-action-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-right: 6px;
+}
 .btn-apollo-enrich {
     background: rgba(139, 92, 246, 0.12);
     border: 1px solid rgba(139, 92, 246, 0.35);

@@ -137,6 +137,32 @@ router.get('/pipedrive/deal/:id/contacts', async (req, res) => {
             } catch { /* ignora person com erro */ }
         }
 
+        // Enrich com has_whatsapp do último apollo_enrichments completed por person.
+        // Permite que, ao reabrir o modal, o card já apareça com o badge correto
+        // sem precisar re-chamar o Apollo ou re-checar a Unipile.
+        try {
+            const personIds = contacts.map(c => String(c.id));
+            if (personIds.length > 0) {
+                const { data: enrichments } = await supabase
+                    .from('apollo_enrichments')
+                    .select('pipedrive_person_id, has_whatsapp, completed_at')
+                    .in('pipedrive_person_id', personIds)
+                    .not('has_whatsapp', 'is', null)
+                    .order('completed_at', { ascending: false });
+                const latest = new Map();
+                for (const e of enrichments || []) {
+                    if (!latest.has(e.pipedrive_person_id)) {
+                        latest.set(e.pipedrive_person_id, e.has_whatsapp);
+                    }
+                }
+                for (const c of contacts) {
+                    if (latest.has(String(c.id))) c.has_whatsapp = latest.get(String(c.id));
+                }
+            }
+        } catch (err) {
+            logger.warn('Deal contacts: erro buscando has_whatsapp', { error: err.message });
+        }
+
         res.json({
             deal: {
                 id: deal.id,

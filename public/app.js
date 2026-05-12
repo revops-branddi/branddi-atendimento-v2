@@ -4651,8 +4651,15 @@ function renderDealContactRow(c, apolloEnabled) {
     const apolloBtn = apolloEnabled
         ? `<button class="btn-apollo-enrich" type="button" data-action="apollo-enrich" data-person-id="${c.id}" data-person-name="${escHtml(c.name)}" title="Enriquecer dados com Apollo (1 crédito)">🔍 Apollo</button>`
         : '';
+    // has_whatsapp vem do último apollo_enrichments completed (server-side join).
+    // false → card bloqueado com badge "Sem WhatsApp"; null/undefined → comportamento padrão.
+    const noWa = c.has_whatsapp === false;
+    const cardClass = noWa ? 'deal-contact-no-whatsapp' : 'deal-contact-clickable';
+    const rightAction = noWa
+        ? '<span class="deal-contact-nophone deal-contact-nowa" title="Apollo achou número mas WhatsApp não está ativo. Tente email/LinkedIn ou confirme no Pipedrive.">⚠ Sem WhatsApp</span>'
+        : '<span class="deal-result-action">Iniciar →</span>';
     return phones.map(phone => `
-        <div class="deal-contact-item deal-contact-clickable" data-person-id="${c.id}" data-phone="${escHtml(phone)}" data-name="${escHtml(c.name)}">
+        <div class="deal-contact-item ${cardClass}" data-person-id="${c.id}" data-phone="${escHtml(phone)}" data-name="${escHtml(c.name)}">
             <div class="deal-contact-info">
                 <div class="deal-contact-name">${escHtml(c.name)}</div>
                 ${roleLine}
@@ -4660,7 +4667,7 @@ function renderDealContactRow(c, apolloEnabled) {
             </div>
             <div class="deal-contact-actions">
                 ${apolloBtn}
-                <span class="deal-result-action">Iniciar →</span>
+                ${rightAction}
             </div>
         </div>
     `).join('');
@@ -4699,18 +4706,18 @@ async function apolloEnrichPerson(personId, personName, btnEl) {
         }
 
         if (outcome === 'sync_returned' && res.phone) {
-            renderPhoneFoundOnCard(card, actionsEl, res.phone);
-            toast(`Número encontrado: ${res.phone} ✓`, 'success');
+            renderPhoneFoundOnCard(card, actionsEl, res.phone, res.has_whatsapp);
+            announcePhoneFound(res.phone, res.has_whatsapp);
             return;
         }
 
         // reveal_pending — espera webhook via polling
         if (btnEl) btnEl.textContent = '⏳ Aguardando Apollo...';
-        const phone = await pollApolloEnrichment(res.ref, 45_000);
+        const result = await pollApolloEnrichment(res.ref, 45_000);
 
-        if (phone) {
-            renderPhoneFoundOnCard(card, actionsEl, phone);
-            toast(`Número encontrado: ${phone} ✓`, 'success');
+        if (result?.phone) {
+            renderPhoneFoundOnCard(card, actionsEl, result.phone, result.has_whatsapp);
+            announcePhoneFound(result.phone, result.has_whatsapp);
         } else {
             replaceCardActions(actionsEl, '<span class="deal-contact-nophone">Apollo sem número</span>');
             if (card) card.classList.add('deal-contact-apollo-miss');
@@ -4719,6 +4726,17 @@ async function apolloEnrichPerson(personId, personName, btnEl) {
     } catch (err) {
         toast('Erro Apollo: ' + err.message, 'error');
         if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔍 Tentar novamente'; }
+    }
+}
+
+// Toast contextual: distingue "achou e tem WA" / "achou mas sem WA" / "achou, WA não verificado".
+function announcePhoneFound(phone, hasWhatsapp) {
+    if (hasWhatsapp === false) {
+        toast(`Número ${phone} encontrado — mas sem WhatsApp ativo. Tente email/LinkedIn.`, 'warning');
+    } else if (hasWhatsapp === true) {
+        toast(`Número encontrado: ${phone} ✓ (WhatsApp ativo)`, 'success');
+    } else {
+        toast(`Número encontrado: ${phone} ✓`, 'success');
     }
 }
 
@@ -4737,18 +4755,30 @@ function toastSyncEnrichment(syncUpdated, { hadPhone }) {
     }
 }
 
-// Atualiza o card pra ficar clicável com o phone novo (compartilhado entre sync e async).
-function renderPhoneFoundOnCard(card, actionsEl, phone) {
+// Atualiza o card pra refletir o phone descoberto pelo Apollo.
+// hasWhatsapp = true → card clicável (Iniciar →); false → bloqueado com badge "Sem WhatsApp ⚠";
+// null → clicável + nota "WA não verificado" (Unipile instável, não vamos bloquear).
+function renderPhoneFoundOnCard(card, actionsEl, phone, hasWhatsapp = null) {
     if (!card) return;
     card.classList.remove('deal-contact-no-phone');
-    card.classList.add('deal-contact-clickable');
     card.dataset.phone = phone;
     const emptyEl = card.querySelector('.deal-contact-phone-empty');
     if (emptyEl) {
         emptyEl.className = 'deal-contact-phone';
         emptyEl.textContent = phone;
     }
-    replaceCardActions(actionsEl, '<span class="deal-result-action">Iniciar →</span>');
+    if (hasWhatsapp === false) {
+        card.classList.remove('deal-contact-clickable');
+        card.classList.add('deal-contact-no-whatsapp');
+        replaceCardActions(actionsEl,
+            '<span class="deal-contact-nophone deal-contact-nowa" title="Apollo achou número mas WhatsApp não está ativo. Tente email/LinkedIn ou confirme no Pipedrive.">⚠ Sem WhatsApp</span>');
+    } else {
+        card.classList.add('deal-contact-clickable');
+        const note = hasWhatsapp === null
+            ? '<span class="deal-result-action-note" title="Verificação de WhatsApp indisponível agora — pode tentar mesmo assim.">WA não verificado</span>'
+            : '';
+        replaceCardActions(actionsEl, `${note}<span class="deal-result-action">Iniciar →</span>`);
+    }
 }
 
 async function pollApolloEnrichment(ref, timeoutMs = 45_000) {
@@ -4758,7 +4788,9 @@ async function pollApolloEnrichment(ref, timeoutMs = 45_000) {
         await new Promise(r => setTimeout(r, intervalMs));
         try {
             const data = await apiFetch('/api/apollo/enrichment/' + ref);
-            if (data.status === 'completed') return data.phone || null;
+            if (data.status === 'completed') {
+                return { phone: data.phone || null, has_whatsapp: data.has_whatsapp ?? null };
+            }
             if (data.status === 'not_found' || data.status === 'error') return null;
         } catch { /* continua tentando */ }
     }

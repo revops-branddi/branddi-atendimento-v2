@@ -216,6 +216,86 @@ export async function sendMessage(chatId, text, attachmentBuffer, attachmentName
 }
 
 /**
+ * Checa se um telefone tem WhatsApp ATIVO sem enviar mensagem.
+ *
+ * Usa GET /users/{identifier}?account_id=... — lookup read-only que não
+ * notifica o destinatário e não cria chat. Identificador WA = `digits@s.whatsapp.net`.
+ *
+ * Mapeamento das respostas Unipile:
+ *   200                                      → has_whatsapp: true  (perfil existe)
+ *   404                                      → tenta próxima variante BR
+ *   422 errors/invalid_recipient             → has_whatsapp: false (mesmo erro que o
+ *                                              POST /chats/messages dá ao enviar pra
+ *                                              número sem WA — sinal definitivo)
+ *   outros 4xx/5xx                           → has_whatsapp: null  (Unipile instável
+ *                                              ou erro inesperado — UI não bloqueia)
+ *
+ * BR: testa variantes (com/sem 9) antes de cravar false. DDD do Sul (51, 53, 54)
+ * registra muita gente sem o 9 inicial — testar só uma variante dá falso negativo.
+ *
+ * Não throwa: callers tratam null como "verificação indisponível".
+ */
+export async function checkWhatsAppPresence(phone, accountId) {
+    if (!isAvailable() || !phone) return { has_whatsapp: null, error: 'unipile_unavailable' };
+
+    // Resolve conta WA viva — mesma lógica de fallback do startNewChat. UNIPILE_ACCOUNT_ID
+    // do env fica stale quando reconectam números, então sempre valida + fallback pra
+    // primeira conta WA OK do listAccounts.
+    let acct = accountId || await getWhatsAppAccountId();
+    if (acct) {
+        try {
+            const r = await fetch(`${BASE}/accounts/${acct}`, {
+                headers: { 'X-API-KEY': API_KEY }, signal: AbortSignal.timeout(4000),
+            });
+            if (!r.ok) acct = null;
+        } catch { acct = null; }
+    }
+    if (!acct) {
+        const all = await listAccounts().catch(() => null);
+        const wa = (all?.items || []).find(a =>
+            (a.type || a.provider || '').toUpperCase() === 'WHATSAPP'
+            && Array.isArray(a.sources) && a.sources[0]?.status
+            && /^(ok|connected|running|ok_for_now)$/i.test(a.sources[0].status)
+        );
+        acct = wa?.id || null;
+    }
+    if (!acct) return { has_whatsapp: null, error: 'no_wa_account' };
+
+    const variants = brPhoneVariants(phone);
+    const candidates = variants.length > 0 ? variants : [String(phone).replace(/\D/g, '')];
+
+    let invalidRecipient = false;
+    let lastError = null;
+    for (const variant of candidates) {
+        const identifier = `${variant}@s.whatsapp.net`;
+        try {
+            const profile = await req(`/users/${encodeURIComponent(identifier)}?account_id=${acct}`);
+            return { has_whatsapp: true, profile, matched_variant: variant };
+        } catch (err) {
+            if (!(err instanceof UnipileError)) {
+                return { has_whatsapp: null, error: err?.message || 'unknown' };
+            }
+            lastError = err;
+            if (err.status === 422 && err.unipileType === 'errors/invalid_recipient') {
+                invalidRecipient = true; // sinal forte de "número não está no WA"
+                continue;                // mas ainda tenta variante alternativa BR
+            }
+            if (err.status === 404) {
+                continue; // não existe nesta variante — tenta próxima
+            }
+            // 403/outros → não conclusivo
+            logger.warn('checkWhatsAppPresence: erro não-mapeado', {
+                phone: variant, status: err.status, type: err.unipileType,
+            });
+            return { has_whatsapp: null, error: err.message };
+        }
+    }
+    // Nenhuma variante retornou 200. Se alguma deu 422 invalid_recipient → confirma false.
+    // Se só deu 404 → ainda devolve false (número não conhecido na rede WA).
+    return { has_whatsapp: false, error: lastError?.message || null, reason: invalidRecipient ? 'invalid_recipient' : 'not_found' };
+}
+
+/**
  * Gera variantes BR de um número (com/sem 9, com/sem DDI 55).
  * Crítico em DDDs do Sul e antigos onde o WhatsApp do destinatário NÃO
  * tem o 9 inicial — mandar com 9 cai num chat fantasma que nunca entrega.
