@@ -180,6 +180,7 @@ export async function updateConversation(id, updates) {
 //     display_label: 'Ricardo' | null,         // sobrescreve nome real (SDR IA)
 //     primary_owner_first_name: 'Harylanne' | null,  // do connected_by_user_id
 //     permitted_users: [{ id, first_name }],   // users com o account em permissions
+//     ignored: false,                          // conta de outro time — filtra fora
 //   }
 // }
 let _accountOwnersCache = { data: null, ts: 0 };
@@ -192,7 +193,7 @@ async function getAccountOwnersMap() {
         const [accountsRes, usersRes] = await Promise.all([
             supabase
                 .from('whatsapp_accounts')
-                .select('unipile_account_id, display_label, connected_by_user_id, platform_users:connected_by_user_id(name)'),
+                .select('unipile_account_id, display_label, connected_by_user_id, ignored, platform_users:connected_by_user_id(name)'),
             supabase
                 .from('platform_users')
                 .select('id, name, permissions')
@@ -222,6 +223,7 @@ async function getAccountOwnersMap() {
                 display_label: a.display_label || null,
                 primary_owner_first_name: ownerName ? ownerName.split(/\s+/)[0] : null,
                 permitted_users: permittedByAccount[a.unipile_account_id] || [],
+                ignored: !!a.ignored,
             };
         });
         _accountOwnersCache = { data: map, ts: Date.now() };
@@ -229,6 +231,16 @@ async function getAccountOwnersMap() {
     } catch {
         return _accountOwnersCache.data || {};
     }
+}
+
+// IDs de contas marcadas ignored=true (outras equipes). Reusa o cache de
+// getAccountOwnersMap pra não martelar o DB. Usado em getInbox pra filtrar
+// e em unipile.js pra pular no polling/webhook.
+export async function getIgnoredAccountIds() {
+    const map = await getAccountOwnersMap();
+    return Object.entries(map)
+        .filter(([, meta]) => meta?.ignored)
+        .map(([id]) => id);
 }
 
 /**
@@ -365,16 +377,50 @@ export async function getInbox({
         query = query.eq('assigned_to', assigned_to);
     }
 
+    // Filtra contas ignored=true (outros times). Em DMs, exclui via NOT IN
+    // no scalar. Em grupos, filtragem é client-side abaixo (excluir do array
+    // e dropar conv se array ficar vazio) — overlaps com `not` no Postgrest
+    // tem semântica esquisita.
+    const accountOwnersForFilter = await getAccountOwnersMap();
+    const ignoredIds = Object.entries(accountOwnersForFilter)
+        .filter(([, meta]) => meta?.ignored)
+        .map(([id]) => id);
+    if (!is_group && ignoredIds.length > 0) {
+        query = query.not('whatsapp_account_id', 'in', `(${ignoredIds.join(',')})`);
+    }
+
     const { data, error } = await query;
     if (error) throw error;
 
-    // Hidrata cada conv com o primeiro nome do dono do número WhatsApp
-    // (whatsapp_accounts.connected_by_user_id → platform_users.name).
-    // Usa cache curto pra evitar query a cada chamada de getInbox.
-    const accountOwners = await getAccountOwnersMap();
+    // Reusa o map já buscado acima pra hidratar owners.
+    const accountOwners = accountOwnersForFilter;
 
-    return (data || []).map(conv => {
+    // Em grupos, dropa convs cujo único membro Branddi era ignored (array
+    // ficou vazio após remoção). DMs já foram filtradas via NOT IN na query.
+    const filteredData = is_group && ignoredIds.length > 0
+        ? (data || []).filter(conv => {
+            const remaining = Array.isArray(conv.whatsapp_account_ids)
+                ? conv.whatsapp_account_ids.filter(id => !ignoredIds.includes(id))
+                : [];
+            // Mantém se ainda há outra Branddi membro OU se canonical scalar
+            // não está em ignored (compat com grupos legacy sem array)
+            if (remaining.length > 0) return true;
+            if (conv.whatsapp_account_id && !ignoredIds.includes(conv.whatsapp_account_id)) return true;
+            return false;
+        })
+        : (data || []);
+
+    return filteredData.map(conv => {
         const msgs = conv.messages || [];
+
+        // Em grupos, remove accounts ignored do array antes de hidratar labels
+        // — assim grupos visíveis via outra Branddi continuam aparecendo,
+        // mas a conta ignored some das tags.
+        if (is_group && ignoredIds.length > 0 && Array.isArray(conv.whatsapp_account_ids)) {
+            conv.whatsapp_account_ids = conv.whatsapp_account_ids.filter(
+                id => !ignoredIds.includes(id)
+            );
+        }
 
         // Em grupos canonicalizados (whatsapp_account_ids[] populado), resolve
         // labels de TODAS as contas Branddi membros — usado pelo front pra

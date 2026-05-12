@@ -5,7 +5,8 @@
 import 'dotenv/config';
 import {
     findConversationByChat, findGroupByProviderId, createConversation, updateConversation,
-    findLeadByPhone, findLeadByPhoneFuzzy, createLead, updateLead, saveMessage, normalizePhone
+    findLeadByPhone, findLeadByPhoneFuzzy, createLead, updateLead, saveMessage, normalizePhone,
+    getIgnoredAccountIds
 } from './supabase.js';
 import { onInboundMessage } from './auto-activities.js';
 import { findPersonByPhone, findPersonByEmail, findPersonByExactName, getDealsForPerson } from './pipedrive.js';
@@ -478,7 +479,16 @@ export async function startPolling(intervalMs = parseInt(process.env.UNIPILE_POL
             const result = await listChats({ limit: 20 });
             const chats  = result.items || [];
 
+            // Skipa chats de contas marcadas ignored (outras equipes que
+            // compartilham o DSN). Lê 1x por poll cycle do cache (TTL 60s
+            // em getAccountOwnersMap), custo desprezível.
+            const ignoredIds = await getIgnoredAccountIds();
+            const ignoredSet = new Set(ignoredIds);
+
             for (const chat of chats) {
+                if (chat?.account_id && ignoredSet.has(chat.account_id)) {
+                    continue;
+                }
                 await processChat(chat);
             }
             _lastPollTime = Date.now();
