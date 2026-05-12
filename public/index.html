@@ -483,15 +483,15 @@
     </div>
 </section>
 
-<!-- ════════════ DASHBOARD TAB ════════════ -->
+<!-- ════════════ DASHBOARD TAB — PROSPECTING ════════════ -->
 <section class="tab-panel" id="panel-dashboard">
     <div class="panel-header">
-        <h2 class="panel-title">Dashboard Comercial</h2>
+        <h2 class="panel-title">Dashboard de Prospecção</h2>
         <div class="panel-actions" style="display:flex;gap:8px;flex-wrap:wrap">
-            <select class="filter-select" id="dash-period">
-                <option value="7">Últimos 7 dias</option>
-                <option value="30" selected>Últimos 30 dias</option>
-                <option value="90">Últimos 90 dias</option>
+            <select class="filter-select" id="dash-granularity">
+                <option value="daily">Diário (24h)</option>
+                <option value="weekly">Semanal (7d)</option>
+                <option value="monthly" selected>Mensal (30d)</option>
             </select>
             <select class="filter-select admin-only" id="dash-user-filter" style="display:none">
                 <option value="">Todos atendentes</option>
@@ -499,151 +499,125 @@
             <select class="filter-select admin-only" id="dash-account-filter" style="display:none">
                 <option value="">Todos números</option>
             </select>
-            <select class="filter-select" id="dash-type-filter">
-                <option value="">Todos tipos</option>
-                <option value="inbound">Inbound (site)</option>
-                <option value="prospecting">Prospecção</option>
-            </select>
         </div>
     </div>
 
-    <!-- KPIs: Atividade -->
-    <h3 class="dash-section-title">📨 Atividade no WhatsApp</h3>
+    <div id="dash-error" style="display:none;background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;color:var(--text-muted);font-size:13px"></div>
+
+    <!-- KPIs principais -->
+    <h3 class="dash-section-title">📊 Visão geral</h3>
     <div class="kpi-grid">
         <div class="kpi-card kpi-accent">
-            <div class="kpi-label">Enviados</div>
-            <div class="kpi-value" id="kpi-sent">—</div>
-            <div class="kpi-sub">mensagens outbound</div>
+            <div class="kpi-label">Contatos únicos</div>
+            <div class="kpi-value" id="kpi-contacts">—</div>
+            <div class="kpi-sub">leads abordados</div>
         </div>
         <div class="kpi-card kpi-green">
-            <div class="kpi-label">Respostas</div>
-            <div class="kpi-value" id="kpi-received">—</div>
-            <div class="kpi-sub">mensagens inbound</div>
+            <div class="kpi-label">Responderam</div>
+            <div class="kpi-value" id="kpi-responded">—</div>
+            <div class="kpi-sub" id="kpi-responded-sub">leads únicos</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Taxa de resposta</div>
             <div class="kpi-value" id="kpi-reply-rate">—</div>
-            <div class="kpi-sub">respostas / envios</div>
+            <div class="kpi-sub">responderam / abordados</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-label">Tempo 1ª resposta</div>
+            <div class="kpi-label">1ª resposta mediana</div>
             <div class="kpi-value" id="kpi-first-resp">—</div>
-            <div class="kpi-sub">do lead</div>
-        </div>
-    </div>
-
-    <!-- KPIs: Leads -->
-    <h3 class="dash-section-title">🎯 Leads e classificação</h3>
-    <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-label">Total leads</div>
-            <div class="kpi-value" id="kpi-total">—</div>
-            <div class="kpi-sub">no período</div>
-        </div>
-        <div class="kpi-card kpi-green">
-            <div class="kpi-label">🟢 Comercial</div>
-            <div class="kpi-value" id="kpi-comercial">—</div>
-            <div class="kpi-sub" id="kpi-comercial-pct">—%</div>
+            <div class="kpi-sub">tempo até o lead responder</div>
         </div>
         <div class="kpi-card kpi-amber">
-            <div class="kpi-label">🟡 OPEC</div>
-            <div class="kpi-value" id="kpi-opec">—</div>
-            <div class="kpi-sub" id="kpi-opec-pct">—%</div>
+            <div class="kpi-label">Deals gerados</div>
+            <div class="kpi-value" id="kpi-deals">—</div>
+            <div class="kpi-sub">conversas → Pipedrive</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-label">Conversas ativas</div>
-            <div class="kpi-value" id="kpi-convs">—</div>
-            <div class="kpi-sub">no período</div>
+            <div class="kpi-label">Volume de envios</div>
+            <div class="kpi-value" id="kpi-sent">—</div>
+            <div class="kpi-sub" id="kpi-sent-sub">mensagens outbound</div>
         </div>
     </div>
 
-    <!-- KPIs: Ações comerciais -->
-    <h3 class="dash-section-title">⚙️ Ações comerciais</h3>
-    <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-label">WA BB</div>
-            <div class="kpi-value" id="kpi-act-bb">—</div>
-            <div class="kpi-sub">atividades criadas</div>
+    <!-- Funil + Timeline lado a lado -->
+    <div class="charts-grid" style="grid-template-columns:1fr 2fr;gap:16px">
+        <div class="chart-card">
+            <h3 class="chart-title">🔻 Funil</h3>
+            <div id="funnel-render" style="display:flex;flex-direction:column;gap:10px;padding:12px 4px"></div>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-label">WA FR</div>
-            <div class="kpi-value" id="kpi-act-fr">—</div>
-            <div class="kpi-sub">atividades criadas</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">WA VM</div>
-            <div class="kpi-value" id="kpi-act-vm">—</div>
-            <div class="kpi-sub">atividades criadas</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Transcrições</div>
-            <div class="kpi-value" id="kpi-transcripts">—</div>
-            <div class="kpi-sub">enviadas ao deal</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">🔍 Apollo</div>
-            <div class="kpi-value" id="kpi-apollo">—</div>
-            <div class="kpi-sub" id="kpi-apollo-sub">enriquecimentos</div>
+        <div class="chart-card">
+            <h3 class="chart-title">📈 Atividade no período</h3>
+            <canvas id="chart-timeline" height="200"></canvas>
         </div>
     </div>
 
-    <!-- Charts -->
-    <div class="charts-grid">
-        <div class="chart-card">
-            <h3 class="chart-title">Envios × Respostas por dia</h3>
-            <canvas id="chart-msgs-day" height="220"></canvas>
-        </div>
-        <div class="chart-card">
-            <h3 class="chart-title">Distribuição por origem</h3>
-            <canvas id="chart-origin" height="220"></canvas>
-        </div>
-        <div class="chart-card">
-            <h3 class="chart-title">Classificação</h3>
-            <canvas id="chart-classification" height="220"></canvas>
-        </div>
+    <!-- Heatmap -->
+    <div class="chart-card" style="margin-top:16px">
+        <h3 class="chart-title">🔥 Melhores horários (taxa de resposta por dia/hora)</h3>
+        <div id="heatmap-render" style="overflow-x:auto;padding:8px 4px"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
     </div>
 
-    <!-- Tabela: Performance por Atendente (Admin only) -->
+    <!-- Leaderboard (admin only) -->
     <div class="dash-table-wrap admin-only" id="dash-user-table-wrap" style="display:none;margin-top:24px">
-        <h3 class="dash-section-title">👤 Performance por atendente</h3>
+        <h3 class="dash-section-title">🏆 Leaderboard por SDR</h3>
         <div class="dash-table">
             <table class="table-pro">
                 <thead>
                     <tr>
-                        <th>Atendente</th>
-                        <th style="text-align:right">Enviados</th>
-                        <th style="text-align:right">Respostas</th>
-                        <th style="text-align:right">Taxa resp.</th>
-                        <th style="text-align:right">Conversas</th>
-                        <th style="text-align:right">1ª resp. méd.</th>
+                        <th>SDR</th>
+                        <th>Número(s)</th>
+                        <th style="text-align:right">Contatos</th>
+                        <th style="text-align:right">Responderam</th>
+                        <th style="text-align:right">Taxa</th>
+                        <th style="text-align:right">1ª resp.</th>
+                        <th style="text-align:right">Deals</th>
+                        <th style="text-align:right">Envios</th>
                     </tr>
                 </thead>
                 <tbody id="dash-user-tbody">
-                    <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px">—</td></tr>
+                    <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">—</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Tabela: por Número WhatsApp (Admin only) -->
-    <div class="dash-table-wrap admin-only" id="dash-account-table-wrap" style="display:none;margin-top:16px">
-        <h3 class="dash-section-title">📱 Performance por número WhatsApp</h3>
-        <div class="dash-table">
-            <table class="table-pro">
-                <thead>
-                    <tr>
-                        <th>Número</th>
-                        <th>Dono</th>
-                        <th style="text-align:right">Enviados</th>
-                        <th style="text-align:right">Respostas</th>
-                        <th style="text-align:right">Taxa resp.</th>
-                        <th style="text-align:right">Conversas</th>
-                    </tr>
-                </thead>
-                <tbody id="dash-account-tbody">
-                    <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px">—</td></tr>
-                </tbody>
-            </table>
+    <!-- Cold leads + Apollo lado a lado -->
+    <div class="charts-grid" style="grid-template-columns:2fr 1fr;gap:16px;margin-top:16px">
+        <div class="chart-card">
+            <h3 class="chart-title">❄️ Leads frios (sem follow-up &gt; 3d)</h3>
+            <div class="dash-table" style="margin-top:8px">
+                <table class="table-pro">
+                    <thead>
+                        <tr>
+                            <th>Lead</th>
+                            <th>Telefone</th>
+                            <th>SDR</th>
+                            <th style="text-align:right">Dias frio</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dash-cold-tbody">
+                        <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px">—</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3 class="chart-title">🔍 Apollo health</h3>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:8px 4px">
+                <div>
+                    <div style="font-size:12px;color:var(--text-muted)">Enriquecimentos</div>
+                    <div style="font-size:24px;font-weight:600" id="apollo-triggered">—</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-muted)">Completados</div>
+                    <div style="font-size:24px;font-weight:600" id="apollo-completed">—</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-muted)">Com WhatsApp</div>
+                    <div style="font-size:24px;font-weight:600;color:var(--accent)" id="apollo-has-wa">—</div>
+                </div>
+            </div>
         </div>
     </div>
 </section>

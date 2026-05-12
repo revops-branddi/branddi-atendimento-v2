@@ -3,7 +3,7 @@
  */
 import { Router } from 'express';
 import {
-    getInbox, updateConversation, createRoutingEvent, getDashboardStats
+    getInbox, updateConversation, createRoutingEvent
 } from '../services/supabase.js';
 import { queueConversationSync, syncConversationToPipedrive } from '../services/crm-sync.js';
 import { requireRole } from '../middleware/auth.js';
@@ -165,16 +165,6 @@ router.get('/inbox/conversation/:id', async (req, res) => {
                 messages: undefined,
             },
         });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── GET /api/inbox/stats — Contadores do inbox ───────────────────────
-router.get('/inbox/stats', async (req, res) => {
-    try {
-        const stats = await getDashboardStats({ days: 1 });
-        res.json(stats);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
