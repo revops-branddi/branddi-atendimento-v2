@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getMessages, saveMessage, markMessagesRead, updateConversation, getLeadById } from '../services/supabase.js';
-import { sendMessage, startNewChat, getAttachmentUrl, getMessageById, isAvailable as unipileAvailable, pickSendAccount } from '../services/unipile.js';
+import { sendMessage, startNewChat, getAttachmentUrl, getMessageById, isAvailable as unipileAvailable, pickSendAccount, UnipileError } from '../services/unipile.js';
 import whatsapp from '../providers/unipile.js';
 import { applyScriptVariables } from '../services/script-variables.js';
 import { onOutboundMessage } from '../services/auto-activities.js';
@@ -30,13 +30,77 @@ router.get('/messages/:conversationId', async (req, res) => {
     }
 });
 
+// Mapeia erro do Unipile pra response amigável + reason curto pra persistir.
+// Retorna { httpStatus, payload, failedReason } pra caller decidir.
+function mapSendError(err, context = {}) {
+    if (err instanceof UnipileError) {
+        const type = err.unipileType || '';
+        const detail = err.unipileDetail || '';
+        // Casos conhecidos com mensagem amigável pt-BR
+        if (type === 'errors/invalid_recipient') {
+            return {
+                httpStatus: 422,
+                failedReason: 'invalid_recipient',
+                payload: {
+                    error: 'Esse número não tem WhatsApp ativo (ou o perfil não está mais acessível). Tente outro canal — email/LinkedIn — ou confirme o número no Pipedrive.',
+                    error_code: 'invalid_recipient',
+                    unipile_detail: detail,
+                    ...context,
+                },
+            };
+        }
+        // 4xx genérico do Unipile — preserva o detalhe estruturado
+        return {
+            httpStatus: err.status >= 400 && err.status < 500 ? err.status : 502,
+            failedReason: `unipile_${err.status}${type ? ':' + type : ''}`,
+            payload: {
+                error: detail || err.unipileTitle || `Unipile retornou erro (${err.status}). Tente novamente em alguns minutos.`,
+                error_code: 'unipile_error',
+                unipile_status: err.status,
+                unipile_type: type,
+                unipile_detail: detail,
+                ...context,
+            },
+        };
+    }
+    // Erro não-Unipile (rede, etc)
+    return {
+        httpStatus: 500,
+        failedReason: 'internal',
+        payload: { error: err.message || 'Erro interno ao enviar.', error_code: 'internal', ...context },
+    };
+}
+
+// Grava a tentativa falha em messages pra histórico/análise. Tolerante a
+// duplicata (mesmo content pode ser re-tentado) usando timestamp no ID local.
+async function recordFailedSend({ conversationId, user, text, failedReason }) {
+    try {
+        await saveMessage({
+            conversation_id:    conversationId,
+            direction:          'outbound',
+            sender_type:        'human',
+            sender_name:        user?.name || 'Atendente',
+            sent_by_user_id:    user?.id || null,
+            sent_by_name:       user?.name || null,
+            content:            text,
+            attachments:        [],
+            unipile_message_id: `failed_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            failed_at:          new Date().toISOString(),
+            failed_reason:      failedReason,
+            delivered:          false,
+        });
+    } catch (e) {
+        // Não bloqueia a response do erro original
+    }
+}
+
 // ─── POST /api/messages/:conversationId/send — Envia mensagem humana ──
 router.post('/messages/:conversationId/send', async (req, res) => {
-    try {
-        const { text } = req.body;
-        let { chatId } = req.body;
-        if (!text) return res.status(400).json({ error: 'text é obrigatório' });
+    const { text } = req.body;
+    let { chatId } = req.body;
+    if (!text) return res.status(400).json({ error: 'text é obrigatório' });
 
+    try {
         // Se conversa não tem chatId (outbound novo), inicia chat via Unipile
         if (!chatId) {
             // Busca conversa e lead para pegar o telefone
@@ -72,17 +136,43 @@ router.post('/messages/:conversationId/send', async (req, res) => {
                         sendAccountId = req.user.permissions.whatsapp_accounts[0];
                     }
 
-                    const chatResult = await startNewChat(whatsappPhone, text, sendAccountId, {
-                        leadId: lead.id,
-                        conversationId: req.params.conversationId,
-                    });
-                    chatId = chatResult?.id || chatResult?.chat_id;
-                    if (chatId) {
-                        // Marca a conta usada na conversa pra próximas msgs
-                        const updates = { whatsapp_chat_id: chatId };
-                        if (sendAccountId) updates.whatsapp_account_id = sendAccountId;
-                        await updateConversation(req.params.conversationId, updates);
+                    // IMPORTANTE: chamar startNewChat ANTES de qualquer
+                    // updateConversation/saveMessage. Se o Unipile rejeitar
+                    // (ex: 422 invalid_recipient), o catch externo grava
+                    // failed_reason e retorna pro front sem deixar conversation
+                    // órfã (whatsapp_chat_id=null). Comportamento anterior
+                    // criava lixo no DB a cada tentativa falha.
+                    let chatResult;
+                    try {
+                        chatResult = await startNewChat(whatsappPhone, text, sendAccountId, {
+                            leadId: lead.id,
+                            conversationId: req.params.conversationId,
+                        });
+                    } catch (err) {
+                        const { httpStatus, payload, failedReason } = mapSendError(err, { stage: 'start_new_chat' });
+                        await recordFailedSend({
+                            conversationId: req.params.conversationId,
+                            user: req.user, text, failedReason,
+                        });
+                        return res.status(httpStatus).json(payload);
                     }
+
+                    chatId = chatResult?.id || chatResult?.chat_id;
+                    if (!chatId) {
+                        await recordFailedSend({
+                            conversationId: req.params.conversationId,
+                            user: req.user, text, failedReason: 'no_chat_id',
+                        });
+                        return res.status(502).json({
+                            error: 'Unipile não retornou chat_id válido. Tente novamente em alguns minutos.',
+                            error_code: 'no_chat_id',
+                        });
+                    }
+
+                    // Sucesso — marca a conta usada na conversa pra próximas msgs
+                    const updates = { whatsapp_chat_id: chatId };
+                    if (sendAccountId) updates.whatsapp_account_id = sendAccountId;
+                    await updateConversation(req.params.conversationId, updates);
 
                     // Primeira msg já foi enviada pelo startNewChat, salvar e retornar
                     const startMsgId = chatResult?.message_id || `human_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -110,7 +200,8 @@ router.post('/messages/:conversationId/send', async (req, res) => {
             if (!chatId) return res.status(400).json({ error: 'Sem chatId e sem telefone para iniciar conversa' });
         }
 
-        // Envia via Unipile e captura ID real para deduplicação
+        // Envia via Unipile e captura ID real para deduplicação.
+        // Erros do Unipile (ex: 422) capturados pelo catch externo.
         const sendResult = await sendMessage(chatId, text);
         const realMsgId = sendResult?.message_id || sendResult?.id || `human_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -140,7 +231,12 @@ router.post('/messages/:conversationId/send', async (req, res) => {
 
         res.json({ success: true, message: msg });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        const { httpStatus, payload, failedReason } = mapSendError(err, { stage: 'send_message' });
+        await recordFailedSend({
+            conversationId: req.params.conversationId,
+            user: req.user, text, failedReason,
+        });
+        res.status(httpStatus).json(payload);
     }
 });
 
