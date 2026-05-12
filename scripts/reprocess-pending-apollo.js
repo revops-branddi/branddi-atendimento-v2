@@ -17,9 +17,10 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const SLEEP_MS = 1500;
 
 function getPublicBaseUrl() {
-    return process.env.PUBLIC_URL
+    const url = process.env.PUBLIC_URL
         || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
         || process.env.FRONTEND_URL;
+    return url ? url.replace(/\/+$/, '') : null;
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

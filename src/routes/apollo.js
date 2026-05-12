@@ -30,10 +30,15 @@ const router = Router();
 // 1. PUBLIC_URL — override explícito quando precisamos forçar
 // 2. RAILWAY_PUBLIC_DOMAIN — domínio da própria service (sempre aponta pra cá)
 // 3. FRONTEND_URL — fallback; pode legitimamente apontar pra outro service
+//
+// Trailing slash é stripado: PUBLIC_URL setado com `/` no fim gerava webhook
+// com `//api/webhooks/apollo`, que Express não roteia (serve o index.html no
+// catch-all) e Apollo silenciosamente abandonava o callback.
 function getPublicBaseUrl() {
-    return process.env.PUBLIC_URL
+    const url = process.env.PUBLIC_URL
         || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
         || process.env.FRONTEND_URL;
+    return url ? url.replace(/\/+$/, '') : null;
 }
 
 async function ensureEnabled(req, res) {
