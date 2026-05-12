@@ -4,7 +4,8 @@
  */
 import { Router } from 'express';
 import {
-    createLead, createConversation, findLeadByPhone, normalizePhone
+    createLead, createConversation, findLeadByPhone, normalizePhone,
+    getIgnoredAccountIds
 } from '../services/supabase.js';
 import supabase from '../services/supabase.js';
 import { startNewChat } from '../services/unipile.js';
@@ -157,6 +158,14 @@ router.post('/webhooks/unipile', async (req, res) => {
         if (!accountId) {
             logger.warn('Webhook Unipile sem account_id', { eventType, body_keys: Object.keys(body) });
             return res.json({ received: true, ignored: true });
+        }
+
+        // Skip eventos de contas ignored=true (outros times). Não grava em
+        // status_events nem atualiza status local — a conta nem deveria
+        // existir do ponto de vista do Atendimento-v2.
+        const ignoredIds = await getIgnoredAccountIds();
+        if (ignoredIds.includes(accountId)) {
+            return res.json({ received: true, ignored: true, reason: 'account_marked_ignored' });
         }
 
         // Status anterior pra detectar transição
