@@ -173,30 +173,31 @@ export async function onOutboundMessage(conversationId, userId) {
 
 /**
  * Chamado quando uma mensagem INBOUND é recebida (lead → humano)
- * Cria atividade tipo "resposta" no Pipedrive — APENAS UMA POR CONVERSA, ever.
+ * Cria atividade tipo "resposta" no Pipedrive — 1x por conversa POR DIA.
  *
- * "1 conversa = 1 sinal de que o lead respondeu". Não importa quantas mensagens
- * inbound vierem ao longo dos dias — a primeira já gerou a atividade.
+ * Simétrico com o outbound (`onOutboundMessage`): se o lead voltar a responder
+ * num novo dia, gera nova atividade. Múltiplas msgs no mesmo dia consolidam
+ * numa única activity. Histórico claro no Pipedrive sem ruído.
  *
- * Usa atomic compare-and-swap (UPDATE WHERE IS NULL + RETURNING) para evitar
- * race condition: várias mensagens inbound chegando ao mesmo tempo competem
- * pelo claim, mas só uma vence e cria a atividade.
+ * Usa atomic compare-and-swap (UPDATE WHERE is_null OR < today + RETURNING)
+ * pra evitar race condition entre múltiplas msgs inbound chegando juntas.
  */
 export async function onInboundMessage(conversationId) {
     try {
         const info = await getConversationDealInfo(conversationId);
         if (!info) return; // sem deal vinculado, ignora
 
-        // Já criada nessa conversa em algum momento → não duplica
-        if (info.lastReplyDate) return;
-
-        // ATOMIC CLAIM — só uma chamada concorrente consegue marcar a coluna
         const today = new Date().toISOString().split('T')[0];
+        // Já criada HOJE → não duplica (mas ontem ou antes pode renovar)
+        if (info.lastReplyDate === today) return;
+
+        // ATOMIC CLAIM — só uma chamada concorrente consegue marcar pra hoje.
+        // Reivindica se NULL ou se data anterior (idem outbound activity).
         const { data: claimed, error: claimErr } = await supabase
             .from('conversations')
             .update({ last_reply_activity_date: today })
             .eq('id', conversationId)
-            .is('last_reply_activity_date', null)
+            .or(`last_reply_activity_date.is.null,last_reply_activity_date.lt.${today}`)
             .select('id')
             .maybeSingle();
 
