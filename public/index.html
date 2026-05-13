@@ -551,17 +551,20 @@
         </div>
     </div>
 
-    <!-- Heatmap (override max-height:320px;overflow:hidden do .chart-card em style.css) -->
-    <div class="chart-card" style="margin-top:16px;max-height:none;overflow:visible">
-        <h3 class="chart-title">🔥 Melhores horários (taxa de resposta por dia/hora)</h3>
-        <div id="heatmap-render" style="overflow-x:auto;padding:8px 4px"></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
-    </div>
+    <!-- Heatmap + Contatos únicos por SDR — lado a lado em desktop, empilha em viewports < ~860px -->
+    <div class="charts-grid" style="margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px">
+        <!-- Override max-height:320px;overflow:hidden do .chart-card em style.css -->
+        <div class="chart-card" style="max-height:none;overflow:visible">
+            <h3 class="chart-title">🔥 Melhores horários (taxa de resposta por dia/hora)</h3>
+            <div id="heatmap-render" style="overflow-x:auto;padding:8px 4px"></div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
+        </div>
 
-    <!-- Contatos únicos por SDR (admin only) — override max-height idem heatmap -->
-    <div class="chart-card admin-only" id="dash-contacts-chart-wrap" style="display:none;margin-top:24px;max-height:none;overflow:visible">
-        <h3 class="chart-title">👥 Contatos únicos por SDR</h3>
-        <canvas id="chart-contacts-by-user" height="240"></canvas>
+        <!-- Contatos únicos por SDR (admin only) -->
+        <div class="chart-card admin-only" id="dash-contacts-chart-wrap" style="display:none;max-height:none;overflow:visible">
+            <h3 class="chart-title">👥 Contatos únicos por SDR</h3>
+            <canvas id="chart-contacts-by-user" height="240"></canvas>
+        </div>
     </div>
 
     <!-- Leaderboard (admin only) -->
