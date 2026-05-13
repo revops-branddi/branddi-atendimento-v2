@@ -558,6 +558,12 @@
         <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
     </div>
 
+    <!-- Contatos únicos por SDR (admin only) — override max-height idem heatmap -->
+    <div class="chart-card admin-only" id="dash-contacts-chart-wrap" style="display:none;margin-top:24px;max-height:none;overflow:visible">
+        <h3 class="chart-title">👥 Contatos únicos por SDR</h3>
+        <canvas id="chart-contacts-by-user" height="240"></canvas>
+    </div>
+
     <!-- Leaderboard (admin only) -->
     <div class="dash-table-wrap admin-only" id="dash-user-table-wrap" style="display:none;margin-top:24px">
         <h3 class="dash-section-title">🏆 Leaderboard por SDR</h3>
