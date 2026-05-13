@@ -3054,7 +3054,7 @@ async function loadDashboard() {
             errEl.style.display = 'block';
             errEl.textContent = `Erro ao carregar dashboard: ${err.message || err}`;
         }
-        ['kpi-contacts','kpi-responded','kpi-reply-rate','kpi-first-resp','kpi-deals','kpi-sent',
+        ['kpi-contacts','kpi-responded','kpi-reply-rate','kpi-first-resp','kpi-sent',
          'apollo-triggered','apollo-completed','apollo-has-wa'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.textContent = '—';
@@ -3069,7 +3069,6 @@ function renderProspectingKPIs(data) {
     set('kpi-responded',  fmtNum(k.responded));
     set('kpi-reply-rate', fmtPct(k.reply_rate));
     set('kpi-first-resp', fmtDurationMs(k.median_first_response_ms));
-    set('kpi-deals',      fmtNum(k.deals));
     set('kpi-sent',       fmtNum(k.messages_sent));
     set('kpi-sent-sub',   `${fmtNum(k.messages_received)} recebidas`);
     const respondedSub = document.getElementById('kpi-responded-sub');
@@ -3261,7 +3260,7 @@ function renderLeaderboard(byUser) {
     if (!tbody) return;
     const rows = byUser || [];
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Sem atividade no período</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:16px">Sem atividade no período</td></tr>';
         return;
     }
     // User-fornecido (name, phone_numbers) passa por escHtml — safe.
@@ -3273,7 +3272,6 @@ function renderLeaderboard(byUser) {
             <td style="text-align:right">${fmtNum(u.responded)}</td>
             <td style="text-align:right">${fmtPct(u.reply_rate)}</td>
             <td style="text-align:right">${fmtDurationMs(u.median_first_response_ms)}</td>
-            <td style="text-align:right">${fmtNum(u.deals)}</td>
             <td style="text-align:right">${fmtNum(u.messages_sent)}</td>
         </tr>
     `).join('');
