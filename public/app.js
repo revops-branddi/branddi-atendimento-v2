@@ -8,7 +8,7 @@
 const API = '';
 let currentConversation = null;
 let pollTimer = null;
-let chartDay = null, chartOrigin = null, chartClass = null;
+let chartDay = null;
 let allConversations = [];
 let currentFilter = 'all';
 let allScripts = [];
@@ -3021,68 +3021,200 @@ async function exportLeadsCSV() {
     }
 }
 
-// --- DASHBOARD ---
+// --- DASHBOARD: PROSPECTING ---
+
+const DASH_DOW_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 async function loadDashboard() {
-    const days = document.getElementById('dash-period')?.value || 30;
+    const granularity = document.getElementById('dash-granularity')?.value || 'monthly';
     const userFilter = document.getElementById('dash-user-filter')?.value || '';
     const accountFilter = document.getElementById('dash-account-filter')?.value || '';
-    const typeFilter = document.getElementById('dash-type-filter')?.value || '';
 
-    const qs = new URLSearchParams({ days });
+    const qs = new URLSearchParams({ granularity });
     if (userFilter)    qs.set('user_id', userFilter);
     if (accountFilter) qs.set('account_id', accountFilter);
-    if (typeFilter)    qs.set('type', typeFilter);
+
+    const errEl = document.getElementById('dash-error');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
     try {
-        const data = await apiFetch(`/api/dashboard/analytics?${qs}`);
-
-        const setKpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
-
-        // Atividade
-        setKpi('kpi-sent', fmtNum(data.messages?.sent));
-        setKpi('kpi-received', fmtNum(data.messages?.received));
-        setKpi('kpi-reply-rate', fmtPct(data.messages?.reply_rate));
-        setKpi('kpi-first-resp', fmtDurationMs(data.messages?.avg_first_response_ms));
-
-        // Leads
-        setKpi('kpi-total', fmtNum(data.totals?.leads));
-        setKpi('kpi-comercial', fmtNum(data.totals?.comercial));
-        setKpi('kpi-opec', fmtNum(data.totals?.opec));
-        setKpi('kpi-convs', fmtNum(data.totals?.conversations));
-        const total = data.totals?.leads || 1;
-        setKpi('kpi-comercial-pct', `${Math.round((data.totals?.comercial||0)/total*100)}%`);
-        setKpi('kpi-opec-pct', `${Math.round((data.totals?.opec||0)/total*100)}%`);
-
-        // Ações
-        setKpi('kpi-act-bb', fmtNum(data.activities?.wa_bb));
-        setKpi('kpi-act-fr', fmtNum(data.activities?.wa_fr));
-        setKpi('kpi-act-vm', fmtNum(data.activities?.wa_vm));
-        setKpi('kpi-transcripts', fmtNum(data.activities?.transcripts));
-        setKpi('kpi-apollo', fmtNum(data.apollo?.triggered));
-        const apolloSubEl = document.getElementById('kpi-apollo-sub');
-        if (apolloSubEl) {
-            const matched = data.apollo?.matched_with_phone || 0;
-            apolloSubEl.textContent = matched > 0 ? `${matched} com número` : 'enriquecimentos';
-        }
-
-        renderDashCharts(data);
-        renderDashTables(data);
+        const data = await apiFetch(`/api/dashboard/prospecting?${qs}`);
+        renderProspectingKPIs(data);
+        renderFunnel(data.funnel);
+        renderTimeline(data.timeline, granularity);
+        renderHeatmap(data.heatmap);
+        renderLeaderboard(data.byUser);
+        renderColdLeads(data.cold_leads);
+        renderApolloHealth(data.apollo);
     } catch (err) {
         console.error('Dashboard error:', err);
-        // Reset KPIs pra "—" pra não ficar com dados velhos
-        ['kpi-sent','kpi-received','kpi-reply-rate','kpi-first-resp',
-         'kpi-total','kpi-comercial','kpi-opec','kpi-convs',
-         'kpi-comercial-pct','kpi-opec-pct',
-         'kpi-act-bb','kpi-act-fr','kpi-act-vm','kpi-transcripts','kpi-apollo'
-        ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
-        // Mensagem inline em vez de toast cruel — possíveis causas:
-        // - sem dados no período (filtro muito restrito)
-        // - bug backend conhecido: data=null em query supabase quando não há msgs
-        const apolloSubEl = document.getElementById('kpi-apollo-sub');
-        if (apolloSubEl) apolloSubEl.textContent = 'Sem dados no período';
-        toast('Sem dados disponíveis no período selecionado', 'warn');
+        if (errEl) {
+            errEl.style.display = 'block';
+            errEl.textContent = `Erro ao carregar dashboard: ${err.message || err}`;
+        }
+        ['kpi-contacts','kpi-responded','kpi-reply-rate','kpi-first-resp','kpi-deals','kpi-sent',
+         'apollo-triggered','apollo-completed','apollo-has-wa'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '—';
+        });
     }
+}
+
+function renderProspectingKPIs(data) {
+    const k = data.kpis || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    set('kpi-contacts',   fmtNum(k.unique_contacts));
+    set('kpi-responded',  fmtNum(k.responded));
+    set('kpi-reply-rate', fmtPct(k.reply_rate));
+    set('kpi-first-resp', fmtDurationMs(k.median_first_response_ms));
+    set('kpi-deals',      fmtNum(k.deals));
+    set('kpi-sent',       fmtNum(k.messages_sent));
+    set('kpi-sent-sub',   `${fmtNum(k.messages_received)} recebidas`);
+    const respondedSub = document.getElementById('kpi-responded-sub');
+    if (respondedSub) {
+        const pct = k.unique_contacts > 0 ? Math.round((k.responded / k.unique_contacts) * 100) : 0;
+        respondedSub.textContent = `${pct}% dos abordados`;
+    }
+}
+
+function renderFunnel(funnel) {
+    const el = document.getElementById('funnel-render');
+    if (!el) return;
+    const f = funnel || { contacted: 0, responded: 0, deals: 0 };
+    const max = Math.max(f.contacted, 1);
+    const steps = [
+        { label: 'Abordados',    value: f.contacted, color: '#00E5FF' },
+        { label: 'Responderam',  value: f.responded, color: '#34D399' },
+        { label: 'Deals',        value: f.deals,     color: '#F59E0B' },
+    ];
+    // Valores são números computados (não user input) — safe inline.
+    el.innerHTML = steps.map(s => {
+        const pct = max > 0 ? (s.value / max) * 100 : 0;
+        return `
+            <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                    <span>${escHtml(s.label)}</span>
+                    <span><b>${fmtNum(s.value)}</b> <span style="color:var(--text-muted)">(${Math.round(pct)}%)</span></span>
+                </div>
+                <div style="height:14px;background:var(--bg-soft);border-radius:7px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:${s.color};transition:width .4s"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTimeline(timeline, granularity) {
+    if (chartDay) chartDay.destroy();
+    const ctx = document.getElementById('chart-timeline')?.getContext('2d');
+    if (!ctx) return;
+    const data = timeline || [];
+    const labels = data.map(b => formatBucket(b.bucket, granularity));
+    const contacts = data.map(b => b.contacts_new);
+    const responded = data.map(b => b.responded);
+    chartDay = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Contatos novos', data: contacts,  backgroundColor: 'rgba(0,229,255,.6)',  borderRadius: 4 },
+                { label: 'Responderam',    data: responded, backgroundColor: 'rgba(52,211,153,.8)', borderRadius: 4 },
+            ],
+        },
+        options: chartOpts({ yMin: 0 }),
+    });
+}
+
+function formatBucket(bucket, granularity) {
+    // daily: 'YYYY-MM-DDTHH' → 'HHh' | weekly/monthly: 'YYYY-MM-DD' → 'MM-DD'
+    if (granularity === 'daily') return bucket.slice(11, 13) + 'h';
+    return bucket.slice(5);
+}
+
+function renderHeatmap(heatmap) {
+    const el = document.getElementById('heatmap-render');
+    if (!el) return;
+    const data = heatmap || [];
+    const grid = {};
+    let maxRate = 0;
+    for (const h of data) {
+        grid[`${h.dow}-${h.hour}`] = h;
+        if (h.reply_rate != null && h.reply_rate > maxRate) maxRate = h.reply_rate;
+    }
+    // Heatmap é 100% gerado a partir de dados computados (números, sem user input).
+    let html = '<table style="border-collapse:separate;border-spacing:2px;font-size:10px"><tr><td></td>';
+    for (let h = 0; h < 24; h++) html += `<td style="text-align:center;color:var(--text-muted);font-size:9px;width:18px">${h}</td>`;
+    html += '</tr>';
+    for (let d = 0; d < 7; d++) {
+        html += `<tr><td style="color:var(--text-muted);padding-right:4px">${DASH_DOW_LABELS[d]}</td>`;
+        for (let h = 0; h < 24; h++) {
+            const cell = grid[`${d}-${h}`];
+            const rate = cell?.reply_rate;
+            const intensity = (rate != null && maxRate > 0) ? rate / maxRate : 0;
+            const sent = cell?.sent || 0;
+            const recv = cell?.received || 0;
+            const bg = sent === 0
+                ? 'rgba(255,255,255,.04)'
+                : `rgba(52,211,153,${0.15 + intensity * 0.75})`;
+            const title = sent === 0
+                ? `${DASH_DOW_LABELS[d]} ${h}h — sem atividade`
+                : `${DASH_DOW_LABELS[d]} ${h}h — ${sent} env, ${recv} resp (${Math.round((rate || 0) * 100)}%)`;
+            html += `<td title="${escHtml(title)}" style="width:18px;height:18px;background:${bg};border-radius:3px"></td>`;
+        }
+        html += '</tr>';
+    }
+    html += '</table>';
+    el.innerHTML = html;
+}
+
+function renderLeaderboard(byUser) {
+    const tbody = document.getElementById('dash-user-tbody');
+    if (!tbody) return;
+    const rows = byUser || [];
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Sem atividade no período</td></tr>';
+        return;
+    }
+    // User-fornecido (name, phone_numbers) passa por escHtml — safe.
+    tbody.innerHTML = rows.map(u => `
+        <tr>
+            <td><b>${escHtml(u.name)}</b></td>
+            <td style="color:var(--text-muted);font-size:11px"><code>${escHtml((u.phone_numbers || []).join(', ') || '—')}</code></td>
+            <td style="text-align:right">${fmtNum(u.unique_contacts)}</td>
+            <td style="text-align:right">${fmtNum(u.responded)}</td>
+            <td style="text-align:right">${fmtPct(u.reply_rate)}</td>
+            <td style="text-align:right">${fmtDurationMs(u.median_first_response_ms)}</td>
+            <td style="text-align:right">${fmtNum(u.deals)}</td>
+            <td style="text-align:right">${fmtNum(u.messages_sent)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderColdLeads(cold) {
+    const tbody = document.getElementById('dash-cold-tbody');
+    if (!tbody) return;
+    const rows = cold || [];
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px">Nenhum lead frio 🎉</td></tr>';
+        return;
+    }
+    // Fields user-controlled (lead_name, phone, owner_name) escapados via escHtml.
+    tbody.innerHTML = rows.map(l => `
+        <tr>
+            <td><b>${escHtml(l.lead_name)}</b></td>
+            <td><code>${escHtml(l.phone)}</code></td>
+            <td>${escHtml(l.owner_name)}</td>
+            <td style="text-align:right;color:var(--amber)"><b>${l.days_cold}d</b></td>
+        </tr>
+    `).join('');
+}
+
+function renderApolloHealth(apollo) {
+    const a = apollo || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('apollo-triggered', fmtNum(a.triggered));
+    set('apollo-completed', fmtNum(a.completed));
+    set('apollo-has-wa',    fmtNum(a.has_whatsapp));
 }
 
 function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString('pt-BR'); }
@@ -3090,58 +3222,10 @@ function fmtPct(r) { return r == null ? '—' : `${Math.round(r * 100)}%`; }
 function fmtDurationMs(ms) {
     if (ms == null) return '—';
     const sec = Math.round(ms / 1000);
-    if (sec < 60)      return `${sec}s`;
-    if (sec < 3600)    return `${Math.round(sec/60)}min`;
-    if (sec < 86400)   return `${(sec/3600).toFixed(1)}h`;
-    return `${(sec/86400).toFixed(1)}d`;
-}
-
-function renderDashTables(data) {
-    const isAdmin = currentUser?.role === 'Admin';
-    const uWrap = document.getElementById('dash-user-table-wrap');
-    const aWrap = document.getElementById('dash-account-table-wrap');
-    if (uWrap) uWrap.style.display = isAdmin ? '' : 'none';
-    if (aWrap) aWrap.style.display = isAdmin ? '' : 'none';
-
-    // Tabela usuários
-    const utbody = document.getElementById('dash-user-tbody');
-    if (utbody) {
-        const rows = data.byUser || [];
-        if (rows.length === 0) {
-            utbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px">Sem atividade no período</td></tr>';
-        } else {
-            utbody.innerHTML = rows.map(u => `
-                <tr>
-                    <td><b>${escHtml(u.name)}</b></td>
-                    <td style="text-align:right">${fmtNum(u.sent)}</td>
-                    <td style="text-align:right">${fmtNum(u.received)}</td>
-                    <td style="text-align:right">${fmtPct(u.reply_rate)}</td>
-                    <td style="text-align:right">${fmtNum(u.conversations)}</td>
-                    <td style="text-align:right">${fmtDurationMs(u.avg_first_response_ms)}</td>
-                </tr>
-            `).join('');
-        }
-    }
-
-    // Tabela números
-    const atbody = document.getElementById('dash-account-tbody');
-    if (atbody) {
-        const rows = data.byAccount || [];
-        if (rows.length === 0) {
-            atbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px">Sem atividade no período</td></tr>';
-        } else {
-            atbody.innerHTML = rows.map(a => `
-                <tr>
-                    <td><code>${escHtml(a.phone)}</code></td>
-                    <td>${escHtml(a.owner_name || '—')}</td>
-                    <td style="text-align:right">${fmtNum(a.sent)}</td>
-                    <td style="text-align:right">${fmtNum(a.received)}</td>
-                    <td style="text-align:right">${fmtPct(a.reply_rate)}</td>
-                    <td style="text-align:right">${fmtNum(a.conversations)}</td>
-                </tr>
-            `).join('');
-        }
-    }
+    if (sec < 60)    return `${sec}s`;
+    if (sec < 3600)  return `${Math.round(sec / 60)}min`;
+    if (sec < 86400) return `${(sec / 3600).toFixed(1)}h`;
+    return `${(sec / 86400).toFixed(1)}d`;
 }
 
 async function setupDashFilters() {
@@ -3150,15 +3234,13 @@ async function setupDashFilters() {
         el.style.display = isAdmin ? '' : 'none';
     });
     if (!isAdmin) return;
-
-    // Popula filtros só pro Admin
     try {
         const users = (await apiFetch('/api/users')).users || [];
         const userSel = document.getElementById('dash-user-filter');
         if (userSel) {
             userSel.innerHTML = '<option value="">Todos atendentes</option>' +
                 users.filter(u => u.active).map(u =>
-                    `<option value="${u.id}">${escHtml(u.name)} (${u.role})</option>`
+                    `<option value="${escHtml(u.id)}">${escHtml(u.name)}</option>`
                 ).join('');
         }
     } catch { /* ignora */ }
@@ -3167,98 +3249,20 @@ async function setupDashFilters() {
         const acctSel = document.getElementById('dash-account-filter');
         if (acctSel) {
             acctSel.innerHTML = '<option value="">Todos números</option>' +
-                accounts.map(a =>
-                    `<option value="${a.id}">${escHtml(a.phone_number || a.name || a.id)}</option>`
-                ).join('');
+                accounts.map(a => {
+                    const id = a.unipile_account_id || a.id;
+                    const label = a.phone_number || a.name || id;
+                    return `<option value="${escHtml(id)}">${escHtml(label)}</option>`;
+                }).join('');
         }
     } catch { /* ignora */ }
 }
 
 function setupDashPeriod() {
-    ['dash-period', 'dash-user-filter', 'dash-account-filter', 'dash-type-filter'].forEach(id => {
+    ['dash-granularity', 'dash-user-filter', 'dash-account-filter'].forEach(id => {
         document.getElementById(id)?.addEventListener('change', loadDashboard);
     });
     setupDashFilters();
-}
-
-function renderDashCharts(data) {
-    // Chart: Envios × Respostas por dia (linha dupla)
-    const byDay = data.byDay || [];
-    const dayLabels = byDay.map(d => d.date);
-    const sentData = byDay.map(d => d.sent);
-    const recvData = byDay.map(d => d.received);
-
-    if (chartDay) chartDay.destroy();
-    const ctx1 = document.getElementById('chart-msgs-day')?.getContext('2d');
-    if (ctx1) {
-        chartDay = new Chart(ctx1, {
-            type: 'line',
-            data: {
-                labels: dayLabels,
-                datasets: [
-                    {
-                        label: 'Enviados',
-                        data: sentData,
-                        borderColor: '#00E5FF',
-                        backgroundColor: 'rgba(0,229,255,.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: .35,
-                        pointRadius: 3,
-                    },
-                    {
-                        label: 'Respostas',
-                        data: recvData,
-                        borderColor: '#34D399',
-                        backgroundColor: 'rgba(52,211,153,.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: .35,
-                        pointRadius: 3,
-                    }
-                ]
-            },
-            options: chartOpts({ yMin: 0 }),
-        });
-    }
-
-    // Chart: Origem
-    if (chartOrigin) chartOrigin.destroy();
-    const ctx2 = document.getElementById('chart-origin')?.getContext('2d');
-    const originData = data.byOrigin || {};
-    if (ctx2) {
-        chartOrigin = new Chart(ctx2, {
-            type: 'doughnut',
-            data: {
-                labels: ['Formulario', 'WhatsApp', 'Prospeccao'],
-                datasets: [{
-                    data: [originData.form||0, originData.whatsapp_direct||0, originData.prospecting||0],
-                    backgroundColor: ['#3B82F6','#00E5FF','#F59E0B'],
-                    borderWidth: 0,
-                }]
-            },
-            options: { ...chartOpts(), cutout: '68%' },
-        });
-    }
-
-    // Chart: Classificacao
-    if (chartClass) chartClass.destroy();
-    const ctx3 = document.getElementById('chart-classification')?.getContext('2d');
-    const clsData = data.byClassification || {};
-    if (ctx3) {
-        chartClass = new Chart(ctx3, {
-            type: 'doughnut',
-            data: {
-                labels: ['Comercial', 'OPEC', 'Nao classificado'],
-                datasets: [{
-                    data: [clsData.comercial||0, clsData.opec||0, clsData.unclassified||0],
-                    backgroundColor: ['#00E5FF','#F59E0B','#374151'],
-                    borderWidth: 0,
-                }]
-            },
-            options: { ...chartOpts(), cutout: '68%' },
-        });
-    }
 }
 
 function chartOpts(extra = {}) {
@@ -3273,11 +3277,11 @@ function chartOpts(extra = {}) {
         scales: extra.yMin !== undefined ? {
             y: {
                 min: extra.yMin,
-                grid: { color: 'rgba(255,255,255,.05)' },
+                grid:  { color: 'rgba(255,255,255,.05)' },
                 ticks: { color: '#9AA3B8', font: { family: 'Inter', size: 10 } }
             },
             x: {
-                grid: { color: 'rgba(255,255,255,.03)' },
+                grid:  { color: 'rgba(255,255,255,.03)' },
                 ticks: { color: '#9AA3B8', font: { family: 'Inter', size: 10 }, maxTicksLimit: 8 }
             }
         } : undefined,

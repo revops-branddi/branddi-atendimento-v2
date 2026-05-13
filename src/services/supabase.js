@@ -594,60 +594,6 @@ export async function upsertScript(data) {
     return script;
 }
 
-// ─── DASHBOARD ────────────────────────────────────────────────────────
-
-export async function getDashboardStats({ days = 30 } = {}) {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-    const [leadsRes, convRes, firstResponseRes] = await Promise.all([
-        supabase.from('leads').select('id, origin, classification, created_at')
-            .gte('created_at', since),
-        supabase.from('conversations').select('id, status, assigned_to, channel, created_at')
-            .gte('created_at', since),
-        supabase.from('messages').select('conversation_id, created_at, direction')
-            .gte('created_at', since).order('created_at', { ascending: true }),
-    ]);
-
-    const leads = leadsRes.data || [];
-    const convs = convRes.data || [];
-
-    const byOrigin = leads.reduce((acc, l) => {
-        acc[l.origin] = (acc[l.origin] || 0) + 1;
-        return acc;
-    }, {});
-
-    const byClassification = leads.reduce((acc, l) => {
-        acc[l.classification] = (acc[l.classification] || 0) + 1;
-        return acc;
-    }, {});
-
-    const byStatus = convs.reduce((acc, c) => {
-        acc[c.status] = (acc[c.status] || 0) + 1;
-        return acc;
-    }, {});
-
-    const leadsByDay = {};
-    leads.forEach(l => {
-        const day = l.created_at.split('T')[0];
-        leadsByDay[day] = (leadsByDay[day] || 0) + 1;
-    });
-
-    return {
-        totals: {
-            leads: leads.length,
-            conversations: convs.length,
-            comercial: byClassification.comercial || 0,
-            opec: byClassification.opec || 0,
-            unclassified: byClassification.unclassified || 0,
-        },
-        byOrigin,
-        byClassification,
-        byStatus,
-        leadsByDay,
-        period_days: days,
-    };
-}
-
 // ─── COMMERCIAL EVENTS (dashboard analytics) ─────────────────────────
 
 /**
@@ -670,282 +616,301 @@ export async function logCommercialEvent(event_type, ctx = {}) {
     } catch { /* silently drop */ }
 }
 
-// ─── ANALYTICS DASHBOARD ─────────────────────────────────────────────
+// ─── PROSPECTING DASHBOARD ───────────────────────────────────────────
+
+const PROSPECTING_GRANULARITY_DAYS = { daily: 1, weekly: 7, monthly: 30 };
+const PROSPECTING_COLD_THRESHOLD_DAYS = 3;
+const PROSPECTING_FIRST_RESPONSE_CAP_MS = 7 * 86_400_000; // ignora outliers > 7d
 
 /**
- * Dashboard analítico com métricas por usuário, por número WhatsApp e agregados.
- * Role-aware: SDR vê só os próprios dados; Admin vê tudo e pode filtrar.
+ * Dashboard de prospecção. Atribuição via dono original do número WA
+ * (whatsapp_accounts.connected_by_user_id) — não usa messages.sent_by_user_id
+ * porque o campo é incompleto historicamente e a regra do projeto é "1 número
+ * = 1 dono".
+ *
+ * Granularidades: 'daily' (1d), 'weekly' (7d), 'monthly' (30d).
+ * Role-aware: Admin vê tudo + filtra; SDR vê só os números que possui.
  */
-export async function getAnalyticsDashboard({
-    days = 30,
-    user_id = null,         // Admin filtra por SDR; SDR é forçado a ele
-    account_id = null,       // filtro por número WhatsApp
-    type = null,             // 'inbound' | 'prospecting'
+export async function getProspectingDashboard({
+    granularity = 'monthly',
+    user_id = null,
+    account_id = null,
     role = 'Usuario',
     requester_id = null,
 } = {}) {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const days = PROSPECTING_GRANULARITY_DAYS[granularity] || 30;
+    const now = new Date();
+    const sinceIso = new Date(now.getTime() - days * 86_400_000).toISOString();
     const effectiveUserId = role === 'Admin' ? user_id : requester_id;
 
-    // Resolve lista de accounts que o filtro implica
-    let accountsFilter = null;
-    if (account_id) {
-        accountsFilter = [account_id];
-    } else if (effectiveUserId) {
-        const { data: u } = await supabase
-            .from('platform_users')
-            .select('permissions')
-            .eq('id', effectiveUserId)
-            .maybeSingle();
-        accountsFilter = u?.permissions?.whatsapp_accounts || [];
-        if (accountsFilter.length === 0 && role !== 'Admin') {
-            // SDR sem números vê zero
-            return emptyAnalytics(days, since);
-        }
-    }
+    // 1. Universo de accounts elegíveis (não excluídos, com owner)
+    let accountQ = supabase
+        .from('whatsapp_accounts')
+        .select('unipile_account_id, phone_number, connected_by_user_id')
+        .eq('excluded_from_metrics', false)
+        .not('connected_by_user_id', 'is', null);
+    if (account_id) accountQ = accountQ.eq('unipile_account_id', account_id);
+    if (effectiveUserId) accountQ = accountQ.eq('connected_by_user_id', effectiveUserId);
+    const accountsRes = await accountQ;
+    const accounts = accountsRes.data || [];
+    if (accounts.length === 0) return emptyProspecting(granularity, sinceIso);
 
-    // Query base de conversas pra resolver conversation_ids no escopo
-    let convQuery = supabase
+    const accountIds = accounts.map(a => a.unipile_account_id);
+    const ownerByAccount = Object.fromEntries(
+        accounts.map(a => [a.unipile_account_id, a.connected_by_user_id])
+    );
+
+    // 2. Hidrata users (donos) com nome
+    const ownerIds = [...new Set(accounts.map(a => a.connected_by_user_id))];
+    const usersRes = await supabase
+        .from('platform_users')
+        .select('id, name')
+        .in('id', ownerIds);
+    const users = usersRes.data || [];
+    const userById = Object.fromEntries(users.map(u => [u.id, u]));
+
+    // 3. Conversas do scope. Carrega TODAS as do scope (pra cold_leads conseguir
+    //    enxergar conversas antigas) + um set separado das que tiveram atividade
+    //    no período (last_message_at >= since), usado pra limitar a query de
+    //    mensagens — PostgREST `.in()` com 700+ UUIDs estoura o limite de URL.
+    const convsRes = await supabase
         .from('conversations')
-        .select('id, whatsapp_account_id, type, status, created_at, lead_id')
-        .gte('created_at', since);
-    if (type) convQuery = convQuery.eq('type', type);
-    if (accountsFilter && accountsFilter.length > 0) {
-        convQuery = convQuery.in('whatsapp_account_id', accountsFilter);
-    }
-    const { data: convs = [] } = await convQuery;
-    const convIds = convs.map(c => c.id);
+        .select('id, whatsapp_account_id, lead_id, crm_deal_id, last_message_at, status')
+        .in('whatsapp_account_id', accountIds)
+        .limit(20000);
+    const convs = convsRes.data || [];
+    if (convs.length === 0) return emptyProspecting(granularity, sinceIso);
+    const convById = Object.fromEntries(convs.map(c => [c.id, c]));
+    const convsInPeriod = convs.filter(c => c.last_message_at && c.last_message_at >= sinceIso);
+    const convIdsInPeriod = convsInPeriod.map(c => c.id);
 
-    // Se scope é vazio, retorna zeros
-    if (convIds.length === 0) {
-        return emptyAnalytics(days, since);
-    }
-
-    // Mensagens no scope
-    let msgQuery = supabase
-        .from('messages')
-        .select('id, conversation_id, direction, sender_type, sent_by_user_id, sent_by_name, created_at')
-        .gte('created_at', since)
-        .in('conversation_id', convIds)
-        .limit(50000);
-    const { data: msgs = [] } = await msgQuery;
-
-    // Agrega envios / respostas
-    let sent = 0, received = 0;
-    const byDay = {}; // { YYYY-MM-DD: { sent, received } }
-    const byUserAgg = {}; // { user_id: { sent, received, name, first_responses_ms: [], convs: Set } }
-    const byAccountAgg = {}; // { account_id: { sent, received, convs: Set } }
-    const convFirstOutboundBy = {}; // convId → { user_id, timestamp }
-    const convFirstInboundAfter = {}; // convId → earliest inbound timestamp after first outbound
-
-    const convMap = Object.fromEntries(convs.map(c => [c.id, c]));
-
-    // Para detectar "1ª resposta": primeiro outbound humano, depois primeiro inbound após ele
-    const sortedMsgs = [...msgs].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    for (const m of sortedMsgs) {
-        const day = m.created_at.slice(0, 10);
-        byDay[day] ||= { sent: 0, received: 0 };
-        const conv = convMap[m.conversation_id];
-        const accountId = conv?.whatsapp_account_id || null;
-
-        if (m.direction === 'outbound' && m.sender_type === 'human') {
-            sent++;
-            byDay[day].sent++;
-            if (accountId) {
-                byAccountAgg[accountId] ||= { sent: 0, received: 0, convs: new Set() };
-                byAccountAgg[accountId].sent++;
-                byAccountAgg[accountId].convs.add(m.conversation_id);
-            }
-            if (m.sent_by_user_id) {
-                byUserAgg[m.sent_by_user_id] ||= { sent: 0, received: 0, name: m.sent_by_name || null, first_responses_ms: [], convs: new Set() };
-                byUserAgg[m.sent_by_user_id].sent++;
-                byUserAgg[m.sent_by_user_id].convs.add(m.conversation_id);
-            }
-            // Primeiro outbound da conversa define o "dono" pra medir tempo de resposta
-            if (!convFirstOutboundBy[m.conversation_id]) {
-                convFirstOutboundBy[m.conversation_id] = {
-                    user_id: m.sent_by_user_id || null,
-                    ts: m.created_at,
-                };
-            }
-        } else if (m.direction === 'inbound') {
-            received++;
-            byDay[day].received++;
-            if (accountId) {
-                byAccountAgg[accountId] ||= { sent: 0, received: 0, convs: new Set() };
-                byAccountAgg[accountId].received++;
-            }
-            // Atribui recepção ao user que fez o primeiro outbound daquela conversa
-            const firstOut = convFirstOutboundBy[m.conversation_id];
-            if (firstOut?.user_id) {
-                byUserAgg[firstOut.user_id].received++;
-                // 1ª resposta (só a primeira depois do outbound)
-                if (!convFirstInboundAfter[m.conversation_id]) {
-                    convFirstInboundAfter[m.conversation_id] = m.created_at;
-                    const delta = new Date(m.created_at) - new Date(firstOut.ts);
-                    if (delta > 0 && delta < 7 * 86400 * 1000) { // ignora outliers > 7d
-                        byUserAgg[firstOut.user_id].first_responses_ms.push(delta);
-                    }
-                }
-            }
+    // 4. Mensagens no período. Se o set ainda for grande, faz chunks de 200 IDs.
+    const msgs = [];
+    if (convIdsInPeriod.length > 0) {
+        for (let i = 0; i < convIdsInPeriod.length; i += 200) {
+            const chunk = convIdsInPeriod.slice(i, i + 200);
+            const r = await supabase
+                .from('messages')
+                .select('conversation_id, direction, created_at')
+                .gte('created_at', sinceIso)
+                .in('conversation_id', chunk)
+                .limit(50000);
+            if (r.data) msgs.push(...r.data);
         }
     }
 
-    // Tempo médio de 1ª resposta global
-    const allFirstMs = Object.values(byUserAgg).flatMap(u => u.first_responses_ms);
-    const avgFirstResponseMs = allFirstMs.length > 0
-        ? Math.round(allFirstMs.reduce((s, v) => s + v, 0) / allFirstMs.length)
-        : null;
+    // 5. Agrega por conversa: 1º outbound, 1º inbound, totais sent/recv
+    const perConv = new Map();
+    for (const m of msgs) {
+        const c = convById[m.conversation_id];
+        if (!c) continue;
+        let s = perConv.get(m.conversation_id);
+        if (!s) {
+            s = {
+                firstOut: null, firstIn: null, sent: 0, recv: 0,
+                leadId: c.lead_id,
+                ownerId: ownerByAccount[c.whatsapp_account_id] || null,
+                accountId: c.whatsapp_account_id,
+                hasDeal: !!c.crm_deal_id,
+            };
+            perConv.set(m.conversation_id, s);
+        }
+        if (m.direction === 'outbound') {
+            s.sent++;
+            if (!s.firstOut || m.created_at < s.firstOut) s.firstOut = m.created_at;
+        } else if (m.direction === 'inbound') {
+            s.recv++;
+            if (!s.firstIn || m.created_at < s.firstIn) s.firstIn = m.created_at;
+        }
+    }
+    const activeConvs = [...perConv.values()].filter(s => s.sent > 0);
 
-    // Hidrata nomes dos users a partir de platform_users
-    const userIds = Object.keys(byUserAgg);
-    let userMap = {};
-    if (userIds.length > 0) {
-        const { data: users = [] } = await supabase
-            .from('platform_users')
-            .select('id, name, permissions')
-            .in('id', userIds);
-        userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    // KPIs globais
+    const uniqueContactLeads = new Set();
+    const respondedLeads = new Set();
+    const dealsLeads = new Set();
+    let messagesSent = 0, messagesReceived = 0;
+    const firstResponseDeltas = [];
+
+    // Agregação por owner
+    const byUserAgg = new Map();
+    const aggForUser = (uid) => {
+        let a = byUserAgg.get(uid);
+        if (!a) {
+            a = { unique: new Set(), responded: new Set(), deals: new Set(), sent: 0, recv: 0, deltas: [] };
+            byUserAgg.set(uid, a);
+        }
+        return a;
+    };
+
+    for (const s of activeConvs) {
+        const lid = s.leadId;
+        if (lid) uniqueContactLeads.add(lid);
+        if (s.hasDeal && lid) dealsLeads.add(lid);
+        messagesSent += s.sent;
+        messagesReceived += s.recv;
+
+        const respondedConv = !!(s.firstIn && s.firstOut && s.firstIn > s.firstOut);
+        if (respondedConv && lid) respondedLeads.add(lid);
+        let delta = null;
+        if (respondedConv) {
+            delta = new Date(s.firstIn) - new Date(s.firstOut);
+            if (delta > 0 && delta < PROSPECTING_FIRST_RESPONSE_CAP_MS) {
+                firstResponseDeltas.push(delta);
+            } else {
+                delta = null;
+            }
+        }
+
+        if (s.ownerId) {
+            const a = aggForUser(s.ownerId);
+            if (lid) a.unique.add(lid);
+            if (respondedConv && lid) a.responded.add(lid);
+            if (s.hasDeal && lid) a.deals.add(lid);
+            a.sent += s.sent;
+            a.recv += s.recv;
+            if (delta) a.deltas.push(delta);
+        }
     }
 
-    const byUser = userIds.map(uid => {
-        const agg = byUserAgg[uid];
-        const firstMsAvg = agg.first_responses_ms.length > 0
-            ? Math.round(agg.first_responses_ms.reduce((s, v) => s + v, 0) / agg.first_responses_ms.length)
-            : null;
+    const phonesByOwner = {};
+    for (const a of accounts) {
+        (phonesByOwner[a.connected_by_user_id] ||= []).push(a.phone_number);
+    }
+
+    const byUser = [...byUserAgg.entries()].map(([uid, a]) => ({
+        user_id: uid,
+        name: userById[uid]?.name || '—',
+        phone_numbers: [...new Set(phonesByOwner[uid] || [])],
+        unique_contacts: a.unique.size,
+        responded: a.responded.size,
+        reply_rate: a.unique.size ? a.responded.size / a.unique.size : null,
+        median_first_response_ms: median(a.deltas),
+        deals: a.deals.size,
+        messages_sent: a.sent,
+        messages_received: a.recv,
+    })).sort((x, y) => y.unique_contacts - x.unique_contacts);
+
+    // Timeline buckets: daily → hora; weekly/monthly → dia
+    const bucketKey = (iso) => granularity === 'daily' ? iso.slice(0, 13) : iso.slice(0, 10);
+    const timelineMap = new Map();
+    for (const s of activeConvs) {
+        if (!s.firstOut) continue;
+        const k = bucketKey(s.firstOut);
+        let b = timelineMap.get(k);
+        if (!b) { b = { bucket: k, contacts_new: 0, responded: 0 }; timelineMap.set(k, b); }
+        b.contacts_new++;
+        if (s.firstIn && s.firstIn > s.firstOut) b.responded++;
+    }
+    const timeline = [...timelineMap.values()].sort((a, b) => a.bucket.localeCompare(b.bucket));
+
+    // Heatmap dia-da-semana × hora (horário local do servidor)
+    const heatmapMap = new Map();
+    for (const m of msgs) {
+        const d = new Date(m.created_at);
+        const dow = d.getDay();
+        const hour = d.getHours();
+        const key = `${dow}-${hour}`;
+        let h = heatmapMap.get(key);
+        if (!h) { h = { dow, hour, sent: 0, received: 0 }; heatmapMap.set(key, h); }
+        if (m.direction === 'outbound') h.sent++;
+        else if (m.direction === 'inbound') h.received++;
+    }
+    // Cap em 1.0 — múltiplas mensagens do mesmo lead podem fazer received > sent;
+    // pro heatmap importa "houve engajamento", não razão bruta.
+    const heatmap = [...heatmapMap.values()].map(h => ({
+        ...h,
+        reply_rate: h.sent ? Math.min(h.received / h.sent, 1) : null,
+    }));
+
+    // Cold leads: top 10 conversas no scope com última msg há > N dias
+    const coldCutoff = new Date(now.getTime() - PROSPECTING_COLD_THRESHOLD_DAYS * 86_400_000).toISOString();
+    const coldCandidates = convs
+        .filter(c => c.lead_id && c.last_message_at && c.last_message_at < coldCutoff)
+        .sort((a, b) => a.last_message_at.localeCompare(b.last_message_at))
+        .slice(0, 10);
+    let coldLeadInfo = [];
+    if (coldCandidates.length > 0) {
+        const leadsRes = await supabase
+            .from('leads')
+            .select('id, name, phone')
+            .in('id', coldCandidates.map(c => c.lead_id));
+        coldLeadInfo = leadsRes.data || [];
+    }
+    const leadById = Object.fromEntries(coldLeadInfo.map(l => [l.id, l]));
+    const cold_leads = coldCandidates.map(c => {
+        const ownerId = ownerByAccount[c.whatsapp_account_id];
         return {
-            user_id: uid,
-            name: userMap[uid]?.name || agg.name || '—',
-            phone_numbers: userMap[uid]?.permissions?.whatsapp_accounts || [],
-            sent: agg.sent,
-            received: agg.received,
-            reply_rate: agg.sent > 0 ? agg.received / agg.sent : null,
-            conversations: agg.convs.size,
-            avg_first_response_ms: firstMsAvg,
+            lead_id: c.lead_id,
+            lead_name: leadById[c.lead_id]?.name || '—',
+            phone: leadById[c.lead_id]?.phone || '—',
+            owner_name: userById[ownerId]?.name || '—',
+            last_message_at: c.last_message_at,
+            days_cold: Math.floor((now - new Date(c.last_message_at)) / 86_400_000),
         };
-    }).sort((a, b) => b.sent - a.sent);
+    });
 
-    // Hidrata phone dos accounts
-    const accountIds = Object.keys(byAccountAgg);
-    let accountMap = {};
-    if (accountIds.length > 0) {
-        const { data: accounts = [] } = await supabase
-            .from('whatsapp_accounts')
-            .select('unipile_account_id, phone_number, connected_by_user_id, platform_users:connected_by_user_id(name)')
-            .in('unipile_account_id', accountIds);
-        accountMap = Object.fromEntries(accounts.map(a => [a.unipile_account_id, a]));
-    }
-
-    const byAccount = accountIds.map(aid => {
-        const agg = byAccountAgg[aid];
-        return {
-            account_id: aid,
-            phone: accountMap[aid]?.phone_number || '—',
-            owner_name: accountMap[aid]?.platform_users?.name || null,
-            sent: agg.sent,
-            received: agg.received,
-            conversations: agg.convs.size,
-            reply_rate: agg.sent > 0 ? agg.received / agg.sent : null,
-        };
-    }).sort((a, b) => b.sent - a.sent);
-
-    // Eventos comerciais (atividades manuais, Apollo, etc.)
-    let eventsQuery = supabase
-        .from('commercial_events')
-        .select('event_type, user_id, conversation_id, whatsapp_account_id, created_at')
-        .gte('created_at', since)
-        .limit(50000);
-    if (effectiveUserId) eventsQuery = eventsQuery.eq('user_id', effectiveUserId);
-    if (accountsFilter && accountsFilter.length > 0) {
-        eventsQuery = eventsQuery.in('whatsapp_account_id', accountsFilter);
-    }
-    const { data: events = [] } = await eventsQuery;
-    const eventsByType = events.reduce((acc, e) => {
-        acc[e.event_type] = (acc[e.event_type] || 0) + 1;
-        return acc;
-    }, {});
-
-    // Apollo enrichments (da tabela específica)
-    let apolloQuery = supabase
+    // Apollo health no período
+    let apolloQ = supabase
         .from('apollo_enrichments')
-        .select('status, phone, user_id')
-        .gte('created_at', since);
-    if (effectiveUserId) apolloQuery = apolloQuery.eq('user_id', effectiveUserId);
-    const { data: apolloRows = [] } = await apolloQuery;
+        .select('status, has_whatsapp, user_id')
+        .gte('created_at', sinceIso);
+    if (effectiveUserId) apolloQ = apolloQ.eq('user_id', effectiveUserId);
+    const apolloRes = await apolloQ;
+    const apolloRows = apolloRes.data || [];
     const apollo = {
         triggered: apolloRows.length,
         completed: apolloRows.filter(r => r.status === 'completed').length,
-        matched_with_phone: apolloRows.filter(r => r.status === 'completed' && r.phone).length,
-        not_found: apolloRows.filter(r => r.status === 'not_found').length,
+        has_whatsapp: apolloRows.filter(r => r.has_whatsapp === true).length,
     };
 
-    // Leads breakdown (para manter KPIs existentes)
-    let leadsQuery = supabase
-        .from('leads')
-        .select('id, origin, classification, created_at')
-        .gte('created_at', since);
-    const { data: leads = [] } = await leadsQuery;
-    const byOrigin = {}, byClassification = {};
-    leads.forEach(l => {
-        byOrigin[l.origin] = (byOrigin[l.origin] || 0) + 1;
-        byClassification[l.classification] = (byClassification[l.classification] || 0) + 1;
-    });
-
     return {
-        period: { days, since },
-        scope: {
-            role,
-            user_id: effectiveUserId,
-            account_id,
-            type,
+        period: { granularity, days, since: sinceIso, until: now.toISOString() },
+        scope: { role, user_id: effectiveUserId, account_id },
+        kpis: {
+            unique_contacts: uniqueContactLeads.size,
+            responded: respondedLeads.size,
+            reply_rate: uniqueContactLeads.size ? respondedLeads.size / uniqueContactLeads.size : null,
+            median_first_response_ms: median(firstResponseDeltas),
+            deals: dealsLeads.size,
+            messages_sent: messagesSent,
+            messages_received: messagesReceived,
         },
-        totals: {
-            leads: leads.length,
-            conversations: convs.length,
-            comercial: byClassification.comercial || 0,
-            opec: byClassification.opec || 0,
-            unclassified: byClassification.unclassified || 0,
-        },
-        messages: {
-            sent,
-            received,
-            reply_rate: sent > 0 ? received / sent : null,
-            avg_first_response_ms: avgFirstResponseMs,
-        },
-        byDay: Object.entries(byDay)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([date, v]) => ({ date, sent: v.sent, received: v.received })),
         byUser: role === 'Admin' ? byUser : byUser.filter(u => u.user_id === effectiveUserId),
-        byAccount,
-        activities: {
-            wa_bb: eventsByType.wa_activity_bb || 0,
-            wa_fr: eventsByType.wa_activity_fr || 0,
-            wa_vm: eventsByType.wa_activity_vm || 0,
-            transcripts: eventsByType.transcript_sent || 0,
-            total_manual:
-                (eventsByType.wa_activity_bb || 0) +
-                (eventsByType.wa_activity_fr || 0) +
-                (eventsByType.wa_activity_vm || 0),
+        timeline,
+        heatmap,
+        funnel: {
+            contacted: uniqueContactLeads.size,
+            responded: respondedLeads.size,
+            deals: dealsLeads.size,
         },
+        cold_leads,
         apollo,
-        byOrigin,
-        byClassification,
     };
 }
 
-function emptyAnalytics(days, since) {
+function median(arr) {
+    if (!arr || arr.length === 0) return null;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : Math.round((sorted[m - 1] + sorted[m]) / 2);
+}
+
+function emptyProspecting(granularity, since) {
     return {
-        period: { days, since },
-        scope: { role: 'Usuario', user_id: null, account_id: null, type: null },
-        totals: { leads: 0, conversations: 0, comercial: 0, opec: 0, unclassified: 0 },
-        messages: { sent: 0, received: 0, reply_rate: null, avg_first_response_ms: null },
-        byDay: [],
+        period: { granularity, days: PROSPECTING_GRANULARITY_DAYS[granularity] || 30, since, until: new Date().toISOString() },
+        scope: { role: 'Usuario', user_id: null, account_id: null },
+        kpis: {
+            unique_contacts: 0, responded: 0, reply_rate: null,
+            median_first_response_ms: null, deals: 0,
+            messages_sent: 0, messages_received: 0,
+        },
         byUser: [],
-        byAccount: [],
-        activities: { wa_bb: 0, wa_fr: 0, wa_vm: 0, transcripts: 0, total_manual: 0 },
-        apollo: { triggered: 0, completed: 0, matched_with_phone: 0, not_found: 0 },
-        byOrigin: {},
-        byClassification: {},
+        timeline: [],
+        heatmap: [],
+        funnel: { contacted: 0, responded: 0, deals: 0 },
+        cold_leads: [],
+        apollo: { triggered: 0, completed: 0, has_whatsapp: 0 },
     };
 }
 
