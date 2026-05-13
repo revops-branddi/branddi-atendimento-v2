@@ -4116,22 +4116,19 @@ body.app-body, body, .app-layout {
   gap: 8px;
 }
 
-/* Funil — barras mais robustas */
-#panel-dashboard #funnel-render > div {
+/* Funil — espaçamento e legibilidade. Não sobrescreve background/width
+   das barras (definidos inline pelo JS com a cor de cada step). */
+#panel-dashboard #funnel-render {
   gap: 14px !important;
 }
-#panel-dashboard #funnel-render > div > div > div:first-child {
+/* label row (display:flex) — peso médio nas labels */
+#panel-dashboard #funnel-render > div > div:first-child {
   font-size: 13px !important;
-  font-weight: 500 !important;
   margin-bottom: 6px !important;
 }
-#panel-dashboard #funnel-render > div > div > div:last-child {
-  height: 12px !important;
-  background: var(--bg-input) !important;
-  border-radius: 6px !important;
-}
-#panel-dashboard #funnel-render > div > div > div:last-child > div {
-  border-radius: 6px;
+#panel-dashboard #funnel-render > div > div:first-child > span:first-child {
+  font-weight: 500;
+  color: var(--text-1, #fff);
 }
 
 /* Heatmap — cells maiores, mais arejado */
@@ -4170,10 +4167,13 @@ body.app-body, body, .app-layout {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  /* scroll horizontal em viewports estreitos em vez de cortar colunas */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 #panel-dashboard .table-pro {
   width: 100%;
+  min-width: 720px;  /* garante legibilidade — abaixo disso aparece scroll horizontal */
   border-collapse: collapse;
 }
 #panel-dashboard .table-pro thead th {
