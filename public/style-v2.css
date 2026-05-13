@@ -3968,3 +3968,288 @@ body.app-body, body, .app-layout {
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   PROSPECTING DASHBOARD — visual refinement (v2.1)
+   Escopo: #panel-dashboard only. Não impacta outros painéis.
+   Princípios: hierarquia tipográfica, padding generoso, tokens
+   semânticos, hover sutil, spacing harmonioso (8/16/24px).
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Panel header — espaço respirável + filtros polidos */
+#panel-dashboard .panel-header {
+  padding: 24px 24px 8px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+#panel-dashboard .panel-title {
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  color: var(--text-1, #fff) !important;
+}
+#panel-dashboard .filter-select {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-md) !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  color: var(--text-1, #fff) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  min-height: 36px !important;
+  transition: border-color 0.15s var(--ease);
+}
+#panel-dashboard .filter-select:hover {
+  border-color: var(--border-strong) !important;
+}
+#panel-dashboard .filter-select:focus-visible {
+  border-color: var(--accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Section title — uppercase tracking, separador sutil */
+#panel-dashboard .dash-section-title {
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em !important;
+  margin: 28px 24px 12px !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#panel-dashboard .dash-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin-left: 4px;
+}
+
+/* KPI grid + cards */
+#panel-dashboard .kpi-grid {
+  margin: 0 24px !important;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+  gap: 14px !important;
+}
+#panel-dashboard .kpi-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  padding: 18px 20px !important;
+  position: relative;
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+  overflow: hidden;
+}
+#panel-dashboard .kpi-card:hover {
+  border-color: var(--border-strong) !important;
+  transform: translateY(-1px);
+}
+/* Faixa lateral colorida por variante */
+#panel-dashboard .kpi-card.kpi-accent::before,
+#panel-dashboard .kpi-card.kpi-green::before,
+#panel-dashboard .kpi-card.kpi-amber::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+#panel-dashboard .kpi-card.kpi-accent::before { background: var(--accent); }
+#panel-dashboard .kpi-card.kpi-green::before  { background: var(--green); }
+#panel-dashboard .kpi-card.kpi-amber::before  { background: var(--amber); }
+
+#panel-dashboard .kpi-label {
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em !important;
+  margin-bottom: 8px !important;
+}
+#panel-dashboard .kpi-value {
+  color: var(--text-1, #fff) !important;
+  font-size: 30px !important;
+  font-weight: 600 !important;
+  line-height: 1.1 !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin: 0 !important;
+}
+#panel-dashboard .kpi-card.kpi-accent .kpi-value { color: var(--accent) !important; }
+#panel-dashboard .kpi-card.kpi-green  .kpi-value { color: var(--green)  !important; }
+#panel-dashboard .kpi-card.kpi-amber  .kpi-value { color: var(--amber)  !important; }
+#panel-dashboard .kpi-sub {
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  margin-top: 6px !important;
+}
+
+/* Charts grid + cards */
+#panel-dashboard .charts-grid {
+  margin: 16px 24px !important;
+  display: grid !important;
+  gap: 16px !important;
+}
+#panel-dashboard .chart-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  padding: 20px 22px !important;
+  transition: border-color 0.2s var(--ease);
+}
+#panel-dashboard .chart-card:hover {
+  border-color: var(--border-strong) !important;
+}
+#panel-dashboard .chart-title {
+  color: var(--text-1, #fff) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.005em;
+  margin-bottom: 14px !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Funil — barras mais robustas */
+#panel-dashboard #funnel-render > div {
+  gap: 14px !important;
+}
+#panel-dashboard #funnel-render > div > div > div:first-child {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  margin-bottom: 6px !important;
+}
+#panel-dashboard #funnel-render > div > div > div:last-child {
+  height: 12px !important;
+  background: var(--bg-input) !important;
+  border-radius: 6px !important;
+}
+#panel-dashboard #funnel-render > div > div > div:last-child > div {
+  border-radius: 6px;
+}
+
+/* Heatmap — cells maiores, mais arejado */
+#panel-dashboard #heatmap-render {
+  padding: 12px 4px !important;
+}
+#panel-dashboard #heatmap-render table {
+  border-spacing: 3px !important;
+  font-size: 11px !important;
+}
+#panel-dashboard #heatmap-render td[title],
+#panel-dashboard #heatmap-render tr > td[style*="width:18px"]:not([title]) {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 4px !important;
+}
+#panel-dashboard #heatmap-render tr > td:first-child {
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding-right: 10px !important;
+  letter-spacing: 0.02em;
+}
+#panel-dashboard #heatmap-render tr:first-child td:not(:first-child) {
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  padding-bottom: 4px !important;
+}
+
+/* Tabela leaderboard + cold leads — rows arejadas */
+#panel-dashboard .dash-table-wrap {
+  margin: 0 24px !important;
+}
+#panel-dashboard .dash-table {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+#panel-dashboard .table-pro {
+  width: 100%;
+  border-collapse: collapse;
+}
+#panel-dashboard .table-pro thead th {
+  background: var(--bg-input) !important;
+  color: var(--text-muted, #93a1aa) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 16px !important;
+  text-align: left;
+  border-bottom: 1px solid var(--border) !important;
+}
+#panel-dashboard .table-pro tbody td {
+  padding: 14px 16px !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--text-1, #fff);
+}
+#panel-dashboard .table-pro tbody tr:last-child td {
+  border-bottom: none !important;
+}
+#panel-dashboard .table-pro tbody tr {
+  transition: background 0.15s var(--ease);
+}
+#panel-dashboard .table-pro tbody tr:hover {
+  background: var(--bg-hover) !important;
+}
+#panel-dashboard .table-pro code {
+  font-family: 'JetBrains Mono', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px !important;
+  color: var(--text-muted, #93a1aa);
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Error inline — mais discreto */
+#panel-dashboard #dash-error {
+  margin: 16px 24px !important;
+  background: var(--red-dim, rgba(255, 92, 92, 0.12)) !important;
+  border: 1px solid var(--red-soft, rgba(255, 92, 92, 0.2)) !important;
+  color: var(--text-1, #fff) !important;
+  border-radius: 10px !important;
+  padding: 12px 16px !important;
+  font-size: 13px;
+}
+
+/* Apollo health card — números maiores */
+#panel-dashboard #apollo-triggered,
+#panel-dashboard #apollo-completed,
+#panel-dashboard #apollo-has-wa {
+  font-size: 28px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+#panel-dashboard #apollo-has-wa {
+  color: var(--accent) !important;
+}
+
+/* Responsivo: viewport menor estreita o padding */
+@media (max-width: 768px) {
+  #panel-dashboard .panel-header { padding: 16px 14px 4px !important; }
+  #panel-dashboard .kpi-grid,
+  #panel-dashboard .charts-grid,
+  #panel-dashboard .dash-table-wrap { margin-left: 14px !important; margin-right: 14px !important; }
+  #panel-dashboard .dash-section-title { margin-left: 14px !important; margin-right: 14px !important; }
+  #panel-dashboard .kpi-value { font-size: 26px !important; }
+  #panel-dashboard .kpi-card { padding: 14px 16px !important; }
+}
+
+/* Fix: prevent flex-column children of #panel-dashboard from shrinking when
+   total content exceeds viewport height. Without this, last items (leaderboard,
+   cold leads) collapse to 2px because flex-shrink:1 is default. */
+#panel-dashboard > * {
+  flex-shrink: 0;
+}
