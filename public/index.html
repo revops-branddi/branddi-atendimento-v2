@@ -551,8 +551,8 @@
         </div>
     </div>
 
-    <!-- Heatmap -->
-    <div class="chart-card" style="margin-top:16px">
+    <!-- Heatmap (override max-height:320px;overflow:hidden do .chart-card em style.css) -->
+    <div class="chart-card" style="margin-top:16px;max-height:none;overflow:visible">
         <h3 class="chart-title">🔥 Melhores horários (taxa de resposta por dia/hora)</h3>
         <div id="heatmap-render" style="overflow-x:auto;padding:8px 4px"></div>
         <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
