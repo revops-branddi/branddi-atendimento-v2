@@ -8,7 +8,7 @@
 const API = '';
 let currentConversation = null;
 let pollTimer = null;
-let chartDay = null;
+let chartDay = null, chartByUser = null;
 let allConversations = [];
 let currentFilter = 'all';
 let allScripts = [];
@@ -3043,6 +3043,7 @@ async function loadDashboard() {
         renderFunnel(data.funnel);
         renderTimeline(data.timeline, granularity);
         renderHeatmap(data.heatmap);
+        renderContactsByUserChart(data.byUser);
         renderLeaderboard(data.byUser);
         renderColdLeads(data.cold_leads);
         renderApolloHealth(data.apollo);
@@ -3165,6 +3166,39 @@ function renderHeatmap(heatmap) {
     }
     html += '</table>';
     el.innerHTML = html;
+}
+
+function renderContactsByUserChart(byUser) {
+    if (chartByUser) chartByUser.destroy();
+    const ctx = document.getElementById('chart-contacts-by-user')?.getContext('2d');
+    if (!ctx) return;
+    // byUser já vem ordenado por unique_contacts desc do backend
+    const rows = (byUser || []).filter(u => u.unique_contacts > 0);
+    if (rows.length === 0) return;
+    chartByUser = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: rows.map(u => u.name),
+            datasets: [
+                {
+                    label: 'Contatos únicos',
+                    data: rows.map(u => u.unique_contacts),
+                    backgroundColor: 'rgba(0,229,255,.7)',
+                    borderRadius: 4,
+                },
+                {
+                    label: 'Responderam',
+                    data: rows.map(u => u.responded),
+                    backgroundColor: 'rgba(52,211,153,.8)',
+                    borderRadius: 4,
+                },
+            ],
+        },
+        options: {
+            ...chartOpts({ yMin: 0 }),
+            indexAxis: 'y',   // barras horizontais — nomes legíveis
+        },
+    });
 }
 
 function renderLeaderboard(byUser) {
