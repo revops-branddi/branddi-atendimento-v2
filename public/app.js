@@ -8,7 +8,7 @@
 const API = '';
 let currentConversation = null;
 let pollTimer = null;
-let chartDay = null, chartByUser = null;
+let chartDay = null, chartByUser = null, chartReplyRate = null;
 let allConversations = [];
 let currentFilter = 'all';
 let allScripts = [];
@@ -3044,6 +3044,7 @@ async function loadDashboard() {
         renderTimeline(data.timeline, granularity);
         renderHeatmap(data.heatmap);
         renderContactsByUserChart(data.byUser);
+        renderReplyRateByUserChart(data.byUser);
         renderLeaderboard(data.byUser);
         renderColdLeads(data.cold_leads);
         renderApolloHealth(data.apollo);
@@ -3197,6 +3198,60 @@ function renderContactsByUserChart(byUser) {
         options: {
             ...chartOpts({ yMin: 0 }),
             indexAxis: 'y',   // barras horizontais — nomes legíveis
+        },
+    });
+}
+
+function renderReplyRateByUserChart(byUser) {
+    if (chartReplyRate) chartReplyRate.destroy();
+    const ctx = document.getElementById('chart-reply-rate-by-user')?.getContext('2d');
+    if (!ctx) return;
+    // Ordena por taxa desc; descarta quem tem 0 contatos (reply_rate=null)
+    const rows = (byUser || [])
+        .filter(u => u.unique_contacts > 0 && u.reply_rate != null)
+        .sort((a, b) => b.reply_rate - a.reply_rate);
+    if (rows.length === 0) return;
+    chartReplyRate = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: rows.map(u => u.name),
+            datasets: [{
+                label: 'Taxa de resposta',
+                // valor decimal (0-1); eixo X formata como %
+                data: rows.map(u => u.reply_rate),
+                backgroundColor: 'rgba(52,211,153,.75)',
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            ...chartOpts({ yMin: 0 }),
+            indexAxis: 'y',
+            scales: {
+                x: {
+                    min: 0,
+                    max: 1,
+                    grid:  { color: 'rgba(255,255,255,.05)' },
+                    ticks: {
+                        color: '#9AA3B8',
+                        font: { family: 'Inter', size: 10 },
+                        callback: v => `${Math.round(v * 100)}%`,
+                    },
+                },
+                y: {
+                    grid:  { color: 'rgba(255,255,255,.03)' },
+                    ticks: { color: '#9AA3B8', font: { family: 'Inter', size: 10 } },
+                },
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#9AA3B8', font: { family: 'Inter', size: 11 }, boxWidth: 12 },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${Math.round(ctx.parsed.x * 100)}% (${rows[ctx.dataIndex].responded}/${rows[ctx.dataIndex].unique_contacts})`,
+                    },
+                },
+            },
         },
     });
 }
