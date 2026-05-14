@@ -70,7 +70,7 @@ router.get('/whatsapp/accounts', async (req, res) => {
         // Busca registros locais para enriquecer com connected_by info
         const { data: localAccounts } = await supabase
             .from('whatsapp_accounts')
-            .select('unipile_account_id, phone_number, label, display_label, connected_by_user_id, status, platform_users:connected_by_user_id(name)');
+            .select('unipile_account_id, phone_number, label, display_label, connected_by_user_id, status, excluded_from_metrics, platform_users:connected_by_user_id(name)');
 
         const localMap = {};
         for (const la of (localAccounts || [])) {
@@ -106,6 +106,7 @@ router.get('/whatsapp/accounts', async (req, res) => {
                 status: a.connection_status || a.status || sourceStatus || local.status || 'unknown',
                 connected_by_user_id: local.connected_by_user_id || null,
                 is_mine: local.connected_by_user_id === user.id,
+                excluded_from_metrics: !!local.excluded_from_metrics,
             };
         });
 

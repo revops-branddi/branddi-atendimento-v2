@@ -1492,8 +1492,13 @@ function setupInboxFilters() {
     if (accountFilterEl && showAccountFilter) {
         if (accountGroup) accountGroup.style.display = '';
         apiFetch('/api/whatsapp/accounts').then(data => {
+            // Filtra:
+            // 1. Contas que o user pode ver (admin vê todas)
+            // 2. excluded_from_metrics=true (números externos ao Atendimento —
+            //    ex: WhatsApp do SITE, número de outro app) — não aparecem
+            //    no filtro do inbox; permanecem visíveis em Configurações.
             const accounts = (data.accounts || []).filter(a =>
-                isAdmin || myAccounts.includes(a.id)
+                !a.excluded_from_metrics && (isAdmin || myAccounts.includes(a.id))
             );
             const items = accounts.map(a => ({
                 id: a.id,
