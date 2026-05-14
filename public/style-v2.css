@@ -4389,16 +4389,7 @@ html[data-chat-bg="watermark"] .chat-area {
   background-size: 260px auto !important;
 }
 
-/* gradient — radial accent ciano + green (estilo Linear/Notion).
-   Opacities aumentadas pra ficar visível em light theme; em dark ainda
-   permanece sutil porque o accent ciano é vivo no fundo dark. */
-html[data-chat-bg="gradient"] .chat-area {
-  background-color: var(--bg-base) !important;
-  background-image:
-    radial-gradient(ellipse 700px 500px at 0% 0%, rgba(0,229,255,0.28), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 100% 100%, rgba(52,211,153,0.22), transparent 65%) !important;
-  background-repeat: no-repeat !important;
-}
+/* gradient option removed (not adopted — see PR cleanup) */
 
 /* pattern — original (marca Branddi tile repetido) — disponível pra quem prefere */
 html[data-chat-bg="pattern"] .chat-area {
