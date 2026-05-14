@@ -1948,8 +1948,22 @@ function renderMessage(msg) {
                 <video src="${proxyUrl}" controls preload="metadata" style="max-width:100%;border-radius:8px;"></video>
             </div>`;
         } else if (isAudio) {
-            attachmentsHtml += `<div class="msg-attachment msg-audio">
-                <audio src="${proxyUrl}" controls preload="metadata" style="width:100%;"></audio>
+            // Player custom WhatsApp-style: play/pause circle + progress bar + time.
+            // `att.duration` vem do Unipile em segundos. Fallback pra "—:—" se
+            // não houver e atualiza ao loadedmetadata. Toggle de play/pause
+            // gerenciado por delegação no document (linha ~XXXX).
+            const dur = Number(att.duration) || 0;
+            const durTxt = dur > 0 ? formatAudioTime(dur) : '—:—';
+            attachmentsHtml += `<div class="msg-attachment msg-audio msg-audio-player" data-duration="${dur}">
+                <audio src="${proxyUrl}" preload="metadata" data-audio></audio>
+                <button class="msg-audio-btn" type="button" aria-label="Play" data-audio-toggle>
+                    <svg class="icon-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="icon-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" style="display:none"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+                </button>
+                <div class="msg-audio-track">
+                    <div class="msg-audio-progress" data-audio-progress></div>
+                </div>
+                <div class="msg-audio-time" data-audio-time>${durTxt}</div>
             </div>`;
         } else {
             attachmentsHtml += `<div class="msg-attachment msg-file">
@@ -3671,6 +3685,102 @@ function showNewMsgNotif(text) {
 function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// Audio player helpers — WhatsApp-style custom player
+function formatAudioTime(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '—:—';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Delegação global: click no botão toca/pausa o audio do player. Pausa
+// outros players ativos pra não tocar 2 simultâneos.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-audio-toggle]');
+    if (!btn) return;
+    const player = btn.closest('.msg-audio-player');
+    if (!player) return;
+    const audio = player.querySelector('[data-audio]');
+    if (!audio) return;
+    if (audio.paused) {
+        // Pausa qualquer outro player tocando
+        document.querySelectorAll('.msg-audio-player [data-audio]').forEach(a => {
+            if (a !== audio && !a.paused) {
+                a.pause();
+                a.closest('.msg-audio-player')?.classList.remove('playing');
+            }
+        });
+        audio.play().catch(err => console.warn('Audio play failed:', err));
+    } else {
+        audio.pause();
+    }
+});
+
+// Eventos do <audio>: atualiza progress, time, e estado playing
+document.addEventListener('play', (e) => {
+    const audio = e.target;
+    if (!audio.matches?.('[data-audio]')) return;
+    audio.closest('.msg-audio-player')?.classList.add('playing');
+}, true);
+document.addEventListener('pause', (e) => {
+    const audio = e.target;
+    if (!audio.matches?.('[data-audio]')) return;
+    audio.closest('.msg-audio-player')?.classList.remove('playing');
+}, true);
+document.addEventListener('timeupdate', (e) => {
+    const audio = e.target;
+    if (!audio.matches?.('[data-audio]')) return;
+    const player = audio.closest('.msg-audio-player');
+    if (!player) return;
+    const progress = player.querySelector('[data-audio-progress]');
+    const timeEl = player.querySelector('[data-audio-time]');
+    const dur = audio.duration || Number(player.dataset.duration) || 0;
+    if (progress && dur > 0) {
+        progress.style.width = `${(audio.currentTime / dur) * 100}%`;
+    }
+    if (timeEl) {
+        // Mostra tempo decorrido durante play; total quando pausado/parado
+        const showElapsed = !audio.paused || audio.currentTime > 0.1;
+        timeEl.textContent = formatAudioTime(showElapsed ? audio.currentTime : dur);
+    }
+}, true);
+document.addEventListener('loadedmetadata', (e) => {
+    const audio = e.target;
+    if (!audio.matches?.('[data-audio]')) return;
+    const player = audio.closest('.msg-audio-player');
+    if (!player) return;
+    const timeEl = player.querySelector('[data-audio-time]');
+    const dur = audio.duration;
+    if (timeEl && isFinite(dur) && dur > 0) {
+        player.dataset.duration = String(dur);
+        if (audio.paused && audio.currentTime === 0) {
+            timeEl.textContent = formatAudioTime(dur);
+        }
+    }
+}, true);
+document.addEventListener('ended', (e) => {
+    const audio = e.target;
+    if (!audio.matches?.('[data-audio]')) return;
+    const player = audio.closest('.msg-audio-player');
+    player?.classList.remove('playing');
+    // Reseta progress
+    const progress = player?.querySelector('[data-audio-progress]');
+    if (progress) progress.style.width = '0%';
+    audio.currentTime = 0;
+}, true);
+// Click no track pra seek
+document.addEventListener('click', (e) => {
+    const track = e.target.closest('.msg-audio-track');
+    if (!track) return;
+    const player = track.closest('.msg-audio-player');
+    const audio = player?.querySelector('[data-audio]');
+    if (!audio || !audio.duration) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    audio.currentTime = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+});
+
 function truncate(str, n) { return str.length > n ? str.slice(0, n) + '...' : str; }
 function formatPhone(phone) {
     if (!phone) return '—';
