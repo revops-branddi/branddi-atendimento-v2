@@ -760,6 +760,22 @@ if (document.readyState === 'loading') {
 
 // SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
 // e aplica em <html data-*>. Selects com [data-pref] disparam change.
+const APPEARANCE_DEFAULTS = {
+    messageStyle: 'bubbles',
+    density:      'compact',
+    chatBg:       'dots',
+};
+
+function applyAppearancePrefsOnLoad() {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    for (const [key, fallback] of Object.entries(APPEARANCE_DEFAULTS)) {
+        document.documentElement.dataset[key] = prefs[key] || fallback;
+    }
+}
+// Aplica imediatamente — antes da chat-area ser renderizada
+applyAppearancePrefsOnLoad();
+
 function syncAppearanceSelectsFromPrefs() {
     let prefs = {};
     try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}

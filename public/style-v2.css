@@ -4358,3 +4358,46 @@ body.app-body, body, .app-layout {
   #panel-dashboard .kpi-icon { width: 32px; height: 32px; }
   #panel-dashboard .kpi-icon svg { width: 16px; height: 16px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Chat background — escolha do usuário em Configurações → Aparência
+   localStorage["atd:prefs"].chatBg → html[data-chat-bg="..."]
+   Valores: dots | watermark | gradient | pattern (original)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* dots (default — pontilhado limpo estilo WhatsApp Web) */
+html[data-chat-bg="dots"] .chat-area {
+  background-color: var(--bg-base) !important;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(155,170,184,0.16) 1px, transparent 0) !important;
+  background-size: 20px 20px !important;
+  background-repeat: repeat !important;
+  background-position: 0 0 !important;
+}
+
+/* watermark — logo Branddi única centralizada */
+html[data-chat-bg="watermark"] .chat-area {
+  background-color: var(--bg-base) !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 135 203' fill='none'><path d='M71.37 118.33L58.03 104.94c-.84 2.83-2.34 5.39-4.4 7.46L14.13 152.06a4.46 4.46 0 000 6.38l29.82 29.94 26.1-26.3c12.17-13.12 13.94-31.08 1.32-43.78v.03z' fill='%234bbecd' fill-opacity='0.14'/><path d='M116.74 70.64L50.03 3.7A12.85 12.85 0 0041.16 0c-3.36 0-6.5 1.32-8.87 3.7L3.64 32.55c-4.85 4.9-4.85 12.88 0 17.78l35.36 35.6 6.87 6.92a7.96 7.96 0 01-.09 10.93L6.28 146.43a12.75 12.75 0 000 17.81l37.61 37.76 30.99-31.11 41.86-42.03c15.98-16.04 15.98-42.15 0-58.19v-.03zM70.05 162.11l-26.1 26.3-29.82-29.94a4.46 4.46 0 010-6.38l39.5-39.65c2.07-2.08 3.57-4.63 4.4-7.46l13.34 13.39c12.62 12.67 10.85 30.66-1.32 43.78v-.04zm39.95-40.02L89.83 142.34c.18-11.82-4.35-23.23-12.83-31.74L52.76 86.26 10.38 43.6a3.56 3.56 0 010-4.27L39.03 10.47a3.05 3.05 0 014.26 0l66.71 66.97c12.26 12.31 12.26 32.35 0 44.65z' fill='%23ecf2f8' fill-opacity='0.10'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-size: 320px auto !important;
+}
+
+/* gradient — radial accent ciano + green (estilo Linear/Notion) */
+html[data-chat-bg="gradient"] .chat-area {
+  background-color: var(--bg-base) !important;
+  background-image:
+    radial-gradient(ellipse 600px 450px at 0% 0%, rgba(0,229,255,0.14), transparent 60%),
+    radial-gradient(ellipse 600px 450px at 100% 100%, rgba(52,211,153,0.11), transparent 65%) !important;
+  background-repeat: no-repeat !important;
+}
+
+/* pattern — original (marca Branddi tile repetido) — disponível pra quem prefere */
+html[data-chat-bg="pattern"] .chat-area {
+  background-color: var(--bg-base) !important;
+  background-image: url('/branddi-mark.svg') !important;
+  background-repeat: repeat !important;
+  background-size: 90px 135px !important;
+  background-position: 0 0 !important;
+}
