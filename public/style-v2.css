@@ -4365,11 +4365,13 @@ body.app-body, body, .app-layout {
    Valores: dots | watermark | gradient | pattern (original)
    ════════════════════════════════════════════════════════════════════ */
 
-/* dots (default — pontilhado limpo estilo WhatsApp Web) */
+/* dots (default — pontilhado limpo estilo WhatsApp Web)
+   Cor escura (rgba 20,30,45) pra ficar visível em light theme.
+   Em fundo claro (rgb 246,247,248) precisa contraste, não cor clara. */
 html[data-chat-bg="dots"] .chat-area {
   background-color: var(--bg-base) !important;
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(155,170,184,0.16) 1px, transparent 0) !important;
+    radial-gradient(circle at 1px 1px, rgba(20,30,45,0.18) 1px, transparent 0) !important;
   background-size: 20px 20px !important;
   background-repeat: repeat !important;
   background-position: 0 0 !important;
