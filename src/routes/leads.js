@@ -389,6 +389,40 @@ router.get('/leads/:id/deals', async (req, res) => {
             }
         }
 
+        // Auto-link: se a busca retornou EXATAMENTE 1 person no Pipedrive e
+        // o lead local ainda não tem crm_person_id, persiste o vínculo.
+        // Match único pelo phone = alta confiança. Múltiplos persons ou já
+        // linkado: não mexe (mantém comportamento antigo — UI mostra, não persiste).
+        // Idempotente: roda a cada GET dessa rota, mas só faz UPDATE se há
+        // o que mudar.
+        if (results.length === 1 && !lead.crm_person_id) {
+            const { person, deals } = results[0];
+            const openDeal = deals.find(d => d.status === 'open') || deals[0];
+            const updates = { crm_person_id: String(person.id) };
+            // Atualiza name SOMENTE se o atual é vazio ou == phone (não
+            // sobrescreve nome editado manualmente pelo atendente).
+            if (!lead.name || lead.name === lead.phone) {
+                updates.name = person.name;
+            }
+            if (openDeal) {
+                updates.crm_deal_id = String(openDeal.id);
+            }
+            try {
+                await updateLead(lead.id, updates);
+                logger.info('Auto-linked lead to Pipedrive', {
+                    lead_id: lead.id,
+                    person_id: person.id,
+                    deal_id: openDeal?.id || null,
+                });
+            } catch (err) {
+                // Falha silenciosa — UI continua funcionando normalmente
+                logger.warn('Auto-link to Pipedrive failed', {
+                    lead_id: lead.id,
+                    error: err.message,
+                });
+            }
+        }
+
         res.json({ deals: allDeals, persons, label_options: labelOptions });
     } catch (err) {
         res.status(500).json({ error: err.message });
