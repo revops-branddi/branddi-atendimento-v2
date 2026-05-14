@@ -4052,6 +4052,7 @@ body.app-body, body, .app-layout {
 /* ═══════ KPI GRID ═══════════════════════════════════════════════════ */
 #panel-dashboard .kpi-grid {
   margin: 0 20px !important;
+  padding: 0 !important;  /* override regras antigas que aplicam padding:22 */
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
   gap: 12px !important;
@@ -4129,6 +4130,7 @@ body.app-body, body, .app-layout {
 /* ═══════ CHARTS GRID + CARDS ═══════════════════════════════════════ */
 #panel-dashboard .charts-grid {
   margin: 12px 20px 0 !important;
+  padding: 0 !important;  /* override regras antigas que aplicam padding:0 22 22 */
   display: grid !important;
   gap: 12px !important;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
