@@ -4399,3 +4399,72 @@ html[data-chat-bg="pattern"] .chat-area {
   background-size: 90px 135px !important;
   background-position: 0 0 !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Audio player — custom WhatsApp-style
+   Renderizado por renderMessage() em app.js quando attachment é audio.
+   Funciona para inbound e outbound; substitui o <audio controls> nativo
+   que tinha UI inconsistente entre navegadores.
+   ════════════════════════════════════════════════════════════════════ */
+
+.msg-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 6px 10px;
+  background: transparent;
+  position: relative;
+}
+.msg-audio-player audio[data-audio] {
+  /* hide o <audio> nativo — controle 100% via JS */
+  display: none !important;
+}
+.msg-audio-btn {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent, #00E5FF);
+  color: var(--bg-base, #0f1923);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s var(--ease), background 0.15s var(--ease);
+  padding: 0;
+}
+.msg-audio-btn:hover { transform: scale(1.06); }
+.msg-audio-btn:active { transform: scale(0.95); }
+.msg-audio-player.playing .icon-play  { display: none !important; }
+.msg-audio-player.playing .icon-pause { display: inline-block !important; }
+
+.msg-audio-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(127, 140, 158, 0.25);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+.msg-audio-progress {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0;
+  background: var(--accent, #00E5FF);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+.msg-audio-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #93a1aa);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Variante outbound — cor de fundo do button + progress ainda accent
+   (já é o padrão), mas track fica um pouco mais escuro pra contraste
+   sobre o bubble verde claro. */
+.msg-row.outbound .msg-audio-track { background: rgba(127, 140, 158, 0.30); }
