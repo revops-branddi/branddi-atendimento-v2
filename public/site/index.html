@@ -295,32 +295,35 @@
 
         .site-filters {
             display: flex;
-            gap: 4px;
             padding: 10px 12px;
             border-bottom: 1px solid var(--border-md);
-            flex-wrap: wrap;
             background: var(--bg-elev-1);
         }
-        .filter-btn {
-            background: transparent;
-            border: 1px solid var(--border-md);
-            border-radius: var(--r-pill);
-            padding: 4px 10px;
-            font-size: 12px;
-            cursor: pointer;
-            color: var(--text-2);
-            font-family: inherit;
-            transition: all 0.12s;
-        }
-        .filter-btn:hover {
+        .filter-select {
+            width: 100%;
             background: var(--bg-elev-2);
+            border: 1px solid var(--border-md);
+            border-radius: var(--r-md);
+            padding: 6px 30px 6px 12px;
+            font-size: 13px;
             color: var(--text-1);
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            transition: border-color 0.12s, background-color 0.12s;
         }
-        .filter-btn.active {
-            background: var(--accent-50);
-            color: var(--accent-700);
+        .filter-select:hover {
             border-color: var(--accent);
-            font-weight: 600;
+        }
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-50);
         }
 
         .conv-list {
@@ -330,17 +333,23 @@
             background: var(--bg-elev-1);
         }
         .conv-item {
-            padding: 12px 16px;
+            padding: 10px 14px;
             cursor: pointer;
             border-bottom: 1px solid var(--border-sm);
             border-left: 3px solid transparent;
             transition: background 0.12s;
-            position: relative;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            align-items: center;
         }
         .conv-item:hover { background: var(--bg-hover); }
         .conv-item.active {
             background: var(--bg-active);
             border-left-color: var(--accent);
+        }
+        .conv-item-main {
+            min-width: 0;
         }
         .conv-item .name {
             font-weight: 500;
@@ -361,18 +370,18 @@
         .conv-item .preview {
             font-size: 12px;
             color: var(--text-3);
-            margin-top: 4px;
+            margin-top: 2px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
         .conv-item .meta {
             font-size: 11px;
-            margin-top: 6px;
             display: flex;
             gap: 6px;
             align-items: center;
-            flex-wrap: wrap;
+            justify-content: flex-end;
+            flex-direction: column;
         }
         .conv-item time {
             color: var(--text-3);
@@ -1376,12 +1385,14 @@
     <div class="site-shell" id="site-shell" style="position:relative">
         <aside class="site-sidebar">
             <div class="site-conv-header">Conversas</div>
-            <div class="site-filters" id="filters">
-                <button class="filter-btn active" data-filter="all">Todas</button>
-                <button class="filter-btn" data-filter="waiting_human">Aguardando</button>
-                <button class="filter-btn" data-filter="mine">Minhas</button>
-                <button class="filter-btn" data-filter="in_progress">Em andamento</button>
-                <button class="filter-btn" data-filter="resolved">Resolvidas</button>
+            <div class="site-filters">
+                <select class="filter-select" id="filter-select" aria-label="Filtrar conversas">
+                    <option value="all" selected>Todas</option>
+                    <option value="waiting_human">Aguardando</option>
+                    <option value="mine">Minhas</option>
+                    <option value="in_progress">Em andamento</option>
+                    <option value="resolved">Resolvidas</option>
+                </select>
             </div>
             <div id="conv-list" class="conv-list">
                 <div class="site-empty" style="border:none;box-shadow:none;background:transparent;margin:32px auto">Carregando…</div>
