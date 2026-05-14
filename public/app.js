@@ -765,12 +765,31 @@ const APPEARANCE_DEFAULTS = {
     density:      'compact',
     chatBg:       'dots',
 };
+// Valores aceitos por preferência. Se algo salvo no localStorage estiver
+// fora dessas listas (ex: chatBg='gradient' removido), migramos pra default.
+const APPEARANCE_VALID = {
+    messageStyle: ['bubbles'],
+    density:      ['compact', 'comfortable'],
+    chatBg:       ['dots', 'watermark', 'pattern'],
+};
 
 function applyAppearancePrefsOnLoad() {
     let prefs = {};
     try { prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}'); } catch(_) {}
+    let dirty = false;
     for (const [key, fallback] of Object.entries(APPEARANCE_DEFAULTS)) {
-        document.documentElement.dataset[key] = prefs[key] || fallback;
+        const valid = APPEARANCE_VALID[key];
+        const current = prefs[key];
+        const effective = (current && valid.includes(current)) ? current : fallback;
+        if (current !== effective) {
+            prefs[key] = effective;
+            dirty = true;
+        }
+        document.documentElement.dataset[key] = effective;
+    }
+    // Persiste a migração se algo foi corrigido
+    if (dirty) {
+        try { localStorage.setItem('atd:prefs', JSON.stringify(prefs)); } catch(_) {}
     }
 }
 // Aplica imediatamente — antes da chat-area ser renderizada
