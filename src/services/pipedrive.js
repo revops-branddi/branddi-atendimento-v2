@@ -196,6 +196,27 @@ export async function findOrCreateOrg(name) {
     return created.data?.id || null;
 }
 
+/**
+ * Busca top N orgs por termo (autocomplete da UI). Não cria nada — pra
+ * decisão manual do atendente, evitando o caso clássico onde digitar
+ * "Branddi BR" cria duplicata em vez de reusar "Branddi" existente.
+ */
+export async function searchOrganizations(term, limit = 5) {
+    const t = String(term || '').trim();
+    if (t.length < 2) return [];
+    const res = await pdGet(`/organizations/search?term=${encodeURIComponent(t)}&limit=${limit}`);
+    const items = res.data?.items || [];
+    return items.map(({ item }) => ({
+        id:   item.id,
+        name: item.name,
+        // Pipedrive coloca o owner em item.owner. Útil pra atendente desambiguar
+        // quando há orgs homônimas.
+        owner: item.owner?.name || null,
+        // Address opcional, pode ser undefined se Pipedrive não tem
+        address: item.address || null,
+    }));
+}
+
 // ─── Deal ─────────────────────────────────────────────────────────────
 
 const LABEL_INBOUND = '66';

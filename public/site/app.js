@@ -270,7 +270,21 @@ function renderLeadPanel(conv) {
     // resolved automático pelo bot — não faz sentido criar deal lá.
     const canCreateDeal = !lead.crm_deal_id && lead.classification !== 'opec';
 
+    // Lookup automático no Pipedrive por telefone — flag se Person já existe
+    // (evita criar duplicata quando atendente clicar em "Criar deal"). Não
+    // bloqueia o render: roda async, só decora a UI quando responder.
+    if (lead.phone && !lead.crm_person_id) {
+        runPipedrivePersonLookup(lead.phone);
+    } else {
+        hidePipedriveLookupAlert();
+    }
+
     content.replaceChildren(
+        // Datalist compartilhado pra autocomplete de Empresa. Populado on-input
+        // por attachOrgAutocomplete (debounce 300ms → /pipedrive/org-search).
+        el('datalist', { id: 'pd-orgs-list' }),
+        // Alerta de Person duplicada (vazio inicialmente, preenchido async).
+        el('div', { id: 'lp-pd-lookup', class: 'lp-pd-lookup', style: 'display:none' }),
         el('div', { class: 'lp-avatar-row' },
             el('div', { class: 'lp-avatar' }, initials),
             el('div', { class: 'lp-name-block' },
@@ -293,8 +307,8 @@ function renderLeadPanel(conv) {
             // Campos editáveis — auto-save no blur. Phone segue read-only.
             renderEditableField(leadId, 'name',         'Nome',     lead.name),
             renderEditableField(leadId, 'job_title',    'Cargo',    lead.job_title),
-            renderEditableField(leadId, 'company_name', 'Empresa',  lead.company_name),
-            renderEditableField(leadId, 'email',        'E-mail',   lead.email, 'email'),
+            renderEditableField(leadId, 'company_name', 'Empresa',  lead.company_name, { autocomplete: 'org' }),
+            renderEditableField(leadId, 'email',        'E-mail',   lead.email, { type: 'email' }),
             el('div', { class: 'lp-field' },
                 el('div', { class: 'lp-field-label' }, 'Telefone'),
                 el('div', { class: 'lp-field-value' + (!lead.phone ? ' muted' : '') }, lead.phone || '—'),
@@ -327,17 +341,25 @@ function renderLeadPanel(conv) {
 
 // Campo editável: input que persiste no blur via PATCH /leads/:id.
 // Usa data-lead-id + data-field pra bind sem closure (poll re-render OK).
-function renderEditableField(leadId, field, label, value, type = 'text') {
+// `opts` aceita { type, autocomplete }. autocomplete='org' ativa o datalist
+// que busca orgs no Pipedrive enquanto o atendente digita — previne dup.
+function renderEditableField(leadId, field, label, value, opts = {}) {
+    // Compat: chamada antiga passava string `type` no 5o arg.
+    if (typeof opts === 'string') opts = { type: opts };
+    const { type = 'text', autocomplete = null } = opts;
     const wrap   = el('div', { class: 'lp-field' });
     const labelEl = el('div', { class: 'lp-field-label' }, label);
-    const input  = el('input', {
+    const inputAttrs = {
         type,
         class: 'lp-field-input',
         value: value || '',
         placeholder: '—',
         'data-lead-id': leadId,
         'data-field': field,
-    });
+    };
+    if (autocomplete === 'org') inputAttrs.list = 'pd-orgs-list';
+    const input  = el('input', inputAttrs);
+    if (autocomplete === 'org') attachOrgAutocomplete(input);
     input.addEventListener('blur', async () => {
         const newVal = input.value.trim();
         if ((value || '') === newVal) return; // sem mudança, skip
@@ -363,6 +385,77 @@ function renderEditableField(leadId, field, label, value, type = 'text') {
     });
     wrap.append(labelEl, input);
     return wrap;
+}
+
+// ─── Pipedrive dedup helpers ─────────────────────────────────────────
+
+// Autocomplete do input Empresa: popula <datalist id="pd-orgs-list"> com
+// orgs reais do Pipedrive enquanto o atendente digita. Trade-off de UX:
+// datalist nativo é simples (sem dropdown bonito), mas economiza ~100
+// linhas vs custom widget e já entrega o ganho principal — atendente vê
+// "Branddi" antes de digitar "Branddi BR" e cria duplicata.
+function attachOrgAutocomplete(input) {
+    let timer = null;
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = input.value.trim();
+        if (q.length < 2) return;
+        timer = setTimeout(async () => {
+            try {
+                const res = await api(`/pipedrive/org-search?q=${encodeURIComponent(q)}`);
+                const dl = document.getElementById('pd-orgs-list');
+                if (!dl) return;
+                dl.replaceChildren(...(res.items || []).map(o =>
+                    el('option', { value: o.name, label: o.owner ? `· ${o.owner}` : '' })
+                ));
+            } catch { /* silencioso — autocomplete não-crítico */ }
+        }, 300);
+    });
+}
+
+// Procura Person no Pipedrive pelo phone do lead. Se achar, mostra alerta
+// "🔗 Person já existe" + deals abertos. Decorativo: atendente decide o
+// que fazer (route-comercial é idempotente — se Person existe, reusa).
+async function runPipedrivePersonLookup(phone) {
+    try {
+        const res = await api(`/pipedrive/person-lookup?phone=${encodeURIComponent(phone)}`);
+        const alertBox = document.getElementById('lp-pd-lookup');
+        if (!alertBox) return;
+        if (!res.person) {
+            alertBox.style.display = 'none';
+            alertBox.replaceChildren();
+            return;
+        }
+        const openDeals = (res.deals || []).filter(d => d.status === 'open');
+        alertBox.style.display = '';
+        alertBox.replaceChildren(
+            el('div', { class: 'lp-pd-lookup-title' },
+                '🔗 Já existe no Pipedrive',
+            ),
+            el('div', { class: 'lp-pd-lookup-body' },
+                el('a', {
+                    href:   `https://brandmonitor.pipedrive.com/person/${res.person.id}`,
+                    target: '_blank',
+                    rel:    'noopener',
+                    class:  'lp-pd-lookup-link',
+                }, `${res.person.name || 'Person'} (#${res.person.id})`),
+                res.person.org_name && el('span', { class: 'lp-pd-lookup-org' },
+                    ` · ${res.person.org_name}`,
+                ),
+                openDeals.length > 0 && el('div', { class: 'lp-pd-lookup-deals' },
+                    `${openDeals.length} deal${openDeals.length > 1 ? 's' : ''} aberto${openDeals.length > 1 ? 's' : ''}`,
+                ),
+            ),
+        );
+    } catch { /* silencioso — Pipedrive offline não deve quebrar painel */ }
+}
+
+function hidePipedriveLookupAlert() {
+    const alertBox = document.getElementById('lp-pd-lookup');
+    if (alertBox) {
+        alertBox.style.display = 'none';
+        alertBox.replaceChildren();
+    }
 }
 
 async function createPipedriveDeal(convId) {

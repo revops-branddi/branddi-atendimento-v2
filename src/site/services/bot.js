@@ -136,6 +136,15 @@ async function botSend(conv, text) {
 export async function processBotTurn(conv, lastInboundText) {
     const stage = conv.bot_stage || 'welcome';
 
+    // Defesa dura: se o bot já entregou pra humano, NUNCA mais responde —
+    // mesmo que o atendente demore e o lead mande várias msgs. Polling já
+    // gate isso via `conv.status === 'bot'` em ingest.js, mas mantemos
+    // aqui como segunda camada (regra hard do projeto: zero auto-send
+    // espontâneo, ver memory/feedback_no_auto_messages.md).
+    if (stage === 'human') {
+        return { handled: false, newStage: 'human' };
+    }
+
     // welcome → manda greeting + transita pra awaiting_classification
     if (stage === 'welcome') {
         const ok = await botSend(conv, MSG_WELCOME);
@@ -226,7 +235,9 @@ export async function processBotTurn(conv, lastInboundText) {
         return { handled: true, newStage: 'human' };
     }
 
-    // 'human' → bot já saiu, não responde
+    // Fallback final: stage desconhecido (não bate em nenhum branch acima).
+    // 'human' já foi capturado no topo da função; aqui só caem estados
+    // legados/quebrados de migração antiga.
     return { handled: false, newStage: stage };
 }
 
