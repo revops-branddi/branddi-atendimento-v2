@@ -96,10 +96,30 @@ async function processChat(chat, account) {
     const accountId = chat.account_id || account.unipile_account_id;
 
     let conversation = await findConversationByChat(chat.id);
-    let isNew = false;
 
+    // Fetch + filtra ANTES de decidir criar conv. Sem isso o polling
+    // criava uma conv vazia a cada tick (10s) toda vez que via um chat
+    // sem registro local — inclusive chats que o lead nunca interagiu
+    // (ex: o número do site adicionado num grupo, ou conv apagada
+    // localmente em cleanup). Com 2 workers no Railway, vinham 2 convs
+    // fantasmas por tick, lotando a Inbox.
+    const fetchLimit = conversation ? 10 : 50;
+    const msgsRes    = await unipile.getMessages(chat.id, { limit: fetchLimit });
+    const items      = msgsRes.items || [];
+    const NEW_CONV_HISTORY_WINDOW_MS = 5 * 60_000;
+    const cutoff = conversation
+        ? _lastPollTime - 5_000
+        : Date.now() - NEW_CONV_HISTORY_WINDOW_MS;
+    const fresh = items.filter(m => new Date(m.timestamp).getTime() > cutoff);
+
+    // Sem conv local + sem inbound fresca = chat fantasma (histórico só
+    // antigo, ou apenas outbound). Não cria conv. Sair daqui mantém o
+    // polling idempotente: roda de novo daqui a 10s, mesmo resultado,
+    // sem efeitos colaterais.
     if (!conversation) {
-        isNew = true;
+        const hasFreshInbound = fresh.some(m => !m.is_sender);
+        if (!hasFreshInbound) return;
+
         const att = await unipile.getChatAttendees(chat.id).catch(() => null);
         const attendees = att?.items || [];
         const rawContact = attendees.find(a => !a.is_self);
@@ -120,7 +140,7 @@ async function processChat(chat, account) {
                 origin_metadata: { attendee_id: contact.providerId },
             });
 
-        // Conversa nova entra no bot por default (DB também tem default='bot',
+        // Conv nova entra no bot por default (DB também tem default='bot',
         // explícito aqui só pra documentar o fluxo).
         conversation = await createConversation({
             lead_id:             lead.id,
@@ -131,25 +151,6 @@ async function processChat(chat, account) {
             last_message_at:     new Date().toISOString(),
         });
     }
-
-    // Filtro de frescura por idade de mensagem.
-    //
-    // Para conv RECÉM-CRIADA (isNew): só importa msgs dos últimos 5min.
-    // Caso contrário, uma conv que foi apagada localmente e recriada pelo
-    // polling traria de volta TODO o histórico do chat no Unipile (até
-    // 50 msgs) — o lead veria a UI da Inbox "ressuscitar" conversas
-    // velhas. Quem realmente está abrindo a conv (lead novo) tem msg
-    // fresca, então o limite de 5min é gentil.
-    //
-    // Para conv EXISTENTE: filtro relativo ao último poll (já era).
-    const fetchLimit = isNew ? 50 : 10;
-    const msgsRes    = await unipile.getMessages(chat.id, { limit: fetchLimit });
-    const items      = msgsRes.items || [];
-    const NEW_CONV_HISTORY_WINDOW_MS = 5 * 60_000;
-    const cutoff = isNew
-        ? Date.now() - NEW_CONV_HISTORY_WINDOW_MS
-        : _lastPollTime - 5_000;
-    const fresh = items.filter(m => new Date(m.timestamp).getTime() > cutoff);
 
     let touched = false;
     let hasNewInbound = false;
@@ -235,10 +236,15 @@ async function processChat(chat, account) {
 // ─── DB helpers (schema site.*) ──────────────────────────────────────
 
 async function findConversationByChat(chatId) {
+    // Só convs ATIVAS — resolved/archived ficam de fora pra não fazer
+    // o polling tentar empilhar msgs novas num atendimento já encerrado.
+    // Casa com o UNIQUE PARTIAL index em (whatsapp_chat_id) WHERE status
+    // ativo (migration 020): no máx 1 row por chat aqui, garantido.
     const { data } = await sb
         .from('conversations')
         .select('id, lead_id, status, whatsapp_account_id, leads(id, name, phone)')
         .eq('whatsapp_chat_id', chatId)
+        .in('status', ['bot', 'waiting_human', 'in_progress'])
         .maybeSingle();
     return data || null;
 }
@@ -263,7 +269,21 @@ async function createLead(payload) {
 
 async function createConversation(payload) {
     const { data, error } = await sb.from('conversations').insert(payload).select('*, leads(id, name, phone)').single();
-    if (error) throw error;
+    if (error) {
+        // 23505 = unique_violation. Outro worker (Railway tem 2 replicas)
+        // ganhou a corrida e já criou a conv ativa pra esse chat. Não é
+        // erro de verdade — relê e devolve a row vencedora.
+        if (error.code === '23505') {
+            const { data: existing } = await sb
+                .from('conversations')
+                .select('*, leads(id, name, phone)')
+                .eq('whatsapp_chat_id', payload.whatsapp_chat_id)
+                .in('status', ['bot', 'waiting_human', 'in_progress'])
+                .maybeSingle();
+            if (existing) return existing;
+        }
+        throw error;
+    }
     return data;
 }
 
