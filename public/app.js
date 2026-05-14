@@ -1606,7 +1606,10 @@ function renderConversationList() {
     list.innerHTML = filtered.map(conv => {
         const lead = conv.leads || {};
         const name = lead.name || formatPhone(lead.phone) || 'Desconhecido';
-        const preview = conv.last_message?.content ? truncate(conv.last_message.content, 55) : '...';
+        // Resolve placeholders {{<id>@lid}} que o Unipile mete literal em
+        // msgs de evento (reactions, system) — em DM 1-1 o nome do lead resolve.
+        const rawPreview = conv.last_message?.content || '';
+        const preview = rawPreview ? truncate(resolveLidPlaceholders(rawPreview, name), 55) : '...';
         const time = conv.last_message ? relativeTime(conv.last_message.created_at) : relativeTime(conv.created_at);
         const isActive = currentConversation?.id === conv.id;
         const hasUnread = (conv.unread_count || 0) > 0;
