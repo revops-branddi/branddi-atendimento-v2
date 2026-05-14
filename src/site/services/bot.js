@@ -89,27 +89,33 @@ async function updateConversation(id, patch) {
     if (error) throw error;
 }
 
-async function saveBotMessage(conv, text) {
+async function saveBotMessage(conv, text, unipileMessageId) {
     // Persistimos como outbound humana — sender_name='Bot' diferencia na UI
     // sem precisar adicionar coluna nova. direction='outbound' garante que
     // aparece no lado correto da thread.
+    //
+    // unipile_message_id é crítico: sem ele, o polling subsequente vê a
+    // mesma msg voltando do Unipile e insere uma 2ª row (UNIQUE não bate)
+    // — daí o balão duplicado "ATENDENTE" + "BOT" na UI.
     const { error } = await sb.from('messages').insert({
-        conversation_id: conv.id,
-        direction:       'outbound',
+        conversation_id:    conv.id,
+        direction:          'outbound',
         text,
-        sender_type:     'human',
-        sender_name:     'Bot',
-        delivered:       true,
-        seen:            false,
-        created_at:      new Date().toISOString(),
+        sender_type:        'human',
+        sender_name:        'Bot',
+        unipile_message_id: unipileMessageId || null,
+        delivered:          true,
+        seen:               false,
+        created_at:         new Date().toISOString(),
     });
     if (error) logger.warn('saveBotMessage error', { error: error.message });
 }
 
 async function botSend(conv, text) {
     try {
-        await sendMessage(conv.whatsapp_chat_id, text);
-        await saveBotMessage(conv, text);
+        const res = await sendMessage(conv.whatsapp_chat_id, text);
+        const unipileMessageId = res?.message_id || res?.id || null;
+        await saveBotMessage(conv, text, unipileMessageId);
         return true;
     } catch (err) {
         logger.warn('Bot send failed', { conv_id: conv.id, error: err.message });

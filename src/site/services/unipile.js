@@ -83,7 +83,11 @@ export async function sendMessage(chatId, text, attachmentBuffer, attachmentName
         const blob = new Blob([attachmentBuffer]);
         fd.append('attachments', blob, attachmentName);
     }
-    return unipileFetch(`/chats/${chatId}/messages`, { method: 'POST', body: fd });
+    // Timeout default (10s) era curto demais — POST de mensagem WhatsApp via
+    // Unipile já estourou e fez o bot abortar o turno *depois* da msg ter
+    // sido entregue, deixando o bot_stage travado. 30s dá folga sem deixar
+    // o caller pendurado pra sempre.
+    return unipileFetch(`/chats/${chatId}/messages`, { method: 'POST', body: fd }, 30_000);
 }
 
 // Detalhe da mensagem no Unipile (pra resgatar attachment.id após indexação).
