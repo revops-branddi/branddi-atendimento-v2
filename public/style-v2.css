@@ -4020,6 +4020,11 @@ body.app-body, body, .app-layout {
   align-items: center;
   gap: 8px;
 }
+/* Title dentro de wrap (leaderboard) — wrap já tem 20px lateral,
+   título não duplica a margem horizontal. */
+#panel-dashboard .dash-table-wrap > .dash-section-title {
+  margin: 0 0 8px 0 !important;
+}
 #panel-dashboard .dash-section-title::after {
   content: "";
   flex: 1;
@@ -4084,9 +4089,10 @@ body.app-body, body, .app-layout {
   margin-top: 4px !important;
 }
 
-/* Charts grid + cards — denso */
+/* Charts grid + cards — denso. Margin-top only (flex column não colapsa
+   margens; bottom + top do próximo viraria 24px). */
 #panel-dashboard .charts-grid {
-  margin: 12px 20px !important;
+  margin: 12px 20px 0 !important;
   display: grid !important;
   gap: 12px !important;
 }
@@ -4151,7 +4157,7 @@ body.app-body, body, .app-layout {
 }
 
 /* Tabela leaderboard + cold leads — denso */
-#panel-dashboard .dash-table-wrap { margin: 0 20px !important; }
+#panel-dashboard .dash-table-wrap { margin: 12px 20px 0 !important; }
 #panel-dashboard .dash-table {
   background: var(--bg-card);
   border: 1px solid var(--border);

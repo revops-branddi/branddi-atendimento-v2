@@ -535,7 +535,7 @@
     </div>
 
     <!-- Funil + Timeline lado a lado em desktop, empilha em < ~720px -->
-    <div class="charts-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+    <div class="charts-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
         <div class="chart-card">
             <h3 class="chart-title">🔻 Funil</h3>
             <div id="funnel-render" style="display:flex;flex-direction:column;gap:10px;padding:12px 4px"></div>
@@ -547,14 +547,14 @@
     </div>
 
     <!-- Heatmap (full width — análise temporal, sozinho na linha) -->
-    <div class="chart-card" style="margin-top:16px;max-height:none;overflow:visible">
+    <div class="chart-card" style="margin:12px 20px 0;max-height:none;overflow:visible">
         <h3 class="chart-title">🔥 Melhores horários (taxa de resposta por dia/hora)</h3>
         <div id="heatmap-render" style="overflow-x:auto;padding:8px 4px"></div>
         <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cor mais intensa = melhor taxa de resposta. Cinza = sem atividade.</div>
     </div>
 
     <!-- Atendente: Volume × Conversão lado a lado -->
-    <div class="charts-grid admin-only" id="dash-by-user-charts" style="display:none;margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px">
+    <div class="charts-grid admin-only" id="dash-by-user-charts" style="display:none;grid-template-columns:repeat(auto-fit,minmax(420px,1fr))">
         <!-- Contatos únicos (volume) -->
         <div class="chart-card" id="dash-contacts-chart-wrap" style="max-height:none;overflow:visible">
             <h3 class="chart-title">👥 Contatos únicos por atendente</h3>
@@ -569,7 +569,7 @@
     </div>
 
     <!-- Leaderboard (admin only) -->
-    <div class="dash-table-wrap admin-only" id="dash-user-table-wrap" style="display:none;margin-top:24px">
+    <div class="dash-table-wrap admin-only" id="dash-user-table-wrap" style="display:none">
         <h3 class="dash-section-title">🏆 Leaderboard por atendente</h3>
         <div class="dash-table">
             <table class="table-pro">
@@ -592,7 +592,7 @@
     </div>
 
     <!-- Cold leads + Apollo lado a lado em desktop, empilha em < ~720px -->
-    <div class="charts-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:16px">
+    <div class="charts-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
         <div class="chart-card">
             <h3 class="chart-title">❄️ Leads frios (sem follow-up &gt; 3d)</h3>
             <div class="dash-table" style="margin-top:8px">
