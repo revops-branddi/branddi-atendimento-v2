@@ -3970,18 +3970,25 @@ body.app-body, body, .app-layout {
 }
 
 
+
 /* ════════════════════════════════════════════════════════════════════
-   PROSPECTING DASHBOARD — density-first refinement (v2.2)
-   Mais informação por scroll, menos whitespace.
-   Margens horizontais consistentes em 20px, gaps em 12px.
-   Cards 12-14px padding (era 18-22). Section titles 16/8 margin.
+   PROSPECTING DASHBOARD — polished v3.0
+   Aplicando UI/UX skill principles:
+   - Visual hierarchy via size/weight/contrast (não cor)
+   - Spacing rhythm 4/8/12/16/24/32
+   - Number tabular for data
+   - Token-driven (sem hex direto)
+   - SVG icons (não emojis para elementos funcionais)
+   - State clarity (hover/pressed distinto)
+   - Surface readability (border + bg contrast)
    ════════════════════════════════════════════════════════════════════ */
 
-/* Panel header — compacto */
+/* Panel header — header limpo */
 #panel-dashboard .panel-header {
-  padding: 16px 20px 4px !important;
+  padding: 16px 20px 8px !important;
   background: transparent !important;
-  border-bottom: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 4px;
 }
 #panel-dashboard .panel-title {
   font-size: 18px !important;
@@ -3989,90 +3996,120 @@ body.app-body, body, .app-layout {
   letter-spacing: -0.01em;
   color: var(--text-1, #fff) !important;
 }
+
+/* Filtros — chips de seleção */
 #panel-dashboard .filter-select {
   background: var(--bg-card) !important;
   border: 1px solid var(--border-md) !important;
   border-radius: 8px !important;
-  padding: 6px 10px !important;
+  padding: 6px 28px 6px 12px !important;
   color: var(--text-1, #fff) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   min-height: 32px !important;
-  transition: border-color 0.15s var(--ease);
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
 }
-#panel-dashboard .filter-select:hover { border-color: var(--border-strong) !important; }
+#panel-dashboard .filter-select:hover {
+  border-color: var(--border-strong) !important;
+  background: var(--bg-hover) !important;
+}
 #panel-dashboard .filter-select:focus-visible {
   border-color: var(--accent) !important;
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* Section title — denso */
+/* Section title — com dot bullet colorido */
 #panel-dashboard .dash-section-title {
-  color: var(--text-muted, #93a1aa) !important;
-  font-size: 11px !important;
+  color: var(--text-1, #fff) !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   text-transform: uppercase;
-  letter-spacing: 0.08em !important;
-  margin: 16px 20px 8px !important;
+  letter-spacing: 0.06em !important;
+  margin: 20px 20px 10px !important;
   padding: 0 !important;
   display: flex;
   align-items: center;
   gap: 8px;
+  background: transparent !important;
 }
-/* Title dentro de wrap (leaderboard) — wrap já tem 20px lateral,
-   título não duplica a margem horizontal. */
+#panel-dashboard .dash-section-title .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+#panel-dashboard .dash-section-title .dot-accent { background: var(--accent); }
+#panel-dashboard .dash-section-title .dot-green  { background: var(--green); }
+#panel-dashboard .dash-section-title .dot-amber  { background: var(--amber); }
+/* Title dentro de wrap não duplica margem */
 #panel-dashboard .dash-table-wrap > .dash-section-title {
-  margin: 0 0 8px 0 !important;
-}
-#panel-dashboard .dash-section-title::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-  margin-left: 4px;
+  margin: 0 0 10px 0 !important;
 }
 
-/* KPI grid + cards — denso */
+/* ═══════ KPI GRID ═══════════════════════════════════════════════════ */
 #panel-dashboard .kpi-grid {
   margin: 0 20px !important;
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
-  gap: 10px !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  gap: 12px !important;
 }
 #panel-dashboard .kpi-card {
   background: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-  padding: 12px 14px !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
   position: relative;
-  transition: border-color 0.2s var(--ease);
+  display: flex !important;
+  align-items: flex-start;
+  gap: 12px;
+  transition: border-color 0.2s var(--ease), transform 0.15s var(--ease);
   overflow: hidden;
 }
-#panel-dashboard .kpi-card:hover { border-color: var(--border-strong) !important; }
-#panel-dashboard .kpi-card.kpi-accent::before,
-#panel-dashboard .kpi-card.kpi-green::before,
-#panel-dashboard .kpi-card.kpi-amber::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
+#panel-dashboard .kpi-card:hover {
+  border-color: var(--border-strong) !important;
+  transform: translateY(-1px);
 }
-#panel-dashboard .kpi-card.kpi-accent::before { background: var(--accent); }
-#panel-dashboard .kpi-card.kpi-green::before  { background: var(--green); }
-#panel-dashboard .kpi-card.kpi-amber::before  { background: var(--amber); }
 
+/* Mini ícone em círculo */
+#panel-dashboard .kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+#panel-dashboard .kpi-icon svg { width: 18px; height: 18px; }
+#panel-dashboard .kpi-card.kpi-accent .kpi-icon { background: var(--accent-dim); color: var(--accent); }
+#panel-dashboard .kpi-card.kpi-green  .kpi-icon { background: var(--green-dim);  color: var(--green); }
+#panel-dashboard .kpi-card.kpi-amber  .kpi-icon { background: var(--amber-dim);  color: var(--amber); }
+
+#panel-dashboard .kpi-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
 #panel-dashboard .kpi-label {
   color: var(--text-muted, #93a1aa) !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
   text-transform: uppercase;
   letter-spacing: 0.06em !important;
   margin-bottom: 4px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #panel-dashboard .kpi-value {
   color: var(--text-1, #fff) !important;
-  font-size: 24px !important;
+  font-size: 26px !important;
   font-weight: 600 !important;
   line-height: 1.1 !important;
   font-variant-numeric: tabular-nums;
@@ -4089,8 +4126,7 @@ body.app-body, body, .app-layout {
   margin-top: 4px !important;
 }
 
-/* Charts grid + cards — denso. Margin-top only (flex column não colapsa
-   margens; bottom + top do próximo viraria 24px). */
+/* ═══════ CHARTS GRID + CARDS ═══════════════════════════════════════ */
 #panel-dashboard .charts-grid {
   margin: 12px 20px 0 !important;
   display: grid !important;
@@ -4099,8 +4135,8 @@ body.app-body, body, .app-layout {
 #panel-dashboard .chart-card {
   background: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-  padding: 14px 16px !important;
+  border-radius: 12px !important;
+  padding: 16px 18px !important;
   transition: border-color 0.2s var(--ease);
 }
 #panel-dashboard .chart-card:hover { border-color: var(--border-strong) !important; }
@@ -4109,59 +4145,60 @@ body.app-body, body, .app-layout {
   font-size: 13px !important;
   font-weight: 600 !important;
   letter-spacing: -0.005em;
-  margin-bottom: 10px !important;
+  margin: 0 0 14px 0 !important;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-/* Funil — denso */
+/* ═══════ FUNIL — visual mais robusto ═══════════════════════════════ */
 #panel-dashboard #funnel-render {
-  gap: 10px !important;
-  padding: 4px 0 !important;
+  gap: 14px !important;
+  padding: 6px 2px !important;
 }
 #panel-dashboard #funnel-render > div > div:first-child {
-  font-size: 12px !important;
-  margin-bottom: 4px !important;
+  font-size: 13px !important;
+  margin-bottom: 6px !important;
 }
 #panel-dashboard #funnel-render > div > div:first-child > span:first-child {
   font-weight: 500;
   color: var(--text-1, #fff);
 }
 
-/* Heatmap — cells 18px (compacto), spacing 2px */
-#panel-dashboard #heatmap-render { padding: 6px 0 !important; }
+/* ═══════ HEATMAP — cells 20px, legend gradient ═════════════════════ */
+#panel-dashboard #heatmap-render { padding: 8px 0 !important; }
 #panel-dashboard #heatmap-render table {
-  border-spacing: 2px !important;
+  border-spacing: 3px !important;
   font-size: 10px !important;
 }
 #panel-dashboard #heatmap-render td[title] {
-  width: 18px !important;
-  height: 18px !important;
-  border-radius: 3px !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 4px !important;
 }
 #panel-dashboard #heatmap-render tr > td:first-child {
   color: var(--text-muted, #93a1aa) !important;
   font-size: 11px !important;
   font-weight: 500 !important;
-  padding-right: 8px !important;
+  padding-right: 10px !important;
   letter-spacing: 0.02em;
+  width: auto !important;
 }
 #panel-dashboard #heatmap-render tr:first-child td:not(:first-child) {
   color: var(--text-muted, #93a1aa) !important;
   font-size: 10px !important;
   font-weight: 500 !important;
-  padding-bottom: 2px !important;
-  width: 18px !important;
+  padding-bottom: 4px !important;
+  width: 20px !important;
   text-align: center;
 }
 
-/* Tabela leaderboard + cold leads — denso */
+/* ═══════ TABELA — leaderboard + cold leads ═══════════════════════════ */
 #panel-dashboard .dash-table-wrap { margin: 12px 20px 0 !important; }
 #panel-dashboard .dash-table {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -4170,6 +4207,11 @@ body.app-body, body, .app-layout {
   min-width: 720px;
   border-collapse: collapse;
 }
+/* Cold leads tem só 4 colunas e fica em card de 50% width — overflow-x
+   estava cortando. Min-width menor pra caber sem scroll. */
+#panel-dashboard .chart-card .table-pro {
+  min-width: 0;
+}
 #panel-dashboard .table-pro thead th {
   background: var(--bg-input) !important;
   color: var(--text-muted, #93a1aa) !important;
@@ -4177,18 +4219,22 @@ body.app-body, body, .app-layout {
   font-weight: 600 !important;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 8px 12px !important;
+  padding: 10px 14px !important;
   text-align: left;
   border-bottom: 1px solid var(--border) !important;
+  white-space: nowrap;
 }
 #panel-dashboard .table-pro tbody td {
-  padding: 10px 12px !important;
-  font-size: 12px !important;
+  padding: 12px 14px !important;
+  font-size: 13px !important;
   border-bottom: 1px solid var(--border) !important;
   color: var(--text-1, #fff);
+  white-space: nowrap;
 }
 #panel-dashboard .table-pro tbody tr:last-child td { border-bottom: none !important; }
-#panel-dashboard .table-pro tbody tr { transition: background 0.15s var(--ease); }
+#panel-dashboard .table-pro tbody tr {
+  transition: background 0.15s var(--ease);
+}
 #panel-dashboard .table-pro tbody tr:hover { background: var(--bg-hover) !important; }
 #panel-dashboard .table-pro code {
   font-family: 'JetBrains Mono', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -4198,22 +4244,65 @@ body.app-body, body, .app-layout {
   padding: 0 !important;
 }
 
-/* Error inline */
+/* Top performer highlight — primeira row do leaderboard */
+#panel-dashboard #dash-user-tbody tr.top-row {
+  background: linear-gradient(90deg, var(--accent-soft), transparent 60%);
+}
+#panel-dashboard #dash-user-tbody tr.top-row td:first-child {
+  position: relative;
+}
+#panel-dashboard #dash-user-tbody tr.top-row td:first-child::before {
+  content: "★";
+  color: var(--amber);
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+/* Taxa badge — pill colorida por faixa */
+#panel-dashboard .rate-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#panel-dashboard .rate-badge.high { background: var(--green-dim); color: var(--green); }
+#panel-dashboard .rate-badge.mid  { background: var(--amber-dim); color: var(--amber); }
+#panel-dashboard .rate-badge.low  { background: var(--red-dim, rgba(255,92,92,0.12)); color: var(--red, #ff5c5c); }
+
+/* Cold leads — dias frio com cor por severidade */
+#panel-dashboard .days-cold-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--amber-dim);
+  color: var(--amber);
+}
+#panel-dashboard .days-cold-badge.severe {
+  background: var(--red-dim, rgba(255,92,92,0.12));
+  color: var(--red, #ff5c5c);
+}
+
+/* ═══════ ERROR INLINE ════════════════════════════════════════════════ */
 #panel-dashboard #dash-error {
   margin: 12px 20px !important;
   background: var(--red-dim, rgba(255, 92, 92, 0.12)) !important;
   border: 1px solid var(--red-soft, rgba(255, 92, 92, 0.2)) !important;
   color: var(--text-1, #fff) !important;
-  border-radius: 8px !important;
-  padding: 10px 14px !important;
-  font-size: 12px;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  font-size: 13px;
 }
 
-/* Apollo health — denso */
+/* ═══════ APOLLO HEALTH — números proeminentes ═══════════════════════ */
 #panel-dashboard #apollo-triggered,
 #panel-dashboard #apollo-completed,
 #panel-dashboard #apollo-has-wa {
-  font-size: 22px !important;
+  font-size: 24px !important;
   font-weight: 600 !important;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -4223,20 +4312,22 @@ body.app-body, body, .app-layout {
 #panel-dashboard #apollo-has-wa { color: var(--accent) !important; }
 
 /* Canvas dos charts — alturas reduzidas */
-#panel-dashboard #chart-timeline { max-height: 180px !important; }
+#panel-dashboard #chart-timeline { max-height: 200px !important; }
 #panel-dashboard #chart-contacts-by-user,
-#panel-dashboard #chart-reply-rate-by-user { max-height: 200px !important; }
+#panel-dashboard #chart-reply-rate-by-user { max-height: 240px !important; }
 
-/* Layout fix: prevent flex-column shrinking inside #panel-dashboard */
+/* Layout fix: prevent flex-column shrinking */
 #panel-dashboard > * { flex-shrink: 0; }
 
-/* Responsivo: viewport menor */
+/* ═══════ RESPONSIVE ═════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  #panel-dashboard .panel-header { padding: 12px 12px 4px !important; }
+  #panel-dashboard .panel-header { padding: 12px 14px 6px !important; }
   #panel-dashboard .kpi-grid,
   #panel-dashboard .charts-grid,
-  #panel-dashboard .dash-table-wrap { margin-left: 12px !important; margin-right: 12px !important; }
-  #panel-dashboard .dash-section-title { margin-left: 12px !important; margin-right: 12px !important; }
+  #panel-dashboard .dash-table-wrap { margin-left: 14px !important; margin-right: 14px !important; }
+  #panel-dashboard .dash-section-title { margin-left: 14px !important; margin-right: 14px !important; }
   #panel-dashboard .kpi-value { font-size: 22px !important; }
-  #panel-dashboard .kpi-card { padding: 10px 12px !important; }
+  #panel-dashboard .kpi-card { padding: 12px 14px !important; gap: 10px; }
+  #panel-dashboard .kpi-icon { width: 32px; height: 32px; }
+  #panel-dashboard .kpi-icon svg { width: 16px; height: 16px; }
 }
