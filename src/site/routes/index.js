@@ -11,6 +11,7 @@ import conversationsRouter from './conversations.js';
 import messagesRouter from './messages.js';
 import whatsappAccountsRouter from './whatsapp-accounts.js';
 import dashboardRouter from './dashboard.js';
+import pipedriveRouter from './pipedrive.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use(conversationsRouter);
 router.use(messagesRouter);
 router.use(whatsappAccountsRouter);
 router.use(dashboardRouter);
+router.use(pipedriveRouter);
 
 export default router;

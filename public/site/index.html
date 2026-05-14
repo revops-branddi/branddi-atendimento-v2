@@ -228,6 +228,34 @@
             margin-top: 6px;
             line-height: 1.4;
         }
+        /* Alerta "Person já existe no Pipedrive" — aparece em cima do panel
+           quando o auto-lookup por telefone acha match. Discreto, decorativo. */
+        .lp-pd-lookup {
+            margin: 0 12px 8px 12px;
+            padding: 8px 10px;
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: var(--r-md);
+            font-size: 12px;
+            color: var(--text-2);
+        }
+        .lp-pd-lookup-title {
+            font-weight: 600;
+            color: #4338CA;
+            margin-bottom: 2px;
+        }
+        .lp-pd-lookup-link {
+            color: var(--accent-700);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .lp-pd-lookup-link:hover { text-decoration: underline; }
+        .lp-pd-lookup-org { color: var(--text-3); }
+        .lp-pd-lookup-deals {
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--text-3);
+        }
         .lp-classification-row {
             display: flex;
             flex-wrap: wrap;
