@@ -132,11 +132,24 @@ async function processChat(chat, account) {
         });
     }
 
+    // Filtro de frescura por idade de mensagem.
+    //
+    // Para conv RECÉM-CRIADA (isNew): só importa msgs dos últimos 5min.
+    // Caso contrário, uma conv que foi apagada localmente e recriada pelo
+    // polling traria de volta TODO o histórico do chat no Unipile (até
+    // 50 msgs) — o lead veria a UI da Inbox "ressuscitar" conversas
+    // velhas. Quem realmente está abrindo a conv (lead novo) tem msg
+    // fresca, então o limite de 5min é gentil.
+    //
+    // Para conv EXISTENTE: filtro relativo ao último poll (já era).
     const fetchLimit = isNew ? 50 : 10;
-    const msgsRes = await unipile.getMessages(chat.id, { limit: fetchLimit });
-    const items = msgsRes.items || [];
-    const since = _lastPollTime - 5_000;
-    const fresh = isNew ? items : items.filter(m => new Date(m.timestamp) > new Date(since));
+    const msgsRes    = await unipile.getMessages(chat.id, { limit: fetchLimit });
+    const items      = msgsRes.items || [];
+    const NEW_CONV_HISTORY_WINDOW_MS = 5 * 60_000;
+    const cutoff = isNew
+        ? Date.now() - NEW_CONV_HISTORY_WINDOW_MS
+        : _lastPollTime - 5_000;
+    const fresh = items.filter(m => new Date(m.timestamp).getTime() > cutoff);
 
     let touched = false;
     let hasNewInbound = false;
