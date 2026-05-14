@@ -141,6 +141,7 @@ async function processChat(chat, account) {
     let touched = false;
     let hasNewInbound = false;
     let lastInboundText = null;
+    let lastInboundTimestamp = null;
     for (const raw of fresh) {
         const msg = normalizeMessage(raw);
         const inserted = await insertMessage({
@@ -161,7 +162,10 @@ async function processChat(chat, account) {
                 hasNewInbound = true;
                 // Última msg do lead — se tiver várias num batch, pega o texto
                 // da mais recente (items vêm ordenadas desc do Unipile).
-                if (lastInboundText == null) lastInboundText = msg.text || '';
+                if (lastInboundText == null) {
+                    lastInboundText      = msg.text || '';
+                    lastInboundTimestamp = msg.timestamp;
+                }
             }
         }
         else if (msg.direction === 'outbound') {
@@ -179,10 +183,24 @@ async function processChat(chat, account) {
     }
 
     // Bot turn: chama o bot só se (a) chegou inbound nova nesse poll,
-    // e (b) a conv ainda está sob controle do bot. Reload da conv pra
-    // pegar bot_stage atualizado caso processChat tenha sido chamado em
-    // paralelo.
-    if (hasNewInbound) {
+    // (b) a inbound é REALMENTE recente (≤60s), e (c) a conv ainda está
+    // sob controle do bot.
+    //
+    // O check de "fresca" é crítico: quando uma conv é deletada/recriada
+    // (ex: cleanup manual de teste, sync forçada), o `isNew=true` faz o
+    // ingest puxar até 50 msgs históricas do Unipile e inserir todas.
+    // Sem esse filtro, o bot dispararia welcome usando msgs de horas/dias
+    // atrás como gatilho — o lead percebe como auto-mensagem espontânea
+    // ("recebeu welcome 10min depois sem ter respondido"). Regra dura do
+    // projeto: bot só responde a inbound NOVA. Re-import de histórico
+    // nunca aciona turno do bot.
+    //
+    // Reload da conv pra pegar bot_stage atualizado caso processChat
+    // tenha sido chamado em paralelo.
+    const FRESH_INBOUND_WINDOW_MS = 60_000;
+    const inboundIsFresh = lastInboundTimestamp
+        && (Date.now() - new Date(lastInboundTimestamp).getTime()) < FRESH_INBOUND_WINDOW_MS;
+    if (hasNewInbound && inboundIsFresh) {
         const { data: freshConv } = await sb.from('conversations')
             .select('id, lead_id, status, bot_stage, bot_attempts, whatsapp_chat_id, whatsapp_account_id')
             .eq('id', conversation.id)
@@ -194,6 +212,10 @@ async function processChat(chat, account) {
                 logger.error('Bot turn failed', { conv_id: conversation.id, error: err.message });
             }
         }
+    } else if (hasNewInbound && !inboundIsFresh) {
+        logger.info('Site bot skipped — inbound is historical (re-import)', {
+            conv_id: conversation.id, last_inbound_ts: lastInboundTimestamp,
+        });
     }
 }
 
