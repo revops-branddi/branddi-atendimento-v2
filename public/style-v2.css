@@ -4131,6 +4131,13 @@ body.app-body, body, .app-layout {
   margin: 12px 20px 0 !important;
   display: grid !important;
   gap: 12px !important;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
+}
+/* Force 1fr 1fr em desktop pra alinhamento perfeito; mobile empilha */
+@media (min-width: 900px) {
+  #panel-dashboard .charts-grid.charts-2col {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }
 #panel-dashboard .chart-card {
   background: var(--bg-card) !important;
@@ -4193,24 +4200,30 @@ body.app-body, body, .app-layout {
   text-align: center;
 }
 
-/* ═══════ TABELA — leaderboard + cold leads ═══════════════════════════ */
-#panel-dashboard .dash-table-wrap { margin: 12px 20px 0 !important; }
-#panel-dashboard .dash-table {
+/* ═══════ TABELA — leaderboard + cold leads ═══════════════════════════
+   .dash-table-wrap vira o card (mesmo padding/border/radius dos chart-cards);
+   .dash-table interna só faz scroll horizontal, herda border-radius via overflow. */
+#panel-dashboard .dash-table-wrap {
+  margin: 12px 20px 0 !important;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
+  padding: 16px 18px;
+  transition: border-color 0.2s var(--ease);
+}
+#panel-dashboard .dash-table-wrap:hover { border-color: var(--border-strong); }
+#panel-dashboard .dash-table {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* Estende a tabela até as bordas inferior/laterais do card pra header
+     row colar nas bordas e não ficar visualmente "flutuando". */
+  margin: 0 -18px -16px;
+  border-radius: 0 0 12px 12px;
 }
 #panel-dashboard .table-pro {
   width: 100%;
   min-width: 720px;
   border-collapse: collapse;
-}
-/* Cold leads tem só 4 colunas e fica em card de 50% width — overflow-x
-   estava cortando. Min-width menor pra caber sem scroll. */
-#panel-dashboard .chart-card .table-pro {
-  min-width: 0;
 }
 #panel-dashboard .table-pro thead th {
   background: var(--bg-input) !important;
@@ -4298,16 +4311,28 @@ body.app-body, body, .app-layout {
   font-size: 13px;
 }
 
-/* ═══════ APOLLO HEALTH — números proeminentes ═══════════════════════ */
-#panel-dashboard #apollo-triggered,
-#panel-dashboard #apollo-completed,
-#panel-dashboard #apollo-has-wa {
-  font-size: 24px !important;
-  font-weight: 600 !important;
+/* ═══════ APOLLO HEALTH — layout horizontal 3-col ════════════════════ */
+#panel-dashboard .apollo-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 8px 4px;
+}
+#panel-dashboard .apollo-stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+#panel-dashboard .apollo-stat-value {
+  font-size: 24px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1.1;
-  margin-top: 2px;
+  color: var(--text-1, #fff);
 }
 #panel-dashboard #apollo-has-wa { color: var(--accent) !important; }
 

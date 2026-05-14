@@ -3290,18 +3290,24 @@ function renderColdLeads(cold) {
     if (!tbody) return;
     const rows = cold || [];
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px">Nenhum lead frio 🎉</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px">Nenhum lead frio</td></tr>';
         return;
     }
     // Fields user-controlled (lead_name, phone, owner_name) escapados via escHtml.
-    tbody.innerHTML = rows.map(l => `
-        <tr>
-            <td><b>${escHtml(l.lead_name)}</b></td>
-            <td><code>${escHtml(l.phone)}</code></td>
-            <td>${escHtml(l.owner_name)}</td>
-            <td style="text-align:right"><span class="days-cold-badge${l.days_cold >= 7 ? ' severe' : ''}">${l.days_cold}d</span></td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = rows.map(l => {
+        const lastMsg = l.last_message_at
+            ? new Date(l.last_message_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+            : '—';
+        return `
+            <tr>
+                <td><b>${escHtml(l.lead_name)}</b></td>
+                <td><code>${escHtml(l.phone)}</code></td>
+                <td>${escHtml(l.owner_name)}</td>
+                <td style="color:var(--text-muted);font-size:12px">${escHtml(lastMsg)}</td>
+                <td style="text-align:right"><span class="days-cold-badge${l.days_cold >= 7 ? ' severe' : ''}">${l.days_cold}d</span></td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function renderApolloHealth(apollo) {
