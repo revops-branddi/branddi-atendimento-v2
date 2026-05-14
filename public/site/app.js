@@ -161,11 +161,15 @@ function renderConvItem(c) {
         dataset: { id: c.id },
         onclick: () => openConversation(c.id),
     },
-        el('div', { class: 'name' },
-            el('span', {}, c.leads?.name || c.leads?.phone || 'Sem nome'),
-            el('time', {}, fmtTime(c.last_message_at || c.created_at)),
+        // Coluna esquerda: nome + horário em cima, empresa embaixo.
+        el('div', { class: 'conv-item-main' },
+            el('div', { class: 'name' },
+                el('span', {}, c.leads?.name || c.leads?.phone || 'Sem nome'),
+                el('time', {}, fmtTime(c.last_message_at || c.created_at)),
+            ),
+            el('div', { class: 'preview' }, c.leads?.company_name || c.leads?.email || c.leads?.phone || ''),
         ),
-        el('div', { class: 'preview' }, c.leads?.company_name || c.leads?.email || c.leads?.phone || ''),
+        // Coluna direita: badge de status (+ pill "minha" se for do user).
         el('div', { class: 'meta' },
             el('span', { class: `badge badge-${c.status}` }, STATUS_LABEL[c.status] || c.status),
             isMine && el('span', { class: 'status-pill' }, 'minha'),
@@ -175,11 +179,8 @@ function renderConvItem(c) {
 
 // ─── Filters ─────────────────────────────────────────────────────────
 
-document.getElementById('filters').addEventListener('click', (e) => {
-    const btn = e.target.closest('.filter-btn');
-    if (!btn) return;
-    state.filter = btn.dataset.filter;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+document.getElementById('filter-select').addEventListener('change', (e) => {
+    state.filter = e.target.value;
     loadConversations();
 });
 
