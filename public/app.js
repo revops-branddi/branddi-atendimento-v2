@@ -3255,6 +3255,13 @@ function renderReplyRateByUserChart(byUser) {
     });
 }
 
+function rateBadgeClass(rate) {
+    if (rate == null) return 'low';
+    if (rate >= 0.30) return 'high';
+    if (rate >= 0.15) return 'mid';
+    return 'low';
+}
+
 function renderLeaderboard(byUser) {
     const tbody = document.getElementById('dash-user-tbody');
     if (!tbody) return;
@@ -3264,13 +3271,14 @@ function renderLeaderboard(byUser) {
         return;
     }
     // User-fornecido (name, phone_numbers) passa por escHtml — safe.
-    tbody.innerHTML = rows.map(u => `
-        <tr>
+    // Primeira row (top em contatos) ganha class .top-row.
+    tbody.innerHTML = rows.map((u, i) => `
+        <tr${i === 0 ? ' class="top-row"' : ''}>
             <td><b>${escHtml(u.name)}</b></td>
             <td style="color:var(--text-muted);font-size:11px"><code>${escHtml((u.phone_numbers || []).join(', ') || '—')}</code></td>
             <td style="text-align:right">${fmtNum(u.unique_contacts)}</td>
             <td style="text-align:right">${fmtNum(u.responded)}</td>
-            <td style="text-align:right">${fmtPct(u.reply_rate)}</td>
+            <td style="text-align:right"><span class="rate-badge ${rateBadgeClass(u.reply_rate)}">${fmtPct(u.reply_rate)}</span></td>
             <td style="text-align:right">${fmtDurationMs(u.median_first_response_ms)}</td>
             <td style="text-align:right">${fmtNum(u.messages_sent)}</td>
         </tr>
@@ -3291,7 +3299,7 @@ function renderColdLeads(cold) {
             <td><b>${escHtml(l.lead_name)}</b></td>
             <td><code>${escHtml(l.phone)}</code></td>
             <td>${escHtml(l.owner_name)}</td>
-            <td style="text-align:right;color:var(--amber)"><b>${l.days_cold}d</b></td>
+            <td style="text-align:right"><span class="days-cold-badge${l.days_cold >= 7 ? ' severe' : ''}">${l.days_cold}d</span></td>
         </tr>
     `).join('');
 }
