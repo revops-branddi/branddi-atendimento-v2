@@ -3086,10 +3086,14 @@ async function loadDashboard() {
     const granularity = document.getElementById('dash-granularity')?.value || 'monthly';
     const userFilter = document.getElementById('dash-user-filter')?.value || '';
     const accountFilter = document.getElementById('dash-account-filter')?.value || '';
+    // Tab ativa (prospecting / sales / all). Default = prospecting.
+    const activeTab = document.querySelector('#dash-tabs .dash-tab.active');
+    const team = activeTab?.dataset?.team || 'prospecting';
 
     const qs = new URLSearchParams({ granularity });
     if (userFilter)    qs.set('user_id', userFilter);
     if (accountFilter) qs.set('account_id', accountFilter);
+    if (team && team !== 'all') qs.set('team', team);  // 'all' = sem filtro
 
     const errEl = document.getElementById('dash-error');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
@@ -3421,6 +3425,45 @@ function setupDashPeriod() {
         document.getElementById(id)?.addEventListener('change', loadDashboard);
     });
     setupDashFilters();
+    setupDashTeamTabs();
+}
+
+// Tabs Prospecção / Vendas / Todos — persistido em localStorage["atd:prefs"].dashTeam
+function setupDashTeamTabs() {
+    const tabs = document.querySelectorAll('#dash-tabs .dash-tab');
+    if (!tabs.length) return;
+
+    // Restaura preferência salva
+    let savedTeam = 'prospecting';
+    try {
+        const prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}');
+        if (['prospecting', 'sales', 'all'].includes(prefs.dashTeam)) {
+            savedTeam = prefs.dashTeam;
+        }
+    } catch (_) {}
+    tabs.forEach(t => {
+        const isActive = t.dataset.team === savedTeam;
+        t.classList.toggle('active', isActive);
+        t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
+            // Persiste pref
+            try {
+                const prefs = JSON.parse(localStorage.getItem('atd:prefs') || '{}');
+                prefs.dashTeam = tab.dataset.team;
+                localStorage.setItem('atd:prefs', JSON.stringify(prefs));
+            } catch (_) {}
+            loadDashboard();
+        });
+    });
 }
 
 function chartOpts(extra = {}) {

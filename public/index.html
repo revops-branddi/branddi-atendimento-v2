@@ -487,7 +487,7 @@
 <!-- ════════════ DASHBOARD TAB — PROSPECTING ════════════ -->
 <section class="tab-panel" id="panel-dashboard">
     <div class="panel-header">
-        <h2 class="panel-title">Dashboard de Prospecção</h2>
+        <h2 class="panel-title">Dashboard Comercial</h2>
         <div class="panel-actions" style="display:flex;gap:8px;flex-wrap:wrap">
             <select class="filter-select" id="dash-granularity">
                 <option value="daily">Diário (24h)</option>
@@ -501,6 +501,15 @@
                 <option value="">Todos números</option>
             </select>
         </div>
+    </div>
+
+    <!-- Tabs categoria: Prospecção / Vendas / Todos.
+         Default = prospecting (foco principal hoje). Pref salva em
+         localStorage["atd:prefs"].dashTeam, sincronizada com html data-attr. -->
+    <div class="dash-tabs" id="dash-tabs" role="tablist">
+        <button class="dash-tab active" data-team="prospecting" role="tab" aria-selected="true">Prospecção</button>
+        <button class="dash-tab" data-team="sales" role="tab" aria-selected="false">Vendas</button>
+        <button class="dash-tab" data-team="all" role="tab" aria-selected="false">Todos</button>
     </div>
 
     <div id="dash-error" style="display:none;background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;color:var(--text-muted);font-size:13px"></div>
