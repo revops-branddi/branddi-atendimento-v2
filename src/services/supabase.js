@@ -635,6 +635,7 @@ export async function getProspectingDashboard({
     granularity = 'monthly',
     user_id = null,
     account_id = null,
+    team = null,           // 'prospecting' | 'sales' | null = todos
     role = 'Usuario',
     requester_id = null,
 } = {}) {
@@ -643,7 +644,19 @@ export async function getProspectingDashboard({
     const sinceIso = new Date(now.getTime() - days * 86_400_000).toISOString();
     const effectiveUserId = role === 'Admin' ? user_id : requester_id;
 
-    // 1. Universo de accounts elegíveis (não excluídos, com owner)
+    // 1a. Se filtrado por team, resolve quais user_ids pertencem ao time.
+    //     Aplica restrição no accountQ via .in('connected_by_user_id', ids).
+    let teamUserIds = null;
+    if (team === 'prospecting' || team === 'sales') {
+        const teamRes = await supabase
+            .from('platform_users')
+            .select('id')
+            .eq('team', team);
+        teamUserIds = (teamRes.data || []).map(u => u.id);
+        if (teamUserIds.length === 0) return emptyProspecting(granularity, sinceIso);
+    }
+
+    // 1b. Universo de accounts elegíveis (não excluídos, com owner).
     let accountQ = supabase
         .from('whatsapp_accounts')
         .select('unipile_account_id, phone_number, connected_by_user_id')
@@ -651,6 +664,7 @@ export async function getProspectingDashboard({
         .not('connected_by_user_id', 'is', null);
     if (account_id) accountQ = accountQ.eq('unipile_account_id', account_id);
     if (effectiveUserId) accountQ = accountQ.eq('connected_by_user_id', effectiveUserId);
+    if (teamUserIds) accountQ = accountQ.in('connected_by_user_id', teamUserIds);
     const accountsRes = await accountQ;
     const accounts = accountsRes.data || [];
     if (accounts.length === 0) return emptyProspecting(granularity, sinceIso);
@@ -684,18 +698,27 @@ export async function getProspectingDashboard({
     const convsInPeriod = convs.filter(c => c.last_message_at && c.last_message_at >= sinceIso);
     const convIdsInPeriod = convsInPeriod.map(c => c.id);
 
-    // 4. Mensagens no período. Se o set ainda for grande, faz chunks de 200 IDs.
+    // 4. Mensagens no período. Chunks de 200 IDs pra .in() não estourar URL.
+    //    Cada chunk pode retornar >1000 msgs (Supabase default max-rows trunca
+    //    silenciosamente). Pra pegar tudo, paginamos dentro do chunk via .range().
     const msgs = [];
+    const PAGE_SIZE = 1000;
     if (convIdsInPeriod.length > 0) {
         for (let i = 0; i < convIdsInPeriod.length; i += 200) {
             const chunk = convIdsInPeriod.slice(i, i + 200);
-            const r = await supabase
-                .from('messages')
-                .select('conversation_id, direction, created_at')
-                .gte('created_at', sinceIso)
-                .in('conversation_id', chunk)
-                .limit(50000);
-            if (r.data) msgs.push(...r.data);
+            let from = 0;
+            while (true) {
+                const r = await supabase
+                    .from('messages')
+                    .select('conversation_id, direction, created_at')
+                    .gte('created_at', sinceIso)
+                    .in('conversation_id', chunk)
+                    .range(from, from + PAGE_SIZE - 1);
+                if (r.error || !r.data || r.data.length === 0) break;
+                msgs.push(...r.data);
+                if (r.data.length < PAGE_SIZE) break; // última página
+                from += PAGE_SIZE;
+            }
         }
     }
 

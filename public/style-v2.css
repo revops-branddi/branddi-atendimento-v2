@@ -4468,3 +4468,48 @@ html[data-chat-bg="pattern"] .chat-area {
    (já é o padrão), mas track fica um pouco mais escuro pra contraste
    sobre o bubble verde claro. */
 .msg-row.outbound .msg-audio-track { background: rgba(127, 140, 158, 0.30); }
+
+/* ════════════════════════════════════════════════════════════════════
+   Dashboard team tabs — Prospecção / Vendas / Todos
+   Posicionado logo abaixo do panel-header.
+   ════════════════════════════════════════════════════════════════════ */
+#panel-dashboard .dash-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 20px 0 !important;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: fit-content;
+}
+#panel-dashboard .dash-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #93a1aa);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+#panel-dashboard .dash-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-1, #fff);
+}
+#panel-dashboard .dash-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text-1, #fff);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+#panel-dashboard .dash-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+@media (max-width: 768px) {
+  #panel-dashboard .dash-tabs { margin: 12px 14px 0 !important; }
+}
