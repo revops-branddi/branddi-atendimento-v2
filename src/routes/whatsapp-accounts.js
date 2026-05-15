@@ -126,6 +126,9 @@ router.get('/whatsapp/accounts', async (req, res) => {
 });
 
 // ─── POST /api/whatsapp/connect — Conecta novo numero (QR Code) ──────
+// LEGADO: POST /accounts não retorna mais o QR inline na resposta — Unipile
+// migrou pra Hosted Auth. Mantido aqui só por compat com scripts antigos;
+// o frontend agora usa /whatsapp/connect-link abaixo.
 router.post('/whatsapp/connect', async (req, res) => {
     try {
         const result = await unipileFetch('/accounts', {
@@ -155,6 +158,50 @@ router.post('/whatsapp/connect', async (req, res) => {
         res.json(result);
     } catch (err) {
         logger.error('WA connect error', { error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── POST /api/whatsapp/connect-link ─────────────────────────────────
+// Hosted Auth pra conectar NÚMERO NOVO. Devolve URL temporária (1h) da
+// Unipile, que o atendente abre no celular → escaneia QR direto na página
+// deles. Substitui o fluxo legado de QR inline (POST /accounts não retorna
+// mais qr_code no body).
+//
+// Quando o user escaneia, Unipile cria a conta e dispara webhook
+// `account.created` (já tratado em src/routes/webhooks.js). O webhook
+// vincula a conta ao user via connected_by_user_id (via `name` no payload).
+router.post('/whatsapp/connect-link', async (req, res) => {
+    try {
+        const config = getUnipileConfig();
+        if (!config) return res.status(500).json({ error: 'Unipile não configurado' });
+
+        const expiresOn = new Date(Date.now() + 60 * 60_000).toISOString();
+        const result = await unipileFetch('/hosted/accounts/link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type:      'create',
+                providers: ['WHATSAPP'],
+                api_url:   config.base.replace('/api/v1', ''),
+                expiresOn,
+                // `name` é eco-back no webhook → usamos pra vincular a conta
+                // ao user que iniciou o flow, sem depender de cookie/sessão
+                // na página da Unipile.
+                name: req.user?.id ? `user:${req.user.id}` : 'unknown',
+            }),
+        }, 10000);
+
+        const url = result?.url || result?.hosted_url;
+        if (!url) {
+            logger.warn('Hosted create sem URL', { result });
+            return res.status(502).json({ error: 'Unipile não retornou URL', raw: result });
+        }
+
+        logger.info('Hosted create URL gerada', { user_id: req.user?.id });
+        res.json({ url, expires_on: expiresOn });
+    } catch (err) {
+        logger.error('connect-link error', { error: err.message });
         res.status(500).json({ error: err.message });
     }
 });
