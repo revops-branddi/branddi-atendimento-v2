@@ -171,14 +171,15 @@
                             </button>
                             <div class="filter-dropdown-menu" id="filter-dropdown-menu">
                                 <!-- Tabs "Tudo / Site / Prospecao" removidas: hoje 100% das
-                                     conversas são prospecting. Inbound foi pra subpágina /site/. -->
-                                <div class="filter-group">
-                                    <div class="filter-group-label">Status</div>
+                                     conversas são prospecting. Inbound foi pra subpágina /site/.
+                                     Status filter (Aguardando/Em andamento) removido — esses estados
+                                     não são usados no inbox de prospecção. JS mantém currentFilter='all'
+                                     por default. Arquivadas: toggle separado abaixo (admin only). -->
+                                <div class="filter-group admin-only" id="filter-archived-group" style="display:none">
+                                    <div class="filter-group-label">Arquivadas</div>
                                     <div class="sidebar-filters">
-                                        <button class="filter-chip active" data-filter="all">Todos</button>
-                                        <button class="filter-chip" data-filter="waiting">Aguardando</button>
-                                        <button class="filter-chip" data-filter="in_progress">Em andamento</button>
-                                        <button class="filter-chip admin-only" data-filter="archived" id="filter-archived" style="display:none" title="Ver conversas arquivadas (Admin)">🗃️ Arquivadas</button>
+                                        <button class="filter-chip active" data-filter="all">Inbox</button>
+                                        <button class="filter-chip" data-filter="archived" id="filter-archived" title="Ver conversas arquivadas (Admin)">🗃️ Arquivadas</button>
                                     </div>
                                 </div>
                                 <div class="filter-group" id="filter-account-group" style="display:none">
