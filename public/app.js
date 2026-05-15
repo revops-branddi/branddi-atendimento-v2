@@ -3082,7 +3082,12 @@ async function exportLeadsCSV() {
 
 const DASH_DOW_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-async function loadDashboard() {
+// Cache client-side: Map<qsString, { data, expiresAt }>.
+// TTL 30s espelha o backend. Voltar pra tab anterior = instantâneo.
+const _dashCache = new Map();
+const DASH_CACHE_TTL_MS = 30_000;
+
+async function loadDashboard({ fresh = false } = {}) {
     const granularity = document.getElementById('dash-granularity')?.value || 'monthly';
     const userFilter = document.getElementById('dash-user-filter')?.value || '';
     const accountFilter = document.getElementById('dash-account-filter')?.value || '';
@@ -3098,17 +3103,21 @@ async function loadDashboard() {
     const errEl = document.getElementById('dash-error');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
+    const cacheKey = qs.toString();
+
+    // Cache hit → renderiza direto, sem rede
+    if (!fresh) {
+        const hit = _dashCache.get(cacheKey);
+        if (hit && hit.expiresAt > Date.now()) {
+            _renderDashboard(hit.data, granularity);
+            return;
+        }
+    }
+
     try {
-        const data = await apiFetch(`/api/dashboard/prospecting?${qs}`);
-        renderProspectingKPIs(data);
-        renderFunnel(data.funnel);
-        renderTimeline(data.timeline, granularity);
-        renderHeatmap(data.heatmap);
-        renderContactsByUserChart(data.byUser);
-        renderReplyRateByUserChart(data.byUser);
-        renderLeaderboard(data.byUser);
-        renderColdLeads(data.cold_leads);
-        renderApolloHealth(data.apollo);
+        const data = await apiFetch(`/api/dashboard/prospecting?${qs}${fresh ? '&fresh=1' : ''}`);
+        _dashCache.set(cacheKey, { data, expiresAt: Date.now() + DASH_CACHE_TTL_MS });
+        _renderDashboard(data, granularity);
     } catch (err) {
         console.error('Dashboard error:', err);
         if (errEl) {
@@ -3121,6 +3130,18 @@ async function loadDashboard() {
             if (el) el.textContent = '—';
         });
     }
+}
+
+function _renderDashboard(data, granularity) {
+    renderProspectingKPIs(data);
+    renderFunnel(data.funnel);
+    renderTimeline(data.timeline, granularity);
+    renderHeatmap(data.heatmap);
+    renderContactsByUserChart(data.byUser);
+    renderReplyRateByUserChart(data.byUser);
+    renderLeaderboard(data.byUser);
+    renderColdLeads(data.cold_leads);
+    renderApolloHealth(data.apollo);
 }
 
 function renderProspectingKPIs(data) {
