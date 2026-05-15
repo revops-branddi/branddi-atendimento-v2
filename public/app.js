@@ -4123,52 +4123,63 @@ function copyReconnectUrl() {
     );
 }
 
+// Conecta número NOVO via Hosted Auth da Unipile. POST /accounts não
+// retorna mais qr_code inline — Unipile migrou pra página hospedada deles.
+// Geramos URL temporária (1h), abrimos em nova aba e pollamos o status.
 async function generateWaQR() {
-    const btn = document.getElementById('btn-wa-generate-qr');
+    const btn = document.getElementById('btn-wa-add-new')
+            ||  document.getElementById('btn-wa-generate-qr');
     const qrArea = document.getElementById('wa-qr-area');
     const container = document.getElementById('wa-qr-container');
 
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando link...'; }
     if (qrArea) qrArea.style.display = 'block';
-    if (container) container.innerHTML = '<span style="color:#666">⏳ Aguardando QR code da Unipile...</span>';
+
+    // Helper: substitui o conteúdo do container por um único nó (textContent-only
+    // pro msg, evita XSS caso a mensagem venha da Unipile/erro).
+    const setStatus = (text, color = '#666') => {
+        if (!container) return;
+        const span = document.createElement('span');
+        span.style.color = color;
+        span.textContent = text;
+        container.replaceChildren(span);
+    };
+
+    setStatus('⏳ Gerando link da Unipile…');
 
     try {
-        const res = await fetch('/api/whatsapp/connect', { method: 'POST' });
+        const res = await fetch('/api/whatsapp/connect-link', { method: 'POST' });
         const json = await res.json();
+        if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+        if (!json.url) throw new Error('URL não retornada pela Unipile');
 
-        if (json.error) throw new Error(json.error);
+        // Abre em nova aba — Unipile renderiza o QR nativo lá.
+        window.open(json.url, '_blank', 'noopener');
 
-        const checkpoint = json.checkpoint || json;
-        const qrData = checkpoint.qrcode || checkpoint.qr_code || json.qr_code;
-
-        if (qrData && container) {
-            container.innerHTML = '';
-
-            if (qrData.startsWith('data:image') || qrData.startsWith('iVBOR')) {
-                container.innerHTML = `<img src="${qrData.startsWith('data:') ? qrData : 'data:image/png;base64,' + qrData}"
-                    style="max-width:250px;border-radius:8px">`;
-            } else {
-                const canvas = document.createElement('canvas');
-                container.appendChild(canvas);
-                try {
-                    new QRious({ element: canvas, value: qrData, size: 240, level: 'M', background: 'white', foreground: '#000' });
-                } catch (qrErr) {
-                    container.innerHTML = `<span style="color:red">Erro ao renderizar QR: ${qrErr.message}</span>`;
-                }
-            }
-
-            _pollWaConnection();
-
-        } else if (json.object === 'Account' || json.id) {
-            if (container) container.innerHTML = '<span style="color:#00E5FF;font-size:16px">✅ Conta conectada!</span>';
-            setTimeout(() => { checkWaStatus(); checkHealth(); }, 1000);
-        } else {
-            if (container) container.innerHTML = `<pre style="font-size:10px;color:#888;max-width:280px;overflow:auto;white-space:pre-wrap;text-align:left">${JSON.stringify(json, null, 2)}</pre>`;
+        if (container) {
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'text-align:center;color:#222;font-size:13px;line-height:1.5';
+            const line1 = document.createElement('div');
+            line1.textContent = '✅ Abri a página da Unipile em outra aba.';
+            const line2 = document.createElement('div');
+            line2.textContent = 'Escaneie o QR lá com o celular do número novo.';
+            const link = document.createElement('a');
+            link.href = json.url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = 'Reabrir link';
+            link.style.cssText = 'font-size:11px;color:#0066cc;display:inline-block;margin-top:8px';
+            wrap.append(line1, line2, link);
+            container.replaceChildren(wrap);
         }
+
+        // Polling: webhook account.created vai inserir a row em
+        // whatsapp_accounts; checkWaStatus() detecta e atualiza a modal.
+        _pollWaConnection();
     } catch (err) {
-        if (container) container.innerHTML = `<span style="color:#EF4444">❌ ${err.message}</span>`;
+        setStatus(`❌ ${err.message}`, '#EF4444');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '📱 Gerar novo QR'; }
+        if (btn) { btn.disabled = false; btn.textContent = '+ Conectar novo número'; }
     }
 }
 
