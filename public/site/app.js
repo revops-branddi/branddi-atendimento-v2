@@ -1225,147 +1225,11 @@ function notifyDesktop(conv) {
     }
 }
 
-// ─── Modal: contas WhatsApp do site (admin only) ─────────────────────
-
-async function openWaAccountsModal() {
-    const overlay = el('div', { class: 'opec-modal-overlay', onclick: (e) => {
-        if (e.target === overlay) overlay.remove();
-    } });
-
-    const body = el('div', { class: 'opec-modal-body' }, emptyMsg('Carregando contas…'));
-
-    overlay.append(
-        el('div', { class: 'opec-modal' },
-            el('div', { class: 'opec-modal-header' },
-                el('h3', {}, 'Contas WhatsApp do Site'),
-                el('div', { class: 'opec-modal-sub' }, 'Gerencie a conexão do número dedicado'),
-            ),
-            body,
-            el('div', { class: 'opec-modal-footer' },
-                el('button', { class: 'opec-cancel', onclick: () => overlay.remove() }, 'Fechar'),
-                el('button', {
-                    class: 'opec-submit',
-                    onclick: () => connectNewWaAccount(overlay),
-                }, 'Conectar nova'),
-            ),
-        ),
-    );
-    document.body.appendChild(overlay);
-
-    try {
-        const accounts = await api('/whatsapp-accounts');
-        renderWaAccountsList(body, accounts, overlay);
-    } catch (err) {
-        body.replaceChildren(emptyMsg(`Erro: ${err.message}`));
-    }
-}
-
-function renderWaAccountsList(body, accounts, overlay) {
-    if (!accounts.length) {
-        body.replaceChildren(
-            el('div', { class: 'wa-empty' },
-                el('div', {}, 'Nenhuma conta WhatsApp cadastrada'),
-                el('div', { class: 'wa-empty-hint' }, 'Clique em "Conectar nova" pra começar.'),
-            ),
-        );
-        return;
-    }
-    const items = accounts.map(a => renderWaAccountItem(a, overlay));
-    body.replaceChildren(...items);
-}
-
-function renderWaAccountItem(acc, overlay) {
-    const liveStatus = (acc.live_status || acc.status || 'unknown').toLowerCase();
-    const isOk = /^(ok|connected|running|ok_for_now)$/i.test(liveStatus);
-    const statusClass = isOk ? 'online' : (/connecting|checkpoint|qr/i.test(liveStatus) ? 'connecting' : 'offline');
-    const statusLabel = isOk ? 'Conectada' : (/connecting|checkpoint|qr/i.test(liveStatus) ? 'Conectando…' : 'Desconectada');
-
-    const labelInput = el('input', {
-        type: 'text',
-        class: 'wa-acc-label',
-        value: acc.label || '',
-        placeholder: 'Sem label',
-    });
-    labelInput.addEventListener('blur', async () => {
-        if ((acc.label || '') === labelInput.value.trim()) return;
-        try {
-            await api(`/whatsapp-accounts/${acc.id}`, {
-                method: 'PATCH',
-                body:   JSON.stringify({ label: labelInput.value.trim() }),
-            });
-            acc.label = labelInput.value.trim();
-            toast('Label salva', 'success');
-        } catch (err) {
-            toast(`Erro: ${err.message}`, 'error');
-        }
-    });
-
-    const reconnectBtn = el('button', {
-        class: 'wa-acc-btn primary',
-        onclick: () => reconnectWaAccount(acc.id),
-    }, 'Religar');
-
-    const disconnectBtn = el('button', {
-        class: 'wa-acc-btn danger',
-        onclick: () => disconnectWaAccount(acc.id, overlay),
-    }, 'Desconectar');
-
-    return el('div', { class: 'wa-acc-item' },
-        el('div', { class: 'wa-acc-row' },
-            el('div', { class: 'wa-acc-info' },
-                el('div', { class: 'wa-acc-phone' }, acc.phone_number || acc.unipile_account_id || '?'),
-                el('span', { class: `wa-acc-status ${statusClass}` }, statusLabel),
-            ),
-        ),
-        el('div', { class: 'wa-acc-row' },
-            el('label', { class: 'wa-acc-label-wrap' },
-                el('span', { class: 'wa-acc-label-text' }, 'Label'),
-                labelInput,
-            ),
-        ),
-        el('div', { class: 'wa-acc-actions' }, reconnectBtn, disconnectBtn),
-    );
-}
-
-async function connectNewWaAccount(overlay) {
-    if (!confirm('Vai abrir uma página da Unipile pra escanear o QR. Continuar?')) return;
-    try {
-        const res = await api('/whatsapp-accounts/connect-link', { method: 'POST' });
-        if (!res.url) throw new Error('URL não retornada');
-        window.open(res.url, '_blank', 'noopener');
-        toast('Abri a página da Unipile em outra aba — escaneie o QR', 'success');
-        // Recarrega lista após 5s pra refletir conta nova
-        setTimeout(() => {
-            overlay.remove();
-            openWaAccountsModal();
-        }, 5000);
-    } catch (err) {
-        toast(err.message, 'error');
-    }
-}
-
-async function reconnectWaAccount(accId) {
-    try {
-        const res = await api(`/whatsapp-accounts/${accId}/reconnect-link`, { method: 'POST' });
-        if (!res.url) throw new Error('URL não retornada');
-        window.open(res.url, '_blank', 'noopener');
-        toast('Abri a página da Unipile em outra aba — escaneie o QR', 'success');
-    } catch (err) {
-        toast(err.message, 'error');
-    }
-}
-
-async function disconnectWaAccount(accId, overlay) {
-    if (!confirm('Desconectar essa conta? As conversas existentes ficam preservadas, mas novas mensagens deixam de chegar até religar.')) return;
-    try {
-        await api(`/whatsapp-accounts/${accId}`, { method: 'DELETE' });
-        toast('Conta desconectada', 'success');
-        overlay.remove();
-        refreshSiteStatus();
-    } catch (err) {
-        toast(err.message, 'error');
-    }
-}
+// ─── Gestão de contas WhatsApp do site ────────────────────────────────
+// A modal local (openWaAccountsModal e helpers) foi substituída pelo
+// deep-link /?openSettings=site no app principal — única fonte de UI
+// para gerenciar contas WA do site. Mantém o backend isolado em
+// /api/site/whatsapp-accounts, mas centraliza a admin UX num só lugar.
 
 // ─── Modal: Dashboard /site (admin only) ─────────────────────────────
 
@@ -1534,8 +1398,12 @@ function applySiteRoleVisibility() {
     const pill = document.getElementById('site-status-pill');
     if (pill && isAdmin) {
         pill.classList.add('clickable');
-        pill.title = 'Clique pra gerenciar conta WhatsApp do site';
-        pill.addEventListener('click', openWaAccountsModal);
+        pill.title = 'Gerenciar conta WhatsApp do site';
+        // Deep-link pro app principal já na aba Site das Configurações,
+        // que substituiu a antiga modal local (openWaAccountsModal).
+        pill.addEventListener('click', () => {
+            window.location.assign('/?openSettings=site');
+        });
     }
 }
 
