@@ -967,76 +967,76 @@
                     </div>
                 </div>
 
-                <!-- Modo do Chatbot (SÓ Admin) -->
+                <!-- Divider: separa configs pessoais (perfil/aparência) das operacionais (admin) -->
+                <div class="settings-divider admin-section" role="separator">
+                    <span>Configuração da operação</span>
+                </div>
+
+                <!-- Modo do Chatbot (SÓ Admin) — cards horizontais em grid responsivo -->
                 <div class="settings-section admin-section" id="section-bot-mode">
                     <h4 class="settings-section-title">🧠 Modo do Chatbot</h4>
                     <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Define como o bot trata novas conversas no WhatsApp.</p>
-                    <div class="bot-mode-options">
-                        <label class="bot-mode-option">
+                    <div class="bot-mode-grid">
+                        <label class="bot-mode-card" for="bot-mode-ai">
                             <input type="radio" name="bot-mode" value="ai" id="bot-mode-ai" checked />
-                            <div class="bot-mode-text">
-                                <div class="bot-mode-title">Agente IA</div>
-                                <div class="bot-mode-desc">LLM qualifica o lead com perguntas naturais. Usa Gemini/Claude/NVIDIA conforme configurado nas env vars.</div>
-                            </div>
+                            <div class="bot-mode-title">🤖 Agente IA</div>
+                            <div class="bot-mode-desc">LLM qualifica o lead com perguntas naturais. Usa Gemini/Claude/NVIDIA conforme env.</div>
                         </label>
-                        <label class="bot-mode-option">
+                        <label class="bot-mode-card" for="bot-mode-manual">
                             <input type="radio" name="bot-mode" value="manual" id="bot-mode-manual" />
-                            <div class="bot-mode-text">
-                                <div class="bot-mode-title">Manual (simples)</div>
-                                <div class="bot-mode-desc">Cumprimenta, pergunta Comercial vs OPEC, pede nome/cargo/empresa/site em 1 mensagem. Mini-LLM só extrai os campos.</div>
-                            </div>
+                            <div class="bot-mode-title">✍️ Manual</div>
+                            <div class="bot-mode-desc">Cumprimenta, pergunta Comercial vs OPEC, coleta nome/cargo/empresa em 1 mensagem.</div>
                         </label>
-                        <label class="bot-mode-option">
+                        <label class="bot-mode-card" for="bot-mode-off">
                             <input type="radio" name="bot-mode" value="off" id="bot-mode-off" />
-                            <div class="bot-mode-text">
-                                <div class="bot-mode-title">Desligado</div>
-                                <div class="bot-mode-desc">Bot não responde. Toda conversa cai direto na fila do atendente.</div>
-                            </div>
+                            <div class="bot-mode-title">⏸️ Desligado</div>
+                            <div class="bot-mode-desc">Bot não responde. Toda conversa cai direto na fila do atendente.</div>
                         </label>
                     </div>
                 </div>
 
                 <!-- Bot 24h (SÓ Admin) -->
                 <div class="settings-section admin-section" id="section-bot">
-                    <h4 class="settings-section-title">🤖 Bot 24h — Resposta de Ausencia</h4>
-                    <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:10px">
-                            <input type="checkbox" id="settings-away-enabled" style="width:18px;height:18px;accent-color:#00E5FF" />
-                            Ativar resposta automatica de ausencia
-                        </label>
-                    </div>
-                    <div class="settings-row" style="align-items:flex-start;gap:16px">
-                        <div class="form-group" style="flex:0 0 160px">
+                    <h4 class="settings-section-title">🌙 Resposta de Ausência</h4>
+                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Mensagem automática quando ninguém responde por X minutos.</p>
+                    <label class="settings-toggle-row">
+                        <input type="checkbox" id="settings-away-enabled" />
+                        <span class="settings-toggle-text">Ativar resposta automática</span>
+                    </label>
+                    <div style="display:grid;grid-template-columns:160px 1fr;gap:14px;margin-top:12px">
+                        <div class="form-group" style="margin:0">
                             <label>Minutos sem resposta</label>
                             <input type="number" id="settings-away-minutes" class="settings-input" min="1" max="120" value="10" />
                         </div>
-                        <div class="form-group" style="flex:1">
-                            <label>Mensagem de ausencia</label>
+                        <div class="form-group" style="margin:0">
+                            <label>Mensagem de ausência</label>
                             <textarea id="settings-away-message" class="settings-input" rows="3" style="resize:vertical"></textarea>
                         </div>
                     </div>
                 </div>
 
-                <!-- Integracao Apollo (SÓ Admin) -->
+                <!-- Integracao Apollo (SÓ Admin) — cards de toggle com border highlight -->
                 <div class="settings-section admin-section" id="section-apollo">
                     <h4 class="settings-section-title">🔍 Enriquecimento Apollo</h4>
                     <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
-                        Habilita um botão Apollo na lista de contatos do deal para descobrir cargo, e-mail e outros dados.
-                        <strong>Cada clique consome 1 crédito da conta Apollo.</strong>
+                        Cada uso consome créditos da conta Apollo. Habilite só o que for usar.
                     </p>
-                    <label class="settings-checkbox-row" style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                        <input type="checkbox" id="settings-apollo-enabled" />
-                        <span style="font-size:13px;font-weight:500">Habilitar enriquecimento Apollo (botões manuais)</span>
-                    </label>
-                    <label class="settings-checkbox-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:10px">
-                        <input type="checkbox" id="settings-apollo-auto-match" />
-                        <span style="font-size:13px;font-weight:500">Auto-match de leads via Apollo</span>
-                    </label>
-                    <p style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-left:24px">
-                        Quando uma conversa chega sem match de telefone no Pipedrive,
-                        o sistema consulta o Apollo automaticamente e tenta vincular via email/nome.
-                        <strong>Consome 1 crédito Apollo por conversa nova não identificada.</strong>
-                    </p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <label class="settings-toggle-card" for="settings-apollo-enabled">
+                            <input type="checkbox" id="settings-apollo-enabled" />
+                            <div>
+                                <div class="settings-toggle-card-title">Botões manuais</div>
+                                <div class="settings-toggle-card-desc">Libera 🔍 Apollo na lista de contatos do deal. 1 crédito por clique.</div>
+                            </div>
+                        </label>
+                        <label class="settings-toggle-card" for="settings-apollo-auto-match">
+                            <input type="checkbox" id="settings-apollo-auto-match" />
+                            <div>
+                                <div class="settings-toggle-card-title">Auto-match de leads</div>
+                                <div class="settings-toggle-card-desc">Match automático via email/nome quando telefone não bate no Pipedrive. 1 crédito por conversa nova.</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Nome do atendente global (SÓ Admin) -->
@@ -1049,29 +1049,29 @@
                     </div>
                 </div>
 
-                <!-- Pipedrive (SÓ Admin) -->
+                <!-- Pipedrive (SÓ Admin) — grid 3-col mais compacto -->
                 <div class="settings-section admin-section" id="section-pipedrive">
                     <h4 class="settings-section-title">🔗 Pipedrive — Envio de Leads</h4>
-                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Configuracoes usadas ao enviar um lead manualmente ao Pipedrive.</p>
-                    <div class="settings-row">
-                        <div class="form-group" style="flex:1">
+                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Configurações usadas ao enviar um lead manualmente ao Pipedrive.</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+                        <div class="form-group" style="margin:0">
                             <label>Funil</label>
                             <select id="settings-pipeline" class="settings-input" onchange="loadSettingsStages(this.value)">
                                 <option value="">Carregando...</option>
                             </select>
                         </div>
-                        <div class="form-group" style="flex:1">
+                        <div class="form-group" style="margin:0">
                             <label>Etapa inicial</label>
                             <select id="settings-stage" class="settings-input">
                                 <option value="">Selecione o funil primeiro</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Proprietario do negocio</label>
-                        <select id="settings-owner" class="settings-input">
-                            <option value="">Nao atribuido</option>
-                        </select>
+                        <div class="form-group" style="margin:0">
+                            <label>Proprietário do negócio</label>
+                            <select id="settings-owner" class="settings-input">
+                                <option value="">Não atribuído</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
