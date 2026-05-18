@@ -44,6 +44,69 @@
     <button class="wa-banner-cta" type="button" onclick="openWaConnect()">→ Religar agora</button>
 </div>
 
+<!-- Banner de throttle WhatsApp (visibilidade gerenciada por setupWaThrottleBanner em app.js) -->
+<div id="wa-throttle-banner" class="wa-banner wa-banner--throttle" style="display:none" role="status" aria-live="polite">
+    <span class="wa-banner-icon">⏳</span>
+    <span class="wa-banner-text" id="wa-throttle-text">WhatsApp pode estar limitando suas mensagens novas.</span>
+    <button class="wa-banner-cta" type="button" onclick="openWaBestPractices()">→ Entender</button>
+    <button class="wa-banner-dismiss" type="button" onclick="dismissWaThrottleBanner()" title="Fechar até a próxima detecção" aria-label="Fechar">×</button>
+</div>
+
+<!-- Modal: Boas práticas WhatsApp (aberto por openWaBestPractices) -->
+<div id="wa-best-practices-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="wa-bp-title">
+    <div class="modal modal--wa-bp">
+        <div class="modal-header">
+            <h3 id="wa-bp-title">📱 Como o WhatsApp limita mensagens</h3>
+            <button class="modal-close" type="button" onclick="closeWaBestPractices()" aria-label="Fechar">×</button>
+        </div>
+        <div class="modal-body wa-bp-body">
+            <p class="wa-bp-lead">
+                O WhatsApp tem antispam que <strong>segura silenciosamente</strong> mensagens
+                novas quando detecta padrão de prospecção em massa. Você não recebe erro —
+                a mensagem só nunca chega.
+            </p>
+
+            <h3>Sinais que acionam o limite</h3>
+            <ul>
+                <li><strong>Volume alto de novas conversas</strong> (1ª msg pra quem nunca te respondeu)</li>
+                <li><strong>Mensagens parecidas</strong> ("Boa tarde! Falo com X?") em sequência</li>
+                <li><strong>Velocidade</strong> (várias por minuto)</li>
+                <li><strong>Lista com muitos números sem WhatsApp</strong> (taxa alta de não-entrega)</li>
+                <li><strong>Bloqueios recebidos</strong> dos destinatários</li>
+            </ul>
+
+            <h3>Boas práticas</h3>
+            <ul>
+                <li><strong>Limite diário:</strong> ~20–30 cold/dia em conta nova; até ~80–100/dia depois de aquecida</li>
+                <li><strong>Espace os envios:</strong> 1 mensagem a cada 3–5 min, não em rajada</li>
+                <li><strong>Varie a copy:</strong> 3–5 templates rotacionando, evita o "msg idêntica"</li>
+                <li><strong>Não dobre se a 1ª não foi entregue:</strong> reenvio pra quem o WhatsApp já segurou só piora</li>
+                <li><strong>Limpe a lista antes:</strong> número que não tem WhatsApp mancha sua reputação</li>
+                <li><strong>Conversa quente sempre chega:</strong> se alguém já te respondeu antes, suas msgs pra essa pessoa passam normalmente</li>
+            </ul>
+
+            <h3>Se aparecer o aviso amarelo</h3>
+            <p>
+                Significa que detectamos várias mensagens novas suas sem confirmação de entrega
+                na última hora. <strong>Pause prospecção por algumas horas</strong> e foque em
+                quem já te respondeu — essas continuam chegando. Voltar a mandar cold em
+                seguida pode piorar e levar a bloqueio mais sério.
+            </p>
+
+            <h3>Tipos de limite (do mais leve ao mais grave)</h3>
+            <ol>
+                <li><strong>Throttle leve:</strong> só novas conversas seguram. Reversível em horas.</li>
+                <li><strong>Throttle pesado:</strong> tudo para. Geralmente 1–7 dias.</li>
+                <li><strong>Ban temporário:</strong> conta desconecta no Unipile.</li>
+                <li><strong>Ban permanente:</strong> número fica inutilizável no WhatsApp. Acontece com reincidência.</li>
+            </ol>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-primary" type="button" onclick="closeWaBestPractices()">Entendi</button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Side Nav ─────────────────────────────────────────────── -->
 <nav class="side-nav">
     <div class="side-nav-brand" title="Branddi Atendimento v2">

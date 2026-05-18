@@ -3175,8 +3175,10 @@ select.settings-input { appearance: auto; padding-right: 28px; }
    Visibilidade controlada pelo MutationObserver em app.js que
    observa #status-dot.offline. */
 .wa-banner {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 200;
   background: rgba(245, 158, 11, 0.12);
   border-bottom: 1px solid rgba(245, 158, 11, 0.30);
@@ -3187,6 +3189,9 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   font-size: 13px;
   color: #92400E;
   animation: wa-banner-slide 0.3s ease;
+  /* Backdrop opaco em cima da bg lilás do app */
+  backdrop-filter: saturate(140%);
+  background-color: rgba(254, 247, 232, 0.97);
 }
 @keyframes wa-banner-slide {
   from { transform: translateY(-100%); }
@@ -3213,6 +3218,87 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   transition: background 0.12s;
 }
 .wa-banner-cta:hover { background: #78350F; }
+
+/* Botão de fechar discreto, lado direito do banner */
+.wa-banner-dismiss {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  transition: opacity 0.12s, background 0.12s;
+}
+.wa-banner-dismiss:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+
+/* Variante throttle WhatsApp — azul-cinza pra distinguir do amarelo de
+   "WA desconectado". Mesmo layout, paleta menos alarmante porque o
+   problema é reversível (não é falha técnica, é antispam reagindo). */
+.wa-banner--throttle {
+  background-color: rgba(238, 240, 254, 0.97);
+  border-bottom-color: rgba(99, 102, 241, 0.28);
+  color: #3730A3;
+}
+.wa-banner--throttle .wa-banner-cta {
+  background: #4338CA;
+  color: #EEF2FF;
+}
+.wa-banner--throttle .wa-banner-cta:hover { background: #3730A3; }
+
+/* Modal de boas práticas WA — mais largo e com tipografia confortável
+   pra leitura longa. Reaproveita .modal-overlay/.modal base do codebase. */
+.modal--wa-bp {
+  width: 640px;
+  max-width: 92vw;
+}
+.wa-bp-body { line-height: 1.6; font-size: 14px; color: var(--text-1); }
+.wa-bp-body .wa-bp-lead {
+  background: rgba(99, 102, 241, 0.08);
+  border-left: 3px solid #6366F1;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  margin: 0 0 18px;
+}
+.wa-bp-body h3 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+  margin: 22px 0 8px;
+}
+.wa-bp-body h3:first-of-type { margin-top: 4px; }
+.wa-bp-body ul, .wa-bp-body ol { padding-left: 22px; margin: 8px 0; }
+.wa-bp-body li { margin-bottom: 6px; }
+.wa-bp-body strong { color: var(--text-1); font-weight: 600; }
+
+/* Nota educativa nas bolhas falhadas — substitui o .msg-ghost-note
+   estático por um botão clicável que abre o modal de boas práticas.
+   .msg-fail-note cobre ghost_chat E limbo (msg antiga sem ack). */
+.msg-fail-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 9px;
+  background: rgba(245, 158, 11, 0.10);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  color: #92400E;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.msg-fail-note:hover { background: rgba(245, 158, 11, 0.18); }
+.msg-fail-note .msg-fail-note-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.85;
+}
 
 /* Empty state pro — card centralizado por cima do watermark Branddi.
    Fica destacado (bg branco + border + sh-md) e o pattern segue
