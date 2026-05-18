@@ -926,6 +926,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (e) { console.warn('tab param:', e); }
 
+    // Deep-link via ?openSettings=<stab> — abre modal de Configurações
+    // já na aba especificada. Usado pelo botão Config do /site/ pra cair
+    // direto na aba Site sem o user passar pelo inbox em branco.
+    try {
+        const stab = new URLSearchParams(location.search).get('openSettings');
+        if (stab && document.querySelector(`.settings-tab[data-stab="${stab}"]`)) {
+            // Pequeno delay pra esperar o setup do modal/permissions terminar
+            // antes de switchSettingsTab acionar o load da aba.
+            setTimeout(() => {
+                if (typeof openSettingsModal === 'function') openSettingsModal();
+                if (typeof switchSettingsTab === 'function') switchSettingsTab(stab);
+                // Limpa o param pra não reabrir ao recarregar/voltar
+                const url = new URL(location.href);
+                url.searchParams.delete('openSettings');
+                history.replaceState({}, '', url.pathname + (url.search ? '?' + url.searchParams : ''));
+            }, 200);
+        }
+    } catch (e) { console.warn('openSettings param:', e); }
+
     // Deals tab events
     document.getElementById('btn-send-outbound')?.addEventListener('click', sendOutbound);
     document.getElementById('btn-import-history')?.addEventListener('click', importWhatsAppHistory);
