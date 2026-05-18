@@ -5069,7 +5069,7 @@ async function deleteUserPermanent(userId, userName) {
 
 function openAddUserForm() {
     const titleEl = document.getElementById('user-form-title');
-    if (titleEl) titleEl.textContent = 'Novo usuario';
+    if (titleEl) titleEl.textContent = 'Novo usuário';
     const idEl = document.getElementById('uf-id');
     if (idEl) idEl.value = '';
     const nameEl = document.getElementById('uf-name');
@@ -5077,22 +5077,23 @@ function openAddUserForm() {
     const emailEl = document.getElementById('uf-email');
     if (emailEl) emailEl.value = '';
     const pwEl = document.getElementById('uf-password');
-    if (pwEl) pwEl.value = '';
+    if (pwEl) { pwEl.value = ''; pwEl.placeholder = '••••••••'; }
     const roleEl = document.getElementById('uf-role');
     if (roleEl) roleEl.value = 'Usuario';
     const tokenEl = document.getElementById('uf-pipedrive-token');
-    if (tokenEl) { tokenEl.value = ''; tokenEl.placeholder = 'Cole o token aqui (Pipedrive > Config > Preferencias > API)'; }
+    if (tokenEl) { tokenEl.value = ''; tokenEl.placeholder = 'Cole o token (Pipedrive → Config → API)'; }
     const tokenStatus = document.getElementById('uf-token-status');
-    if (tokenStatus) { tokenStatus.textContent = 'Necessario para que atividades aparecam como criadas por este usuario no Pipedrive'; tokenStatus.style.color = 'var(--text-muted)'; }
+    if (tokenStatus) { tokenStatus.textContent = 'Necessário pras atividades aparecerem como criadas por este usuário.'; tokenStatus.style.color = 'var(--text-muted)'; }
     populatePdUsersDropdown(null);
     populatePermissions({});
-    const wrap = document.getElementById('user-form-wrap');
-    if (wrap) wrap.style.display = '';
+    // Modal próprio (#modal-edit-user) em vez de inline wrap.
+    const overlay = document.getElementById('modal-edit-user');
+    if (overlay) overlay.style.display = 'flex';
 }
 
 function openEditUserForm(user) {
     const titleEl = document.getElementById('user-form-title');
-    if (titleEl) titleEl.textContent = 'Editar usuario';
+    if (titleEl) titleEl.textContent = 'Editar usuário';
     const idEl = document.getElementById('uf-id');
     if (idEl) idEl.value = user.id;
     const nameEl = document.getElementById('uf-name');
@@ -5100,7 +5101,7 @@ function openEditUserForm(user) {
     const emailEl = document.getElementById('uf-email');
     if (emailEl) emailEl.value = user.email;
     const pwEl = document.getElementById('uf-password');
-    if (pwEl) pwEl.value = '';
+    if (pwEl) { pwEl.value = ''; pwEl.placeholder = 'Deixe vazio para manter a senha atual'; }
     const roleEl = document.getElementById('uf-role');
     if (roleEl) roleEl.value = user.role;
     // Pipedrive token
@@ -5109,19 +5110,19 @@ function openEditUserForm(user) {
         tokenEl.value = '';
         tokenEl.placeholder = user.pipedrive_api_token
             ? 'Token salvo ••••••. Deixe vazio para manter.'
-            : 'Cole o token aqui (Pipedrive > Config > Preferencias > API)';
+            : 'Cole o token (Pipedrive → Config → API)';
     }
     const tokenStatus = document.getElementById('uf-token-status');
     if (tokenStatus) {
         tokenStatus.textContent = user.pipedrive_api_token
             ? '✅ Token configurado. Deixe vazio para manter.'
-            : 'Necessario para que atividades aparecam como criadas por este usuario no Pipedrive';
+            : 'Necessário pras atividades aparecerem como criadas por este usuário.';
         tokenStatus.style.color = user.pipedrive_api_token ? 'var(--accent)' : 'var(--text-muted)';
     }
     populatePdUsersDropdown(user.pipedrive_user_id);
     populatePermissions(user.permissions || {});
-    const wrap = document.getElementById('user-form-wrap');
-    if (wrap) wrap.style.display = '';
+    const overlay = document.getElementById('modal-edit-user');
+    if (overlay) overlay.style.display = 'flex';
 }
 
 function populatePermissions(perms) {
@@ -5174,8 +5175,8 @@ function populatePdUsersDropdown(selectedId) {
 }
 
 function closeAddUserForm() {
-    const wrap = document.getElementById('user-form-wrap');
-    if (wrap) wrap.style.display = 'none';
+    const overlay = document.getElementById('modal-edit-user');
+    if (overlay) overlay.style.display = 'none';
 }
 
 function toggleTokenVisibility() {
