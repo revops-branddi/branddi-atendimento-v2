@@ -1209,6 +1209,10 @@ body {
     max-height: 85vh;
     display: flex;
     flex-direction: column;
+    /* Clipa children retangulares (ex: .settings-tab-panel com bg próprio)
+       aos cantos arredondados — sem isso, o background do panel vaza pelos
+       cantos do .modal e aparece quadrado atrás. */
+    overflow: hidden;
 }
 
 /* Modal header refinado */
