@@ -1091,70 +1091,96 @@
                     <button class="btn-sm btn-primary" onclick="openAddUserForm()">+ Adicionar usuario</button>
                 </div>
 
-                <!-- Formulario de adicionar/editar usuario -->
-                <div id="user-form-wrap" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
-                    <div style="font-size:13px;font-weight:600;margin-bottom:14px" id="user-form-title">Novo usuario</div>
+                <!-- Form de adicionar/editar usuário — 3 seções (Identidade / Acesso / Integrações) -->
+                <div id="user-form-wrap" style="display:none;background:var(--bg-elev-1);border:1px solid var(--border-md);border-radius:12px;padding:20px;margin-bottom:20px">
+                    <div style="font-size:14px;font-weight:600;margin-bottom:16px" id="user-form-title">Novo usuário</div>
                     <input type="hidden" id="uf-id" />
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                        <div class="form-group">
+
+                    <!-- ── Identidade ── -->
+                    <div class="uf-section-header">Identidade</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+                        <div class="form-group" style="margin:0">
                             <label>Nome completo</label>
                             <input type="text" id="uf-name" class="settings-input" placeholder="Ana Silva" />
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin:0">
                             <label>E-mail</label>
                             <input type="email" id="uf-email" class="settings-input" placeholder="ana@branddi.com" />
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin:0">
                             <label>Senha</label>
                             <input type="password" id="uf-password" class="settings-input" placeholder="••••••••" />
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin:0">
                             <label>Role</label>
                             <select id="uf-role" class="settings-input">
                                 <option value="Usuario">Usuário</option>
                                 <option value="Admin">Admin</option>
                             </select>
                         </div>
-                        <div class="form-group" style="grid-column:1/-1">
-                            <label>Vincular ao usuario do Pipedrive</label>
-                            <select id="uf-pipedrive-user" class="settings-input">
-                                <option value="">— Nao vincular —</option>
-                            </select>
-                            <span style="font-size:11px;color:var(--text-muted)">O deal criado por este usuario sera atribuido a esta pessoa no Pipedrive</span>
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1">
-                            <label>API Token pessoal do Pipedrive</label>
-                            <div style="display:flex;gap:8px;align-items:center">
-                                <input type="password" id="uf-pipedrive-token" class="settings-input" placeholder="Cole o token aqui (Pipedrive > Config > Preferencias > API)" style="flex:1" />
-                                <button type="button" class="btn-sm btn-outline" style="padding:5px 10px;font-size:11px;white-space:nowrap" onclick="toggleTokenVisibility()">👁️</button>
-                            </div>
-                            <span id="uf-token-status" style="font-size:11px;color:var(--text-muted)">Necessario para que atividades apareçam como criadas por este usuario no Pipedrive</span>
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1">
-                            <label>Tipos de conversa permitidos</label>
-                            <div class="perm-checkboxes" id="uf-conv-types">
-                                <label class="perm-check"><input type="checkbox" value="inbound" id="uf-perm-inbound" /> Site (Inbound)</label>
-                                <label class="perm-check"><input type="checkbox" value="prospecting" id="uf-perm-prospecting" /> Prospeccao</label>
-                            </div>
-                            <span style="font-size:11px;color:var(--text-muted)">Admin ve tudo. Para Usuário, marque os tipos que pode acessar.</span>
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1">
-                            <label>Contas WhatsApp autorizadas</label>
-                            <div class="perm-checkboxes" id="uf-wa-accounts">
-                                <span style="font-size:11px;color:var(--text-muted)">Carregando contas...</span>
-                            </div>
-                            <span style="font-size:11px;color:var(--text-muted)">Admin usa todas. Para Usuário, marque as contas que pode usar para enviar.</span>
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1">
-                            <label>Permissão Apollo</label>
-                            <label class="perm-check">
-                                <input type="checkbox" id="uf-perm-apollo" />
-                                Permitir garimpo de contatos com Apollo
+                    </div>
+
+                    <!-- ── Acesso ── -->
+                    <div class="uf-section-header">Acesso à plataforma</div>
+                    <div class="form-group" style="margin:0 0 12px">
+                        <label>Tipos de conversa permitidos</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+                            <label class="settings-toggle-card" for="uf-perm-inbound">
+                                <input type="checkbox" value="inbound" id="uf-perm-inbound" />
+                                <div>
+                                    <div class="settings-toggle-card-title">🌐 Site (Inbound)</div>
+                                    <div class="settings-toggle-card-desc">Acessa conversas do canal /site/ (wa.me).</div>
+                                </div>
                             </label>
-                            <span style="font-size:11px;color:var(--text-muted)">Libera o botão 🔍 Apollo na lista de contatos do deal. Cada uso consome 1 crédito. Admin também precisa ter a feature habilitada em Configurações.</span>
+                            <label class="settings-toggle-card" for="uf-perm-prospecting">
+                                <input type="checkbox" value="prospecting" id="uf-perm-prospecting" />
+                                <div>
+                                    <div class="settings-toggle-card-title">📨 Prospecção</div>
+                                    <div class="settings-toggle-card-desc">Acessa conversas iniciadas pelo time comercial.</div>
+                                </div>
+                            </label>
+                        </div>
+                        <span style="font-size:11px;color:var(--text-muted);display:block;margin-top:6px">Admin vê tudo independente da seleção.</span>
+                    </div>
+                    <!-- Hint substituindo as antigas Contas WhatsApp autorizadas (lista de telefones brutos).
+                         Fonte de verdade agora é a aba WhatsApp → Configurar → Operadores. -->
+                    <div class="uf-info-box" style="margin-bottom:18px">
+                        <div style="display:flex;align-items:flex-start;gap:8px">
+                            <span style="font-size:14px;line-height:1">💡</span>
+                            <div style="flex:1;font-size:12px;color:var(--text-2);line-height:1.5">
+                                <strong>Contas WhatsApp permitidas</strong> são gerenciadas por conta, não por usuário. Abra a
+                                <a href="#" onclick="event.preventDefault(); switchSettingsTab('whatsapp')" style="color:var(--accent);text-decoration:underline;cursor:pointer">aba 📱 WhatsApp</a>,
+                                clique em ⚙️ Configurar numa conta, e marque esse usuário em "Operadores adicionais".
+                            </div>
                         </div>
                     </div>
-                    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+
+                    <!-- ── Integrações ── -->
+                    <div class="uf-section-header">Integrações</div>
+                    <div class="form-group" style="margin:0 0 12px">
+                        <label>Vincular ao usuário do Pipedrive</label>
+                        <select id="uf-pipedrive-user" class="settings-input">
+                            <option value="">— Não vincular —</option>
+                        </select>
+                        <span style="font-size:11px;color:var(--text-muted)">Deals criados por este usuário ficam atribuídos a esta pessoa no Pipedrive.</span>
+                    </div>
+                    <div class="form-group" style="margin:0 0 14px">
+                        <label>API Token pessoal do Pipedrive</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="password" id="uf-pipedrive-token" class="settings-input" placeholder="Cole o token (Pipedrive → Config → API)" style="flex:1" />
+                            <button type="button" class="btn-sm btn-outline" style="padding:6px 10px;font-size:11px;white-space:nowrap" onclick="toggleTokenVisibility()" title="Mostrar/esconder token">👁️</button>
+                        </div>
+                        <span id="uf-token-status" style="font-size:11px;color:var(--text-muted)">Necessário pras atividades aparecerem como criadas por este usuário.</span>
+                    </div>
+                    <label class="settings-toggle-card" for="uf-perm-apollo" style="margin-bottom:4px">
+                        <input type="checkbox" id="uf-perm-apollo" />
+                        <div>
+                            <div class="settings-toggle-card-title">🔍 Permitir garimpo Apollo</div>
+                            <div class="settings-toggle-card-desc">Libera o botão Apollo na lista de contatos do deal. 1 crédito por clique. Admin também precisa ter a feature habilitada em Configurações → Geral.</div>
+                        </div>
+                    </label>
+
+                    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
                         <button class="btn-sm btn-outline" onclick="closeAddUserForm()">Cancelar</button>
                         <button class="btn-sm btn-primary" onclick="saveUser()">💾 Salvar</button>
                     </div>

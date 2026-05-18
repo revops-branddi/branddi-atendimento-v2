@@ -2928,6 +2928,29 @@ select.settings-input { appearance: auto; padding-right: 28px; }
   margin-top: 4px;
 }
 
+/* ─── User form (Configurações → Usuários) ────────────────────────────
+   Sub-cabeçalho que agrupa campos relacionados dentro do form de user.
+   Mais discreto que h4 — pílula horizontal acima de cada bloco. */
+.uf-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-md);
+}
+
+/* Box informativo (substitui a seção de Contas WA do form, que migrou
+   pra aba 📱 WhatsApp → Operadores). Sutil, com ícone + link. */
+.uf-info-box {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-md));
+  border-radius: var(--r-md, 8px);
+  padding: 10px 12px;
+}
+
 /* Photo upload preview */
 .settings-photo-upload {
   width: 56px;

@@ -5125,6 +5125,10 @@ function openEditUserForm(user) {
 }
 
 function populatePermissions(perms) {
+    // Snapshot pra preservar permissões que o form não controla mais
+    // (whatsapp_accounts é gerenciado na aba WhatsApp → Operadores).
+    _ufCurrentPerms = perms || {};
+
     // Conversation types
     const inboundCb = document.getElementById('uf-perm-inbound');
     const prospCb = document.getElementById('uf-perm-prospecting');
@@ -5135,26 +5139,6 @@ function populatePermissions(perms) {
     // Apollo enrichment permission (per-user)
     const apolloCb = document.getElementById('uf-perm-apollo');
     if (apolloCb) apolloCb.checked = !!perms.apollo_enabled;
-
-    // WhatsApp accounts
-    const waContainer = document.getElementById('uf-wa-accounts');
-    if (!waContainer) return;
-    const allowedAccounts = perms.whatsapp_accounts || [];
-
-    apiFetch('/api/whatsapp/accounts').then(data => {
-        const accounts = data?.accounts || [];
-        if (accounts.length === 0) {
-            waContainer.textContent = 'Nenhuma conta WhatsApp conectada';
-            return;
-        }
-        waContainer.innerHTML = accounts.map(a => {
-            const checked = allowedAccounts.includes(a.id) ? 'checked' : '';
-            const label = a.connection_params?.im?.phone_number || a.name || a.id;
-            return `<label class="perm-check"><input type="checkbox" value="${a.id}" class="uf-wa-check" ${checked} /> ${escHtml(String(label))}</label>`;
-        }).join('');
-    }).catch(() => {
-        waContainer.textContent = 'Erro ao carregar contas';
-    });
 }
 
 function getPermissionsFromForm() {
@@ -5162,15 +5146,22 @@ function getPermissionsFromForm() {
     if (document.getElementById('uf-perm-inbound')?.checked) types.push('inbound');
     if (document.getElementById('uf-perm-prospecting')?.checked) types.push('prospecting');
 
-    const waAccounts = [];
-    document.querySelectorAll('.uf-wa-check:checked').forEach(cb => {
-        waAccounts.push(cb.value);
-    });
+    // whatsapp_accounts: form não expõe mais a lista (fonte de verdade é
+    // a aba WhatsApp → Configurar → Operadores). Preserva o array que veio
+    // do user em edição pra não zerar permissions ao salvar. _ufCurrentPerms
+    // é populado em populatePermissions() / openAddUserForm().
+    const preservedWA = Array.isArray(_ufCurrentPerms?.whatsapp_accounts)
+        ? _ufCurrentPerms.whatsapp_accounts
+        : [];
 
     const apolloEnabled = !!document.getElementById('uf-perm-apollo')?.checked;
 
-    return { conversation_types: types, whatsapp_accounts: waAccounts, apollo_enabled: apolloEnabled };
+    return { conversation_types: types, whatsapp_accounts: preservedWA, apollo_enabled: apolloEnabled };
 }
+
+// Cache do permissions atual do user em edição — preserva campos que o
+// form não controla mais (ex: whatsapp_accounts, gerenciado na aba WA).
+let _ufCurrentPerms = null;
 
 function populatePdUsersDropdown(selectedId) {
     const sel = document.getElementById('uf-pipedrive-user');
