@@ -4476,6 +4476,185 @@ async function renderWAAccountsAdminTable() {
     }
 }
 
+// ─── Admin: aba 📞 Site — gerencia contas WA do canal site ──────────
+// Backend: /api/site/whatsapp-accounts/* (schema isolado de site.whatsapp_accounts).
+// UX: tabela simples — não tem ownership/tipo/operadores como o Atendimento,
+// porque Site é fluxo único (número público da empresa, time inteiro opera).
+async function renderSiteWAAccountsTable() {
+    const container = document.getElementById('site-wa-list');
+    if (!container) return;
+
+    const loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted)';
+    loading.textContent = 'Carregando contas...';
+    container.replaceChildren(loading);
+
+    try {
+        const accounts = await apiFetch('/api/site/whatsapp-accounts');
+        if (!Array.isArray(accounts) || accounts.length === 0) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted)';
+            empty.textContent = 'Nenhuma conta WhatsApp do Site cadastrada. Clique em "Conectar novo número" abaixo.';
+            container.replaceChildren(empty);
+            return;
+        }
+
+        const isOk = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
+        const isConnecting = s => /^(connecting|checkpoint|qr)/i.test(s || '');
+
+        const scrollWrap = document.createElement('div');
+        scrollWrap.style.cssText = 'overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px';
+
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;min-width:520px';
+
+        const thead = document.createElement('thead');
+        const trHead = document.createElement('tr');
+        trHead.style.cssText = 'background:var(--bg-tertiary);color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.4px';
+        for (const [text, align] of [['Telefone','left'],['Label','left'],['Status','center'],['Ações','right']]) {
+            const th = document.createElement('th');
+            th.style.cssText = `text-align:${align};padding:8px 10px`;
+            th.textContent = text;
+            trHead.appendChild(th);
+        }
+        thead.appendChild(trHead);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (const a of accounts) {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--border-md)';
+
+            // Telefone
+            const tdPhone = document.createElement('td');
+            tdPhone.style.cssText = 'padding:10px;vertical-align:top';
+            const phoneTop = document.createElement('div');
+            phoneTop.style.fontWeight = '600';
+            phoneTop.textContent = formatPhoneBR(a.phone_number) || a.phone_number || '—';
+            const phoneId = document.createElement('div');
+            phoneId.style.cssText = 'color:var(--text-3);font-size:11px;font-family:monospace;margin-top:2px';
+            phoneId.textContent = a.unipile_account_id || '';
+            tdPhone.appendChild(phoneTop);
+            tdPhone.appendChild(phoneId);
+            tr.appendChild(tdPhone);
+
+            // Label (editável inline via duplo clique ou botão ✏️)
+            const tdLabel = document.createElement('td');
+            tdLabel.style.cssText = 'padding:10px;vertical-align:top';
+            const labelWrap = document.createElement('div');
+            labelWrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+            const labelText = document.createElement('span');
+            labelText.textContent = a.label || '—';
+            labelText.style.cssText = a.label ? '' : 'color:var(--text-muted);font-style:italic';
+            const editBtn = document.createElement('button');
+            editBtn.title = 'Editar label';
+            editBtn.style.cssText = 'background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:12px;padding:2px 4px';
+            editBtn.textContent = '✏️';
+            editBtn.addEventListener('click', () => editSiteWALabel(a.id, a.label || ''));
+            labelWrap.appendChild(labelText);
+            labelWrap.appendChild(editBtn);
+            tdLabel.appendChild(labelWrap);
+            tr.appendChild(tdLabel);
+
+            // Status (live > DB)
+            const liveOrDb = (a.live_status || a.status || 'unknown').toLowerCase();
+            const ok = isOk(liveOrDb);
+            const connecting = isConnecting(liveOrDb);
+            const tdStatus = document.createElement('td');
+            tdStatus.style.cssText = 'padding:10px;vertical-align:top;text-align:center';
+            const pill = document.createElement('span');
+            const bgColor = ok ? 'rgba(16,185,129,.15)'
+                : connecting ? 'rgba(245,158,11,.15)'
+                : 'rgba(239,68,68,.15)';
+            const txtColor = ok ? '#10b981' : connecting ? '#f59e0b' : '#ef4444';
+            pill.style.cssText = `background:${bgColor};color:${txtColor};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;white-space:nowrap`;
+            pill.textContent = ok ? '● Conectada' : connecting ? '● Conectando' : '● Desconectada';
+            pill.title = liveOrDb;
+            tdStatus.appendChild(pill);
+            tr.appendChild(tdStatus);
+
+            // Ações: religar + desconectar
+            const tdAcao = document.createElement('td');
+            tdAcao.style.cssText = 'padding:10px;vertical-align:top;text-align:right;white-space:nowrap';
+            const reBtn = document.createElement('button');
+            reBtn.className = 'btn-sm btn-outline';
+            reBtn.style.marginRight = '6px';
+            reBtn.textContent = ok ? 'Religar' : '🔌 Religar';
+            reBtn.addEventListener('click', () => reconnectSiteWA(a.id));
+            const dcBtn = document.createElement('button');
+            dcBtn.className = 'btn-sm btn-outline';
+            dcBtn.style.color = 'var(--red-soft)';
+            dcBtn.textContent = 'Desconectar';
+            dcBtn.addEventListener('click', () => disconnectSiteWA(a.id));
+            tdAcao.appendChild(reBtn);
+            tdAcao.appendChild(dcBtn);
+            tr.appendChild(tdAcao);
+
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        scrollWrap.appendChild(table);
+        container.replaceChildren(scrollWrap);
+    } catch (err) {
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'color:var(--red-soft);padding:16px';
+        errEl.textContent = `Erro: ${err.message}`;
+        container.replaceChildren(errEl);
+    }
+}
+
+async function editSiteWALabel(accId, current) {
+    const newLabel = prompt('Novo label pra essa conta:', current);
+    if (newLabel === null) return;
+    const trimmed = newLabel.trim();
+    try {
+        await apiFetch(`/api/site/whatsapp-accounts/${accId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ label: trimmed || null }),
+        });
+        toast(trimmed ? `Label atualizado: "${trimmed}"` : 'Label removido', 'success');
+        renderSiteWAAccountsTable();
+    } catch (err) {
+        toast(`Erro: ${err.message}`, 'error');
+    }
+}
+
+async function connectNewSiteWA() {
+    if (!confirm('Vai abrir uma página da Unipile pra escanear o QR de um número NOVO do site. Continuar?')) return;
+    try {
+        const res = await apiFetch('/api/site/whatsapp-accounts/connect-link', { method: 'POST' });
+        if (!res?.url) throw new Error('URL não retornada pela Unipile');
+        window.open(res.url, '_blank', 'noopener');
+        toast('Abri a página da Unipile em outra aba — escaneie o QR no celular', 'success');
+        // Recarrega lista após 5s pra refletir conta nova
+        setTimeout(() => renderSiteWAAccountsTable(), 5000);
+    } catch (err) {
+        toast(`Erro: ${err.message}`, 'error');
+    }
+}
+
+async function reconnectSiteWA(accId) {
+    try {
+        const res = await apiFetch(`/api/site/whatsapp-accounts/${accId}/reconnect-link`, { method: 'POST' });
+        if (!res?.url) throw new Error('URL não retornada pela Unipile');
+        window.open(res.url, '_blank', 'noopener');
+        toast('Abri a página da Unipile em outra aba — escaneie o QR', 'success');
+    } catch (err) {
+        toast(`Erro: ${err.message}`, 'error');
+    }
+}
+
+async function disconnectSiteWA(accId) {
+    if (!confirm('Desconectar essa conta? Conversas existentes ficam preservadas, mas novas mensagens deixam de chegar até religar.')) return;
+    try {
+        await apiFetch(`/api/site/whatsapp-accounts/${accId}`, { method: 'DELETE' });
+        toast('Conta desconectada', 'success');
+        renderSiteWAAccountsTable();
+    } catch (err) {
+        toast(`Erro: ${err.message}`, 'error');
+    }
+}
+
 let _reconnectPollInterval = null;
 let _reconnectUrl = null;
 let _reconnectAccountId = null;
@@ -4800,6 +4979,7 @@ function switchSettingsTab(tabId) {
 
     if (tabId === 'users') loadUsersList();
     if (tabId === 'whatsapp') renderWAAccountsAdminTable();
+    if (tabId === 'site') renderSiteWAAccountsTable();
 }
 
 // --- User Management ---
@@ -5731,6 +5911,13 @@ window.closeWAConfigModal        = closeWAConfigModal;
 window.goBackWAConfig            = goBackWAConfig;
 window.saveWAAccountConfig       = saveWAAccountConfig;
 window.renderWAAccountsAdminTable = renderWAAccountsAdminTable;
+
+// Site (canal /site/) admin config — aba 📞 Site no modal-settings
+window.renderSiteWAAccountsTable = renderSiteWAAccountsTable;
+window.editSiteWALabel           = editSiteWALabel;
+window.connectNewSiteWA          = connectNewSiteWA;
+window.reconnectSiteWA           = reconnectSiteWA;
+window.disconnectSiteWA          = disconnectSiteWA;
 
 // History
 window.openHistoryMessages      = openHistoryMessages;
