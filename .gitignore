@@ -3,3 +3,4 @@ node_modules/
 .claude/
 .serena/
 design_handoff_v2/
+.playwright-mcp/

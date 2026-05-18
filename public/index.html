@@ -895,7 +895,8 @@
 </div>
 
 <div class="modal-overlay" id="modal-settings" style="display:none" onclick="if(event.target===this)closeSettingsModal()">
-    <div class="modal" style="max-width:700px">
+    <!-- width inline sobrescreve `.modal { width: 500px }` do style.css:1198 -->
+    <div class="modal" style="width:760px;max-width:95vw">
         <div class="modal-header">
             <h3>⚙️ Configuracoes</h3>
             <button class="modal-close" onclick="closeSettingsModal()">✕</button>
@@ -1185,9 +1186,13 @@
 
 <!-- ─── Modal: Configurar conta WhatsApp (Admin only) ──── -->
 <div class="modal-overlay" id="modal-wa-config" style="display:none" onclick="if(event.target===this)closeWAConfigModal()">
-    <div class="modal" style="max-width:560px">
+    <!-- width inline sobrescreve `.modal { width: 500px }` do style.css:1198 -->
+    <div class="modal" style="width:640px;max-width:95vw">
         <div class="modal-header">
-            <h3>⚙️ Configurar conta WhatsApp</h3>
+            <div style="display:flex;align-items:center;gap:8px;flex:1">
+                <button id="wac-back-btn" onclick="goBackWAConfig()" title="Voltar" style="display:none;background:transparent;border:none;color:var(--text-2);cursor:pointer;font-size:18px;padding:4px 8px;border-radius:6px;line-height:1">←</button>
+                <h3 style="margin:0">⚙️ Configurar conta WhatsApp</h3>
+            </div>
             <button class="modal-close" onclick="closeWAConfigModal()">✕</button>
         </div>
         <div class="modal-body" style="padding:22px 24px">
@@ -1200,14 +1205,20 @@
 
             <div class="form-group" style="margin-bottom:14px">
                 <label>Tipo da conta</label>
-                <div style="display:flex;gap:14px;margin-top:6px">
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+                    <label class="wac-type-card" for="wac-type-personal">
                         <input type="radio" name="wac-type" value="personal" id="wac-type-personal" />
-                        <span>Pessoal <span style="font-size:11px;color:var(--text-muted)">(1 atendente)</span></span>
+                        <div>
+                            <div class="wac-type-title">👤 Pessoal</div>
+                            <div class="wac-type-sub">1 atendente dono</div>
+                        </div>
                     </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <label class="wac-type-card" for="wac-type-virtual">
                         <input type="radio" name="wac-type" value="virtual" id="wac-type-virtual" />
-                        <span>Virtual <span style="font-size:11px;color:var(--text-muted)">(SDR IA / vários)</span></span>
+                        <div>
+                            <div class="wac-type-title">🤖 Virtual</div>
+                            <div class="wac-type-sub">SDR IA · vários operadores</div>
+                        </div>
                     </label>
                 </div>
             </div>
@@ -1228,7 +1239,7 @@
 
             <div class="form-group" style="margin-bottom:14px">
                 <label>Operadores adicionais</label>
-                <div id="wac-operators" class="perm-checkboxes" style="max-height:180px;overflow-y:auto">
+                <div id="wac-operators" class="wac-operators-grid">
                     <span style="font-size:11px;color:var(--text-muted)">Carregando usuários...</span>
                 </div>
                 <span style="font-size:11px;color:var(--text-muted)">Marque quem mais pode operar/ver essa conta. O dono já está incluído automaticamente.</span>

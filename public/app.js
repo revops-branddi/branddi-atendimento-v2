@@ -4048,7 +4048,7 @@ function _makeAccountRow(a, isMine) {
         editBtn.textContent = '⚙️';
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openWAConfigModal(a.id);
+            openWAConfigModal(a.id, 'modal-wa-connect');
         });
         labelRow.appendChild(editBtn);
     }
@@ -4101,14 +4101,24 @@ async function _editAccountLabel(account) {
 //        excluded_from_metrics. Backend faz validação + sync de permissions.
 let _waConfigUsersCache = null;
 let _waConfigCurrentAccount = null;
+// Lembra de onde o modal foi aberto pra back arrow voltar pro contexto certo:
+//   'modal-wa-connect' → modal de contas WA (botão ⚙️)
+//   'settings-whatsapp' → aba WhatsApp do Settings
+//   null → aberto direto, sem volta
+let _waConfigOpener = null;
 
-async function openWAConfigModal(accountId) {
+async function openWAConfigModal(accountId, opener = null) {
     if (currentUser?.role !== 'Admin') {
         toast('Apenas Admin pode configurar contas', 'error');
         return;
     }
     const overlay = document.getElementById('modal-wa-config');
     if (!overlay) return;
+    _waConfigOpener = opener;
+
+    // Back arrow só aparece se temos pra onde voltar
+    const backBtn = document.getElementById('wac-back-btn');
+    if (backBtn) backBtn.style.display = opener ? '' : 'none';
 
     try {
         const [accounts, users] = await Promise.all([
@@ -4141,7 +4151,7 @@ async function openWAConfigModal(accountId) {
 
 function _hydrateWAConfigModal(account, users, currentOperatorIds) {
     document.getElementById('wac-account-id').value = account.id;
-    document.getElementById('wac-phone').textContent = account.phone_number || '—';
+    document.getElementById('wac-phone').textContent = formatPhoneBR(account.phone_number) || account.phone_number || '—';
 
     const type = account.account_type || 'personal';
     document.getElementById(`wac-type-${type}`).checked = true;
@@ -4164,14 +4174,15 @@ function _hydrateWAConfigModal(account, users, currentOperatorIds) {
         ownerSel.appendChild(opt);
     }
 
-    // Operadores (multi checkboxes) — DOM
+    // Operadores (multi checkboxes) — DOM. Container .wac-operators-grid
+    // (CSS Grid responsivo) faz layout; aqui só montamos labels limpos.
     const opsContainer = document.getElementById('wac-operators');
     opsContainer.replaceChildren();
     for (const u of users) {
         const isOwner = u.id === account.connected_by_user_id;
         const wrapper = document.createElement('label');
-        wrapper.className = 'perm-check';
         wrapper.style.opacity = isOwner ? '0.6' : '1';
+        wrapper.title = u.name; // tooltip pra nome longo ellipsed
 
         const cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -4182,11 +4193,16 @@ function _hydrateWAConfigModal(account, users, currentOperatorIds) {
         if (isOwner) cb.title = 'Dono — sempre incluído';
 
         wrapper.appendChild(cb);
-        wrapper.appendChild(document.createTextNode(' ' + u.name + ' '));
+        // Nome como <span> (não text node) pra text-overflow:ellipsis ter
+        // alvo. min-width:0 inline força ellipsis funcionar em flex item.
+        const nameSpan = document.createElement('span');
+        nameSpan.style.cssText = 'min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        nameSpan.textContent = u.name;
+        wrapper.appendChild(nameSpan);
 
         if (isOwner) {
             const tag = document.createElement('span');
-            tag.style.cssText = 'font-size:10px;color:var(--accent)';
+            tag.style.cssText = 'font-size:10px;color:var(--accent);flex-shrink:0';
             tag.textContent = '(dono)';
             wrapper.appendChild(tag);
         }
@@ -4236,8 +4252,32 @@ function closeWAConfigModal() {
     const overlay = document.getElementById('modal-wa-config');
     if (overlay) overlay.style.display = 'none';
     _waConfigCurrentAccount = null;
+    _waConfigOpener = null;
     const ex = document.getElementById('wac-excluded');
     if (ex) delete ex.dataset.userTouched;
+}
+
+// Back arrow do modal de config — volta pro contexto que o abriu.
+// Fecha o modal de config e re-abre o opener (ou se opener já está
+// aberto/visível, só fecha este por cima sem reabrir).
+function goBackWAConfig() {
+    const opener = _waConfigOpener;
+    closeWAConfigModal();
+
+    if (opener === 'modal-wa-connect') {
+        const m = document.getElementById('modal-wa-connect');
+        if (m) {
+            m.style.display = 'flex';
+            renderWaAccountsInModal();
+        }
+    } else if (opener === 'settings-whatsapp') {
+        const settings = document.getElementById('modal-settings');
+        if (settings && settings.style.display === 'none') {
+            settings.style.display = 'flex';
+        }
+        switchSettingsTab('whatsapp');
+    }
+    // opener === null: já fechou, sem aonde voltar
 }
 
 async function saveWAAccountConfig() {
@@ -4316,8 +4356,15 @@ async function renderWAAccountsAdminTable() {
 
         const isOk = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
 
+        // Wrapper com overflow-x — modal de settings é 700px e a tabela tem
+        // 6 colunas + ação. Em vez de comprimir colunas até quebrar (botão
+        // "⚙️ Configurar" sendo cortado), permitimos scroll horizontal
+        // quando necessário e damos min-widths sensatas a cada coluna.
+        const scrollWrap = document.createElement('div');
+        scrollWrap.style.cssText = 'overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px';
+
         const table = document.createElement('table');
-        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;min-width:580px';
 
         const thead = document.createElement('thead');
         const trHead = document.createElement('tr');
@@ -4348,8 +4395,8 @@ async function renderWAAccountsAdminTable() {
             contaName.style.fontWeight = '600';
             contaName.textContent = a.display_label || a.display_name || '—';
             const contaPhone = document.createElement('div');
-            contaPhone.style.cssText = 'color:var(--text-3);font-size:11px;font-family:monospace';
-            contaPhone.textContent = a.phone_number || a.id;
+            contaPhone.style.cssText = 'color:var(--text-3);font-size:11px';
+            contaPhone.textContent = formatPhoneBR(a.phone_number) || a.phone_number || a.id;
             tdConta.appendChild(contaName);
             tdConta.appendChild(contaPhone);
             tr.appendChild(tdConta);
@@ -4411,15 +4458,16 @@ async function renderWAAccountsAdminTable() {
             const btn = document.createElement('button');
             btn.className = 'btn-sm btn-outline';
             btn.textContent = '⚙️ Configurar';
-            btn.addEventListener('click', () => openWAConfigModal(a.id));
+            btn.addEventListener('click', () => openWAConfigModal(a.id, 'settings-whatsapp'));
             tdAcao.appendChild(btn);
             tr.appendChild(tdAcao);
 
             tbody.appendChild(tr);
         }
         table.appendChild(tbody);
+        scrollWrap.appendChild(table);
 
-        container.replaceChildren(table);
+        container.replaceChildren(scrollWrap);
     } catch (err) {
         const errEl = document.createElement('div');
         errEl.style.cssText = 'color:var(--red-soft);padding:16px';
@@ -5677,6 +5725,12 @@ window.generateWaQR       = generateWaQR;
 window.disconnectWa       = disconnectWa;
 window.copyReconnectUrl   = copyReconnectUrl;
 window.closeReconnectArea = closeReconnectArea;
+// WhatsApp admin config (Fase 2 — modal de tipo/dono/operadores)
+window.openWAConfigModal         = openWAConfigModal;
+window.closeWAConfigModal        = closeWAConfigModal;
+window.goBackWAConfig            = goBackWAConfig;
+window.saveWAAccountConfig       = saveWAAccountConfig;
+window.renderWAAccountsAdminTable = renderWAAccountsAdminTable;
 
 // History
 window.openHistoryMessages      = openHistoryMessages;
