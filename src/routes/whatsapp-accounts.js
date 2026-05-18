@@ -70,7 +70,7 @@ router.get('/whatsapp/accounts', async (req, res) => {
         // Busca registros locais para enriquecer com connected_by info
         const { data: localAccounts } = await supabase
             .from('whatsapp_accounts')
-            .select('unipile_account_id, phone_number, label, display_label, connected_by_user_id, status, excluded_from_metrics, platform_users:connected_by_user_id(name)');
+            .select('unipile_account_id, phone_number, label, display_label, connected_by_user_id, status, excluded_from_metrics, account_type, platform_users:connected_by_user_id(name)');
 
         const localMap = {};
         for (const la of (localAccounts || [])) {
@@ -103,10 +103,13 @@ router.get('/whatsapp/accounts', async (req, res) => {
                 phone_number: a.connection_params?.im?.phone_number || local.phone_number || null,
                 name: a.name || local.label || null,
                 display_name: displayName,
+                display_label: local.display_label || null,
                 status: a.connection_status || a.status || sourceStatus || local.status || 'unknown',
                 connected_by_user_id: local.connected_by_user_id || null,
+                connected_by_name: ownerFullName || null,
                 is_mine: local.connected_by_user_id === user.id,
                 excluded_from_metrics: !!local.excluded_from_metrics,
+                account_type: local.account_type || 'personal',
             };
         });
 
@@ -339,9 +342,194 @@ router.get('/whatsapp/accounts/my-status', async (req, res) => {
     }
 });
 
-// ─── PATCH /api/whatsapp/accounts/:id/label — Edita display_label ────
-// Admin-only. Atualiza apenas o rótulo amigável; não toca em outros campos.
-// Passar display_label='' ou null limpa o rótulo.
+// ─── PATCH /api/whatsapp/accounts/:id — Config completa (Admin only) ──
+// Atualiza qualquer combinação de:
+//   - display_label      : rótulo amigável (string ou null)
+//   - connected_by_user_id : UUID do dono (null pra desvincular)
+//   - account_type       : 'personal' | 'virtual'
+//   - excluded_from_metrics : boolean
+//   - allowed_user_ids   : array de UUIDs — sincroniza
+//                          platform_users.permissions.whatsapp_accounts.
+//                          Quando presente, vira a fonte de verdade:
+//                          users fora do array perdem acesso; users
+//                          dentro recebem. O dono (connected_by_user_id)
+//                          é sempre garantido na lista, mesmo se omitido.
+//
+// Edição parcial — só sincroniza permissions se `allowed_user_ids` vier
+// no body. Outros campos seguem o mesmo princípio: ausente = não mexe.
+//
+// Trade-off: sem transação cross-tabela. Update do whatsapp_accounts vai
+// antes; se sync de permissions falhar pra algum user, isso é logado mas
+// não desfaz o resto. Considerado aceitável porque o estado parcial é
+// recuperável (admin re-salva).
+router.patch('/whatsapp/accounts/:id', async (req, res) => {
+    try {
+        if (req.user?.role !== 'Admin') {
+            return res.status(403).json({ error: 'Apenas Admin pode configurar contas' });
+        }
+
+        const accountId = req.params.id;
+        const body = req.body || {};
+        const updates = {};
+
+        // ── Validações ────────────────────────────────────────────────
+        if ('display_label' in body) {
+            const raw = body.display_label;
+            updates.display_label = raw == null || String(raw).trim() === ''
+                ? null
+                : String(raw).trim().slice(0, 80);
+        }
+
+        if ('account_type' in body) {
+            if (!['personal', 'virtual'].includes(body.account_type)) {
+                return res.status(400).json({ error: "account_type deve ser 'personal' ou 'virtual'" });
+            }
+            updates.account_type = body.account_type;
+        }
+
+        if ('excluded_from_metrics' in body) {
+            updates.excluded_from_metrics = !!body.excluded_from_metrics;
+        }
+
+        if ('connected_by_user_id' in body) {
+            const ownerId = body.connected_by_user_id || null;
+            if (ownerId) {
+                // Confere se o user existe e está ativo
+                const { data: ownerUser, error: ownerErr } = await supabase
+                    .from('platform_users')
+                    .select('id, active')
+                    .eq('id', ownerId)
+                    .maybeSingle();
+                if (ownerErr) throw ownerErr;
+                if (!ownerUser) return res.status(400).json({ error: 'connected_by_user_id não encontrado' });
+                if (!ownerUser.active) return res.status(400).json({ error: 'Não dá pra atribuir conta a usuário inativo' });
+            }
+            updates.connected_by_user_id = ownerId;
+        }
+
+        // Regra de negócio: virtual exige display_label
+        if (updates.account_type === 'virtual') {
+            // Precisa ter display_label setado nesse update OU já existir no banco
+            if ('display_label' in updates && !updates.display_label) {
+                return res.status(400).json({ error: 'Contas virtuais exigem display_label' });
+            }
+            if (!('display_label' in updates)) {
+                const { data: existing } = await supabase
+                    .from('whatsapp_accounts')
+                    .select('display_label')
+                    .eq('unipile_account_id', accountId)
+                    .maybeSingle();
+                if (!existing?.display_label) {
+                    return res.status(400).json({ error: 'Contas virtuais exigem display_label' });
+                }
+            }
+        }
+
+        // ── Update da tabela whatsapp_accounts ────────────────────────
+        let updatedAccount = null;
+        if (Object.keys(updates).length > 0) {
+            updates.updated_at = new Date().toISOString();
+            const { data, error } = await supabase
+                .from('whatsapp_accounts')
+                .update(updates)
+                .eq('unipile_account_id', accountId)
+                .select('unipile_account_id, phone_number, display_label, account_type, connected_by_user_id, excluded_from_metrics, status')
+                .maybeSingle();
+            if (error) throw error;
+            if (!data) return res.status(404).json({ error: 'Conta não encontrada localmente' });
+            updatedAccount = data;
+        }
+
+        // ── Sync permissions (apenas se allowed_user_ids veio no body) ─
+        const permSync = { added: [], removed: [], errors: [] };
+        if (Array.isArray(body.allowed_user_ids)) {
+            // Garante que o dono está sempre no rol
+            const ownerId = updatedAccount?.connected_by_user_id
+                ?? (await supabase.from('whatsapp_accounts')
+                    .select('connected_by_user_id').eq('unipile_account_id', accountId).maybeSingle()
+                ).data?.connected_by_user_id;
+            const targetSet = new Set(body.allowed_user_ids.filter(Boolean));
+            if (ownerId) targetSet.add(ownerId);
+
+            // Quem tem essa conta hoje
+            const { data: currentUsers, error: currErr } = await supabase
+                .from('platform_users')
+                .select('id, permissions')
+                .filter('permissions->whatsapp_accounts', 'cs', JSON.stringify([accountId]));
+            if (currErr) throw currErr;
+            const currentIds = new Set((currentUsers || []).map(u => u.id));
+
+            const toAdd = [...targetSet].filter(id => !currentIds.has(id));
+            const toRemove = [...currentIds].filter(id => !targetSet.has(id));
+
+            // Aplica adições — fetch atual + push + update
+            for (const uid of toAdd) {
+                try {
+                    const { data: u } = await supabase.from('platform_users')
+                        .select('permissions').eq('id', uid).maybeSingle();
+                    const perms = u?.permissions || {};
+                    const list = perms.whatsapp_accounts || [];
+                    if (!list.includes(accountId)) list.push(accountId);
+                    perms.whatsapp_accounts = list;
+                    await supabase.from('platform_users')
+                        .update({ permissions: perms, updated_at: new Date().toISOString() })
+                        .eq('id', uid);
+                    invalidateUserCache(uid);
+                    permSync.added.push(uid);
+                } catch (err) {
+                    permSync.errors.push({ user_id: uid, op: 'add', error: err.message });
+                }
+            }
+
+            // Aplica remoções
+            for (const uid of toRemove) {
+                try {
+                    const user = (currentUsers || []).find(u => u.id === uid);
+                    const perms = user?.permissions || {};
+                    perms.whatsapp_accounts = (perms.whatsapp_accounts || []).filter(id => id !== accountId);
+                    await supabase.from('platform_users')
+                        .update({ permissions: perms, updated_at: new Date().toISOString() })
+                        .eq('id', uid);
+                    invalidateUserCache(uid);
+                    permSync.removed.push(uid);
+                } catch (err) {
+                    permSync.errors.push({ user_id: uid, op: 'remove', error: err.message });
+                }
+            }
+        }
+
+        logger.info('WA account config atualizado', {
+            account_id: accountId,
+            admin_user_id: req.user?.id,
+            fields_changed: Object.keys(updates),
+            perm_added: permSync.added.length,
+            perm_removed: permSync.removed.length,
+            perm_errors: permSync.errors.length,
+        });
+
+        // Retorna estado final (re-fetch se update teve nada)
+        if (!updatedAccount) {
+            const { data } = await supabase.from('whatsapp_accounts')
+                .select('unipile_account_id, phone_number, display_label, account_type, connected_by_user_id, excluded_from_metrics, status')
+                .eq('unipile_account_id', accountId).maybeSingle();
+            updatedAccount = data;
+        }
+
+        res.json({
+            success: true,
+            account: updatedAccount,
+            permissions_sync: permSync,
+        });
+    } catch (err) {
+        logger.error('PATCH account config error', { error: err.message, account_id: req.params.id });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── PATCH /api/whatsapp/accounts/:id/label — LEGACY ─────────────────
+// Mantido por retrocompat (frontend antigo). Novo código deve usar o
+// PATCH /:id acima, que cobre todos os campos. TODO: migrar callers
+// e remover esta rota.
 router.patch('/whatsapp/accounts/:id/label', async (req, res) => {
     try {
         if (req.user?.role !== 'Admin') {
