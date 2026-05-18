@@ -2615,12 +2615,23 @@ async function runLinkDealSearch(q, leadId) {
 async function linkLeadToDeal(leadId, dealId) {
     if (!confirm(`Vincular esta conversa ao Deal #${dealId}?`)) return;
     try {
-        await apiFetch(`/api/leads/${leadId}/link-to-deal`, {
+        const res = await apiFetch(`/api/leads/${leadId}/link-to-deal`, {
             method: 'POST',
             body: JSON.stringify({ deal_id: parseInt(dealId) }),
         });
         toast(`✓ Conversa vinculada ao Deal #${dealId}`, 'success');
-        // Recarrega o painel lateral
+        // Reflete o vínculo no estado em memória pra o auto-select do picker
+        // acertar já no próximo render — sem isso o backend persiste mas a UI
+        // renderiza idêntica e parece que nada aconteceu.
+        if (currentConversation?.leads) {
+            currentConversation.leads.crm_deal_id = String(dealId);
+            if (res?.lead?.crm_person_id) currentConversation.leads.crm_person_id = res.lead.crm_person_id;
+            if (res?.lead?.crm_org_id)    currentConversation.leads.crm_org_id    = res.lead.crm_org_id;
+        }
+        try { localStorage.setItem(`atd:deal:${currentConversation?.id}`, String(dealId)); } catch (_) {}
+        // Fecha o search popover de "Vincular a deal existente"
+        const searchBox = document.getElementById('lp-link-deal-search');
+        if (searchBox) searchBox.style.display = 'none';
         if (currentConversation) renderLeadPanel(currentConversation);
     } catch (err) {
         toast(`Falha: ${err.message}`, 'error');

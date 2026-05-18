@@ -94,7 +94,7 @@ router.get('/inbox/conversation/:id', async (req, res) => {
             .from('conversations')
             .select(`
                 *,
-                leads(id, name, phone, company_name, classification, origin),
+                leads(id, name, phone, email, company_name, classification, origin, crm_deal_id, crm_person_id, crm_org_id),
                 messages(id, content, direction, sender_type, sender_name, sent_by_name, created_at, read_at, delivered, seen)
             `)
             .eq('id', req.params.id)
