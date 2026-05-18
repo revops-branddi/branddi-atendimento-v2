@@ -423,6 +423,45 @@ router.get('/leads/:id/deals', async (req, res) => {
             }
         }
 
+        // Inclui o deal explicitamente vinculado (via "Vincular a deal existente")
+        // quando o phone do lead não bate com o phone do person no Pipedrive.
+        // Sem isso, loadDealsForLead recebe lista vazia → UI mostra "Nenhum deal
+        // vinculado" mesmo com crm_deal_id salvo no DB.
+        if (lead.crm_deal_id && !allDeals.find(d => String(d.id) === String(lead.crm_deal_id))) {
+            try {
+                const r = await pdGet(`/deals/${lead.crm_deal_id}`);
+                const d = r?.data;
+                if (d) {
+                    let stage_name = '—';
+                    if (d.stage_id) {
+                        if (stageCache.has(d.stage_id)) {
+                            stage_name = stageCache.get(d.stage_id);
+                        } else {
+                            try {
+                                const stageData = await pdGet(`/stages/${d.stage_id}`);
+                                stage_name = stageData?.data?.name || '—';
+                                stageCache.set(d.stage_id, stage_name);
+                            } catch { /* ignora */ }
+                        }
+                    }
+                    allDeals.unshift({
+                        id: d.id,
+                        title: d.title,
+                        status: d.status,
+                        stage_name,
+                        pipeline_id: d.pipeline_id,
+                        value: d.value,
+                        currency: d.currency,
+                        owner_name: d.owner_name || '—',
+                        person_id: d.person_id?.value || d.person_id || null,
+                        person_name: d.person_name || d.person_id?.name || '—',
+                        org_name: d.org_id?.name || d.org_name || null,
+                        link: `https://${pipedriveDomain}/deal/${d.id}`,
+                    });
+                }
+            } catch { /* deal removido ou sem permissão — silencioso */ }
+        }
+
         res.json({ deals: allDeals, persons, label_options: labelOptions });
     } catch (err) {
         res.status(500).json({ error: err.message });
