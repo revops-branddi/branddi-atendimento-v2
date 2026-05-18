@@ -758,6 +758,114 @@ if (document.readyState === 'loading') {
     setupWaDisconnectedBanner();
 }
 
+// ─── WA Throttle Banner ────────────────────────────────────────────────
+// Polling de /api/wa/delivery-health. Se backend reportar status='active'
+// ou 'warning', exibe banner educativo no topo. Estado dismissed dura até
+// o status mudar ou janela ser recarregada — não persiste em localStorage
+// pra não esconder problemas reais por silenciamento antigo.
+let waThrottleState = { status: 'ok', dismissedFor: null };
+const WA_THROTTLE_POLL_MS = 90_000; // 90s — fresh sem ser custoso
+
+async function fetchWaDeliveryHealth() {
+    try {
+        const r = await fetch('/api/wa/delivery-health', { credentials: 'include' });
+        if (!r.ok) return null;
+        return await r.json();
+    } catch { return null; }
+}
+
+function renderWaThrottleBanner(health) {
+    const banner = document.getElementById('wa-throttle-banner');
+    const textEl = document.getElementById('wa-throttle-text');
+    if (!banner || !textEl) return;
+
+    const status = health?.status || 'ok';
+    waThrottleState.status = status;
+
+    // Se já foi dismissed pra esse status, mantém escondido
+    if (status === 'ok' || status === waThrottleState.dismissedFor) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    const summary = health?.summary || {};
+    const failed = Number(summary.cold_failed) || 0;
+    const total  = Number(summary.cold_total)  || 0;
+    const accountsLabel = (health?.accounts || [])
+        .filter(a => a.status !== 'ok')
+        .map(a => a.label)
+        .filter(Boolean)
+        .join(', ');
+
+    // Constrói via DOM (sem innerHTML) pra evitar XSS via label de conta WA
+    // que pode ter caracteres do display_label preenchido por admin.
+    textEl.replaceChildren();
+    const strong = document.createElement('strong');
+    if (status === 'active') {
+        strong.textContent = 'O WhatsApp pode estar segurando suas mensagens novas. ';
+        textEl.appendChild(strong);
+        textEl.appendChild(document.createTextNode(
+            `${failed} de ${total} mensagens para novos contatos não foram entregues na última hora`
+            + (accountsLabel ? ` (${accountsLabel}).` : '.')
+        ));
+    } else {
+        strong.textContent = 'Atenção: ';
+        textEl.appendChild(strong);
+        textEl.appendChild(document.createTextNode(
+            `algumas mensagens para novos contatos não estão sendo entregues `
+            + `(${failed} de ${total} na última hora). `
+            + `Diminui o ritmo pra não acionar antispam do WhatsApp.`
+        ));
+    }
+    banner.style.display = '';
+}
+
+async function pollWaDeliveryHealth() {
+    const health = await fetchWaDeliveryHealth();
+    if (health) renderWaThrottleBanner(health);
+}
+
+function dismissWaThrottleBanner() {
+    waThrottleState.dismissedFor = waThrottleState.status;
+    const banner = document.getElementById('wa-throttle-banner');
+    if (banner) banner.style.display = 'none';
+}
+
+function setupWaThrottleBanner() {
+    pollWaDeliveryHealth();
+    setInterval(pollWaDeliveryHealth, WA_THROTTLE_POLL_MS);
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupWaThrottleBanner);
+} else {
+    setupWaThrottleBanner();
+}
+
+// ─── Modal Boas Práticas WhatsApp ──────────────────────────────────────
+function openWaBestPractices() {
+    const modal = document.getElementById('wa-best-practices-modal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeWaBestPractices() {
+    const modal = document.getElementById('wa-best-practices-modal');
+    if (modal) modal.style.display = 'none';
+}
+// Fecha clicando fora do conteúdo (overlay)
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('wa-best-practices-modal');
+    if (modal && e.target === modal) closeWaBestPractices();
+});
+// Esc fecha
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('wa-best-practices-modal');
+    if (modal && modal.style.display !== 'none') closeWaBestPractices();
+});
+// Expõe pros onclick do HTML
+window.openWaBestPractices     = openWaBestPractices;
+window.closeWaBestPractices    = closeWaBestPractices;
+window.dismissWaThrottleBanner = dismissWaThrottleBanner;
+
 // SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
 // e aplica em <html data-*>. Selects com [data-pref] disparam change.
 const APPEARANCE_DEFAULTS = {
@@ -2013,15 +2121,22 @@ function renderMessage(msg) {
     const textContent = showText ? linkify(escHtml(resolvedContent)) : (atts.length ? '' : '(mídia)');
 
     // Status de entrega — só faz sentido em msgs outbound (humano ou bot).
-    // ghost_chat = msg ficou presa em chat fantasma (nro WhatsApp na variante errada);
-    // pode ter sido re-enviada na alternativa (1ª msg) ou ficou órfã (msgs subsequentes).
+    // Dois tipos de falha cobertos:
+    //   - ghost_chat: variante errada do número (com/sem 9 BR)
+    //   - limbo: >5min sem delivered=true e sem failed_reason — provável
+    //     throttle/shadowban do WhatsApp segurando mensagens novas
     let deliveryHtml = '';
     const isGhost = isOut && msg.failed_reason === 'ghost_chat';
+    const msgAgeMs = msg.created_at ? (Date.now() - new Date(msg.created_at).getTime()) : 0;
+    const isLimbo = isOut && !isGhost && !msg.delivered && !msg.failed_reason && msgAgeMs > 5 * 60_000;
+    const isFail  = isGhost || isLimbo;
+
     if (isOut && !isNote) {
         const seen = !!msg.seen;
         const delivered = !!msg.delivered;
         let icon, label, klass;
         if (isGhost)         { icon = '⚠'; label = 'Não entregue (chat fantasma) — variante errada do número'; klass = 'msg-check ghost'; }
+        else if (isLimbo)    { icon = '⚠'; label = 'Não confirmada — WhatsApp pode estar segurando esta mensagem'; klass = 'msg-check ghost'; }
         else if (seen)       { icon = '✓✓'; label = 'Lido';      klass = 'msg-check read'; }
         else if (delivered)  { icon = '✓✓'; label = 'Entregue';  klass = 'msg-check delivered'; }
         else                 { icon = '✓';  label = 'Enviado';   klass = 'msg-check sent'; }
@@ -2033,8 +2148,22 @@ function renderMessage(msg) {
         return `<div class="msg-bubble msg-row msg-system system">${textContent}</div>`;
     }
 
+    // Nota educativa contextual nas bolhas falhadas — botão clicável que
+    // abre modal de boas práticas WhatsApp. Texto varia por causa provável.
+    let failNoteHtml = '';
+    if (isFail) {
+        const noteText = isGhost
+            ? 'Não entregue — número pode estar em variante errada (com/sem 9) ou WhatsApp limitou.'
+            : 'Não confirmada — WhatsApp pode estar segurando suas mensagens novas.';
+        failNoteHtml = `<button type="button" class="msg-fail-note" onclick="openWaBestPractices()" title="Clique para entender por que e como prevenir">
+            <span>⚠</span>
+            <span>${escHtml(noteText)}</span>
+            <span class="msg-fail-note-link">por quê?</span>
+        </button>`;
+    }
+
     // Demais tipos: grid 88px meta + 1fr content + auto status (SPEC §3)
-    const ghostClass = isGhost ? ' msg-ghost-chat' : '';
+    const ghostClass = isFail ? ' msg-ghost-chat' : '';
     return `<div class="msg-bubble msg-row msg-${cls} ${cls}${ghostClass}">
         <div class="msg-meta">
             ${typeLabel ? `<div class="msg-type">${typeLabel}</div>` : ''}
@@ -2043,7 +2172,7 @@ function renderMessage(msg) {
         <div class="msg-content">
             ${attachmentsHtml}
             ${textContent ? `<div class="msg-text">${textContent}</div>` : ''}
-            ${isGhost ? '<div class="msg-ghost-note" title="Não chegou ao destinatário — variante do número estava errada">⚠ Não entregue (chat fantasma)</div>' : ''}
+            ${failNoteHtml}
         </div>
         <div class="msg-status-col">
             <span class="msg-time">${time}</span>

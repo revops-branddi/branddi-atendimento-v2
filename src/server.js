@@ -26,6 +26,7 @@ import authRouter              from './routes/auth.js';
 import usersRouter             from './routes/users.js';
 import pipedriveIntRouter      from './routes/pipedrive-integration.js';
 import apolloRouter            from './routes/apollo.js';
+import waDeliveryHealthRouter  from './routes/wa-delivery-health.js';
 import siteRouter               from './site/routes/index.js';
 import { requireAuth, requireSiteAccess } from './middleware/auth.js';
 
@@ -171,6 +172,7 @@ app.use('/api', settingsRouter);
 app.use('/api', usersRouter);
 app.use('/api', pipedriveIntRouter);
 app.use('/api', apolloRouter);
+app.use('/api', waDeliveryHealthRouter);
 
 // ─── Rotas do fluxo Site (isoladas, requer permissions.site_access) ──
 app.use('/api/site', requireSiteAccess, siteRouter);
