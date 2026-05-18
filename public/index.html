@@ -909,6 +909,9 @@
             <button class="settings-tab admin-only" data-stab="users" onclick="switchSettingsTab('users')" style="display:none">
                 👥 Usuarios
             </button>
+            <button class="settings-tab admin-only" data-stab="whatsapp" onclick="switchSettingsTab('whatsapp')" style="display:none">
+                📱 WhatsApp
+            </button>
         </div>
 
         <!-- ABA GERAL -->
@@ -1161,6 +1164,88 @@
             </div>
         </div>
 
+        <!-- ABA WHATSAPP (Admin only) — gerencia contas WA: tipo, dono, operadores -->
+        <div class="settings-tab-panel" id="stab-whatsapp">
+            <div class="modal-body" style="padding:24px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                    <h4 class="settings-section-title" style="margin:0">📱 Contas WhatsApp</h4>
+                    <button class="btn-sm btn-outline" onclick="renderWAAccountsAdminTable()" title="Recarregar">🔄</button>
+                </div>
+                <p style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.5">
+                    Pessoal: 1 atendente dono, conta nas métricas. Virtual (SDR IA): operada por vários, fora das métricas.
+                </p>
+                <div id="wa-admin-list">
+                    <div style="text-align:center;padding:24px;color:var(--text-muted)">Carregando contas...</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ─── Modal: Configurar conta WhatsApp (Admin only) ──── -->
+<div class="modal-overlay" id="modal-wa-config" style="display:none" onclick="if(event.target===this)closeWAConfigModal()">
+    <div class="modal" style="max-width:560px">
+        <div class="modal-header">
+            <h3>⚙️ Configurar conta WhatsApp</h3>
+            <button class="modal-close" onclick="closeWAConfigModal()">✕</button>
+        </div>
+        <div class="modal-body" style="padding:22px 24px">
+            <input type="hidden" id="wac-account-id" />
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label style="font-size:11px;color:var(--text-muted)">Telefone</label>
+                <div id="wac-phone" style="font-family:monospace;font-size:14px;color:var(--text-1)">—</div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label>Tipo da conta</label>
+                <div style="display:flex;gap:14px;margin-top:6px">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="radio" name="wac-type" value="personal" id="wac-type-personal" />
+                        <span>Pessoal <span style="font-size:11px;color:var(--text-muted)">(1 atendente)</span></span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="radio" name="wac-type" value="virtual" id="wac-type-virtual" />
+                        <span>Virtual <span style="font-size:11px;color:var(--text-muted)">(SDR IA / vários)</span></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label>Nome de exibição <span id="wac-label-required" style="color:#ef4444;display:none">*</span></label>
+                <input type="text" id="wac-display-label" class="settings-input" placeholder="Ex: Juliana, Ricardo, Gio" maxlength="80" />
+                <span id="wac-label-hint" style="font-size:11px;color:var(--text-muted)">Pessoal: opcional (default = primeiro nome do dono). Virtual: obrigatório.</span>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label id="wac-owner-label">Dono da conta</label>
+                <select id="wac-owner" class="settings-input">
+                    <option value="">— Não atribuído —</option>
+                </select>
+                <span id="wac-owner-hint" style="font-size:11px;color:var(--text-muted)">Pessoal: o atendente. Virtual: admin "técnico" responsável (não distorce métricas).</span>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label>Operadores adicionais</label>
+                <div id="wac-operators" class="perm-checkboxes" style="max-height:180px;overflow-y:auto">
+                    <span style="font-size:11px;color:var(--text-muted)">Carregando usuários...</span>
+                </div>
+                <span style="font-size:11px;color:var(--text-muted)">Marque quem mais pode operar/ver essa conta. O dono já está incluído automaticamente.</span>
+            </div>
+
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <input type="checkbox" id="wac-excluded" style="width:18px;height:18px" />
+                    Excluir das métricas de dashboard
+                </label>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:28px">Default: pessoal=desligado, virtual=ligado. Útil pra atendente em férias sem deletar a conta.</span>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding:14px 24px;display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn-secondary" onclick="closeWAConfigModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveWAAccountConfig()">💾 Salvar</button>
+        </div>
     </div>
 </div>
 

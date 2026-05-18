@@ -4032,12 +4032,12 @@ function _makeAccountRow(a, isMine) {
 
     if (isAdmin) {
         const editBtn = document.createElement('button');
-        editBtn.title = 'Editar label';
-        editBtn.style.cssText = 'background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:11px;padding:2px 4px';
-        editBtn.textContent = '✏️';
+        editBtn.title = 'Configurar conta (tipo, dono, operadores)';
+        editBtn.style.cssText = 'background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:2px 4px';
+        editBtn.textContent = '⚙️';
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            _editAccountLabel(a);
+            openWAConfigModal(a.id);
         });
         labelRow.appendChild(editBtn);
     }
@@ -4061,7 +4061,9 @@ function _makeAccountRow(a, isMine) {
     return row;
 }
 
-// Inline edit do display_label (admin only)
+// Inline edit do display_label (admin only) — LEGADO. Fluxo principal
+// agora é openWAConfigModal() abaixo, que cobre todos os campos. Mantido
+// só por compat caso algum lugar antigo chame.
 async function _editAccountLabel(account) {
     const current = account.display_name || account.phone_number || '';
     const newLabel = prompt(`Novo label pra "${current}":`, current);
@@ -4077,6 +4079,341 @@ async function _editAccountLabel(account) {
         renderWaAccountsInModal();
     } catch (err) {
         toast(`Erro: ${err.message}`, 'error');
+    }
+}
+
+// ─── Admin: modal de configuração completa de conta WA ───────────────
+// Pontos de entrada:
+//   1. Modal "Contas WA" (botão ⚙️ em cada linha)
+//   2. Aba WhatsApp do Settings (tabela admin com botão Configurar)
+// Cobre: tipo (personal/virtual), display_label, dono, operadores,
+//        excluded_from_metrics. Backend faz validação + sync de permissions.
+let _waConfigUsersCache = null;
+let _waConfigCurrentAccount = null;
+
+async function openWAConfigModal(accountId) {
+    if (currentUser?.role !== 'Admin') {
+        toast('Apenas Admin pode configurar contas', 'error');
+        return;
+    }
+    const overlay = document.getElementById('modal-wa-config');
+    if (!overlay) return;
+
+    try {
+        const [accounts, users] = await Promise.all([
+            apiFetch('/api/whatsapp/accounts').then(d => d.accounts || []),
+            _waConfigUsersCache
+                ? Promise.resolve(_waConfigUsersCache)
+                : apiFetch('/api/users').then(d => {
+                    _waConfigUsersCache = (d.users || []).filter(u => u.active !== false);
+                    return _waConfigUsersCache;
+                }),
+        ]);
+
+        const account = accounts.find(a => a.id === accountId);
+        if (!account) {
+            toast('Conta não encontrada', 'error');
+            return;
+        }
+
+        const currentOperators = users
+            .filter(u => (u.permissions?.whatsapp_accounts || []).includes(accountId))
+            .map(u => u.id);
+
+        _waConfigCurrentAccount = account;
+        _hydrateWAConfigModal(account, users, currentOperators);
+        overlay.style.display = 'flex';
+    } catch (err) {
+        toast(`Erro ao carregar config: ${err.message}`, 'error');
+    }
+}
+
+function _hydrateWAConfigModal(account, users, currentOperatorIds) {
+    document.getElementById('wac-account-id').value = account.id;
+    document.getElementById('wac-phone').textContent = account.phone_number || '—';
+
+    const type = account.account_type || 'personal';
+    document.getElementById(`wac-type-${type}`).checked = true;
+    _applyWAConfigTypeRules(type);
+
+    document.getElementById('wac-display-label').value = account.display_label || '';
+
+    // Owner dropdown — DOM (sem innerHTML)
+    const ownerSel = document.getElementById('wac-owner');
+    ownerSel.replaceChildren();
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '— Não atribuído —';
+    ownerSel.appendChild(optNone);
+    for (const u of users) {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.role === 'Admin' ? `${u.name} (Admin)` : u.name;
+        if (u.id === account.connected_by_user_id) opt.selected = true;
+        ownerSel.appendChild(opt);
+    }
+
+    // Operadores (multi checkboxes) — DOM
+    const opsContainer = document.getElementById('wac-operators');
+    opsContainer.replaceChildren();
+    for (const u of users) {
+        const isOwner = u.id === account.connected_by_user_id;
+        const wrapper = document.createElement('label');
+        wrapper.className = 'perm-check';
+        wrapper.style.opacity = isOwner ? '0.6' : '1';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'wac-op-check';
+        cb.value = u.id;
+        cb.checked = currentOperatorIds.includes(u.id) || isOwner;
+        cb.disabled = isOwner;
+        if (isOwner) cb.title = 'Dono — sempre incluído';
+
+        wrapper.appendChild(cb);
+        wrapper.appendChild(document.createTextNode(' ' + u.name + ' '));
+
+        if (isOwner) {
+            const tag = document.createElement('span');
+            tag.style.cssText = 'font-size:10px;color:var(--accent)';
+            tag.textContent = '(dono)';
+            wrapper.appendChild(tag);
+        }
+        opsContainer.appendChild(wrapper);
+    }
+
+    const excluded = document.getElementById('wac-excluded');
+    excluded.checked = !!account.excluded_from_metrics;
+    delete excluded.dataset.userTouched;
+    excluded.onchange = (e) => { e.target.dataset.userTouched = '1'; };
+
+    document.querySelectorAll('input[name="wac-type"]').forEach(r => {
+        r.onchange = () => _applyWAConfigTypeRules(r.value);
+    });
+
+    ownerSel.onchange = () => {
+        const newOwner = ownerSel.value;
+        document.querySelectorAll('.wac-op-check').forEach(cb => {
+            const isOwnerNow = cb.value === newOwner;
+            cb.disabled = isOwnerNow;
+            cb.parentElement.style.opacity = isOwnerNow ? '0.6' : '1';
+            if (isOwnerNow) cb.checked = true;
+        });
+    };
+}
+
+function _applyWAConfigTypeRules(type) {
+    const labelReq = document.getElementById('wac-label-required');
+    const labelInput = document.getElementById('wac-display-label');
+    const ownerHint = document.getElementById('wac-owner-hint');
+    const excluded = document.getElementById('wac-excluded');
+
+    if (type === 'virtual') {
+        labelReq.style.display = '';
+        labelInput.required = true;
+        ownerHint.textContent = 'Admin "técnico" responsável (não distorce métricas — conta já fica fora delas).';
+        if (!excluded.dataset.userTouched) excluded.checked = true;
+    } else {
+        labelReq.style.display = 'none';
+        labelInput.required = false;
+        ownerHint.textContent = 'O atendente dono da conta. Métricas individuais usam esse campo.';
+        if (!excluded.dataset.userTouched) excluded.checked = false;
+    }
+}
+
+function closeWAConfigModal() {
+    const overlay = document.getElementById('modal-wa-config');
+    if (overlay) overlay.style.display = 'none';
+    _waConfigCurrentAccount = null;
+    const ex = document.getElementById('wac-excluded');
+    if (ex) delete ex.dataset.userTouched;
+}
+
+async function saveWAAccountConfig() {
+    const accountId = document.getElementById('wac-account-id').value;
+    const type = document.querySelector('input[name="wac-type"]:checked')?.value || 'personal';
+    const displayLabel = document.getElementById('wac-display-label').value.trim();
+    const ownerId = document.getElementById('wac-owner').value || null;
+    const excluded = document.getElementById('wac-excluded').checked;
+    const operatorIds = Array.from(document.querySelectorAll('.wac-op-check:checked'))
+        .map(cb => cb.value);
+
+    if (type === 'virtual' && !displayLabel) {
+        toast('Contas virtuais exigem nome de exibição', 'error');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/whatsapp/accounts/${accountId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                account_type: type,
+                display_label: displayLabel || null,
+                connected_by_user_id: ownerId,
+                excluded_from_metrics: excluded,
+                allowed_user_ids: operatorIds,
+            }),
+        });
+        toast('Conta atualizada!', 'success');
+        closeWAConfigModal();
+        if (document.getElementById('stab-whatsapp')?.classList.contains('active')) {
+            renderWAAccountsAdminTable();
+        }
+        if (document.getElementById('modal-wa-connect')?.style.display !== 'none') {
+            renderWaAccountsInModal();
+        }
+        _waConfigUsersCache = null;
+    } catch (err) {
+        toast(`Erro ao salvar: ${err.message}`, 'error');
+    }
+}
+
+// ─── Admin: tabela de contas WA na aba Settings → WhatsApp ───────────
+async function renderWAAccountsAdminTable() {
+    const container = document.getElementById('wa-admin-list');
+    if (!container) return;
+
+    const loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted)';
+    loading.textContent = 'Carregando contas...';
+    container.replaceChildren(loading);
+
+    try {
+        const [accountsData, usersData] = await Promise.all([
+            apiFetch('/api/whatsapp/accounts'),
+            apiFetch('/api/users'),
+        ]);
+        const accounts = accountsData.accounts || [];
+        const users = usersData.users || [];
+        const userById = Object.fromEntries(users.map(u => [u.id, u]));
+        _waConfigUsersCache = users.filter(u => u.active !== false);
+
+        if (accounts.length === 0) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center;padding:24px;color:var(--text-muted)';
+            empty.textContent = 'Nenhuma conta WhatsApp conectada';
+            container.replaceChildren(empty);
+            return;
+        }
+
+        const opsByAccount = {};
+        for (const u of users) {
+            for (const aid of (u.permissions?.whatsapp_accounts || [])) {
+                (opsByAccount[aid] ||= []).push(u);
+            }
+        }
+
+        const isOk = s => /^(ok|connected|running|ok_for_now)$/i.test(s || '');
+
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+
+        const thead = document.createElement('thead');
+        const trHead = document.createElement('tr');
+        trHead.style.cssText = 'background:var(--bg-tertiary);color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.4px';
+        for (const [text, align] of [['Conta','left'],['Tipo','left'],['Dono','left'],['Operadores','left'],['Status','center'],['','right']]) {
+            const th = document.createElement('th');
+            th.style.cssText = `text-align:${align};padding:8px 10px`;
+            th.textContent = text;
+            trHead.appendChild(th);
+        }
+        thead.appendChild(trHead);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (const a of accounts) {
+            const ops = (opsByAccount[a.id] || []).filter(u => u.id !== a.connected_by_user_id);
+            const ownerName = a.connected_by_user_id
+                ? (userById[a.connected_by_user_id]?.name || '?')
+                : null;
+            const statusOk = isOk(a.status);
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--border-md)';
+
+            // Conta
+            const tdConta = document.createElement('td');
+            tdConta.style.cssText = 'padding:10px;vertical-align:top';
+            const contaName = document.createElement('div');
+            contaName.style.fontWeight = '600';
+            contaName.textContent = a.display_label || a.display_name || '—';
+            const contaPhone = document.createElement('div');
+            contaPhone.style.cssText = 'color:var(--text-3);font-size:11px;font-family:monospace';
+            contaPhone.textContent = a.phone_number || a.id;
+            tdConta.appendChild(contaName);
+            tdConta.appendChild(contaPhone);
+            tr.appendChild(tdConta);
+
+            // Tipo
+            const tdTipo = document.createElement('td');
+            tdTipo.style.cssText = 'padding:10px;vertical-align:top';
+            const badge = document.createElement('span');
+            if (a.account_type === 'virtual') {
+                badge.style.cssText = 'background:rgba(168,85,247,.15);color:#a855f7;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500';
+                badge.textContent = '🤖 Virtual';
+            } else {
+                badge.style.cssText = 'background:rgba(16,185,129,.12);color:#10b981;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500';
+                badge.textContent = '👤 Pessoal';
+            }
+            tdTipo.appendChild(badge);
+            tr.appendChild(tdTipo);
+
+            // Dono
+            const tdOwner = document.createElement('td');
+            tdOwner.style.cssText = 'padding:10px;vertical-align:top';
+            if (ownerName) {
+                tdOwner.textContent = ownerName;
+            } else {
+                const noOwner = document.createElement('span');
+                noOwner.style.cssText = 'color:var(--text-muted);font-size:11px';
+                noOwner.textContent = '— sem dono —';
+                tdOwner.appendChild(noOwner);
+            }
+            tr.appendChild(tdOwner);
+
+            // Operadores
+            const tdOps = document.createElement('td');
+            tdOps.style.cssText = 'padding:10px;vertical-align:top;color:var(--text-2)';
+            if (ops.length === 0) {
+                const dash = document.createElement('span');
+                dash.style.cssText = 'color:var(--text-muted);font-size:11px';
+                dash.textContent = '—';
+                tdOps.appendChild(dash);
+            } else {
+                const firstNames = ops.slice(0, 3).map(u => u.name.split(' ')[0]).join(', ');
+                const extra = ops.length > 3 ? ` +${ops.length - 3}` : '';
+                tdOps.textContent = firstNames + extra;
+            }
+            tr.appendChild(tdOps);
+
+            // Status
+            const tdStatus = document.createElement('td');
+            tdStatus.style.cssText = 'padding:10px;vertical-align:top;text-align:center';
+            const dot = document.createElement('span');
+            dot.style.cssText = `display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusOk ? '#10b981' : '#f59e0b'}`;
+            dot.title = a.status || 'unknown';
+            tdStatus.appendChild(dot);
+            tr.appendChild(tdStatus);
+
+            // Ação
+            const tdAcao = document.createElement('td');
+            tdAcao.style.cssText = 'padding:10px;vertical-align:top;text-align:right';
+            const btn = document.createElement('button');
+            btn.className = 'btn-sm btn-outline';
+            btn.textContent = '⚙️ Configurar';
+            btn.addEventListener('click', () => openWAConfigModal(a.id));
+            tdAcao.appendChild(btn);
+            tr.appendChild(tdAcao);
+
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        container.replaceChildren(table);
+    } catch (err) {
+        const errEl = document.createElement('div');
+        errEl.style.cssText = 'color:var(--red-soft);padding:16px';
+        errEl.textContent = `Erro: ${err.message}`;
+        container.replaceChildren(errEl);
     }
 }
 
@@ -4403,6 +4740,7 @@ function switchSettingsTab(tabId) {
     });
 
     if (tabId === 'users') loadUsersList();
+    if (tabId === 'whatsapp') renderWAAccountsAdminTable();
 }
 
 // --- User Management ---
