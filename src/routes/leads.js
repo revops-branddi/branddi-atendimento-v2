@@ -158,16 +158,24 @@ router.post('/leads/:id/link-to-deal', async (req, res) => {
         const { deal_id, person_id } = req.body || {};
         if (!deal_id) return res.status(400).json({ error: 'deal_id obrigatório' });
 
-        // Valida que o deal existe no Pipedrive antes de salvar
+        // Valida que o deal existe no Pipedrive antes de salvar.
+        // Reusa a resposta pra denormalizar title + org_name no lead — assim a
+        // inbox-search acha essa conv por "duty" sem precisar pingar Pipedrive
+        // a cada keystroke.
+        let dealData = null;
         try {
             const d = await pdGet(`/deals/${deal_id}`);
             if (!d?.data) return res.status(404).json({ error: 'Deal não encontrado no Pipedrive' });
+            dealData = d.data;
         } catch (err) {
             return res.status(404).json({ error: 'Deal não encontrado no Pipedrive' });
         }
 
         const updates = { crm_deal_id: String(deal_id) };
         if (person_id) updates.crm_person_id = String(person_id);
+        if (dealData?.title) updates.crm_deal_title = dealData.title;
+        const orgName = dealData?.org_id?.name || dealData?.org_name || null;
+        if (orgName) updates.crm_org_name = orgName;
 
         const lead = await updateLead(req.params.id, updates);
         logger.info('Lead linked to Pipedrive deal', { lead_id: lead.id, deal_id, person_id });
@@ -460,6 +468,30 @@ router.get('/leads/:id/deals', async (req, res) => {
                     });
                 }
             } catch { /* deal removido ou sem permissão — silencioso */ }
+        }
+
+        // Lazy backfill: alinha crm_deal_title + crm_org_name no lead com o
+        // deal atualmente vinculado (via crm_deal_id). Roda no abrir da conv —
+        // não custa roundtrip extra, mas mantém a cache da inbox-search fresca
+        // sem precisar tocar os 10+ write sites que setam crm_deal_id.
+        if (lead.crm_deal_id) {
+            const linked = allDeals.find(d => String(d.id) === String(lead.crm_deal_id));
+            if (linked) {
+                const updates = {};
+                if (linked.title && linked.title !== lead.crm_deal_title) {
+                    updates.crm_deal_title = linked.title;
+                }
+                if (linked.org_name && linked.org_name !== lead.crm_org_name) {
+                    updates.crm_org_name = linked.org_name;
+                }
+                if (Object.keys(updates).length > 0) {
+                    updateLead(lead.id, updates).catch(err => {
+                        logger.warn('Lazy backfill of crm_deal_title/org failed', {
+                            lead_id: lead.id, error: err.message,
+                        });
+                    });
+                }
+            }
         }
 
         res.json({ deals: allDeals, persons, label_options: labelOptions });

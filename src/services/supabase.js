@@ -284,7 +284,23 @@ export async function getInbox({
     filter_account_ids, // array — qualquer user pode filtrar por N números
     archived = false, // true = lista só arquivadas (Admin)
     is_group = false, // false = inbox principal (DMs); true = só grupos
+    q, // search server-side por nome/empresa/telefone/deal/org do lead
 } = {}) {
+    // Resolve search server-side: PostgREST não permite or() filtrando parent
+    // por embed. Strategy: lookup das matching lead IDs primeiro, depois IN
+    // na query principal. Cap em 500 IDs pra não estourar URL length.
+    let searchLeadIds = null;
+    if (q && String(q).trim().length >= 2) {
+        const safe = sanitizeSearchTerm(q);
+        const { data: matched } = await supabase
+            .from('leads')
+            .select('id')
+            .or(`name.ilike.%${safe}%,company_name.ilike.%${safe}%,phone.ilike.%${safe}%,crm_deal_title.ilike.%${safe}%,crm_org_name.ilike.%${safe}%`)
+            .limit(500);
+        searchLeadIds = (matched || []).map(l => l.id);
+        if (searchLeadIds.length === 0) return [];
+    }
+
     // Normaliza singular → array (backwards compat)
     const userIds = Array.isArray(filter_user_ids) && filter_user_ids.length
         ? filter_user_ids
@@ -296,7 +312,7 @@ export async function getInbox({
         .from('conversations')
         .select(`
             *,
-            leads(id, name, phone, email, company_name, classification, origin, crm_deal_id, crm_person_id, crm_org_id),
+            leads(id, name, phone, email, company_name, classification, origin, crm_deal_id, crm_person_id, crm_org_id, crm_deal_title, crm_org_name),
             messages(id, content, direction, sender_type, sender_name, sent_by_name, created_at, read_at, delivered, seen)
         `)
         .neq('status', 'closed')
@@ -375,6 +391,10 @@ export async function getInbox({
 
     if (assigned_to) {
         query = query.eq('assigned_to', assigned_to);
+    }
+
+    if (searchLeadIds) {
+        query = query.in('lead_id', searchLeadIds);
     }
 
     // Filtra contas ignored=true (outros times). Em DMs, exclui via NOT IN

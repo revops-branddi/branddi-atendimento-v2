@@ -23,6 +23,7 @@ router.get('/inbox', async (req, res) => {
             filter_user_ids, filter_account_ids,      // novo: csv
             archived,
             is_group,                                  // 'true' lista grupos
+            q,                                         // search (>=2 chars)
         } = req.query;
         const user   = req.user || {};
         const role   = user.role;
@@ -52,6 +53,7 @@ router.get('/inbox', async (req, res) => {
             filter_account_ids: accountIds,
             archived: showArchived,
             is_group: is_group === 'true',
+            q,
         });
         res.json({ conversations, total: conversations.length });
     } catch (err) {
@@ -94,7 +96,7 @@ router.get('/inbox/conversation/:id', async (req, res) => {
             .from('conversations')
             .select(`
                 *,
-                leads(id, name, phone, email, company_name, classification, origin, crm_deal_id, crm_person_id, crm_org_id),
+                leads(id, name, phone, email, company_name, classification, origin, crm_deal_id, crm_person_id, crm_org_id, crm_deal_title, crm_org_name),
                 messages(id, content, direction, sender_type, sender_name, sent_by_name, created_at, read_at, delivered, seen)
             `)
             .eq('id', req.params.id)
