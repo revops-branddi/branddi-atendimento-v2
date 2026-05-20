@@ -60,38 +60,59 @@ async function getConversationDealInfo(conversationId) {
 }
 
 /**
- * Descobre o token Pipedrive do dono da conta WhatsApp.
+ * Descobre o token Pipedrive E o pipedrive_user_id do dono da conta WhatsApp.
+ *
+ * Retorna `{ token, userId }`:
+ *   - `token` autentica a chamada (cria a activity)
+ *   - `userId` (pipedrive_user_id) vai no payload pra atribuir a activity
+ *     ao SDR correto, mesmo quando ele não tem token próprio cadastrado.
  *
  * Princípio: dono = quem TEM o número atribuído via permissions. Admin que
  * fez o Connect tecnicamente NÃO é dono (era a regra antiga, removida).
  *
- *   1. permissions.whatsapp_accounts: user único com esse account na lista E
- *      pipedrive_api_token setado. Match único é exigido — ambiguidade
- *      (múltiplos users compartilhando) cai no global pra evitar atribuir
- *      ao SDR errado.
- *   2. process.env.PIPEDRIVE_API_TOKEN: fallback global (quando ninguém
- *      tem o número atribuído ou a atribuição é ambígua).
+ * Resolução:
+ *   1. Único user atribuído à conta: retorna token dele (ou global) + userId
+ *      dele. Resolve contas exclusivas mesmo sem token próprio cadastrado.
+ *   2. Múltiplos atribuídos, exatamente 1 com token: usa esse token + userId.
+ *   3. Múltiplos atribuídos, 0 ou >1 com token (ambíguo): cai no global SEM
+ *      userId (Pipedrive atribui ao dono do token global = atual fallback).
+ *   4. Nenhum atribuído ou conta inválida: global SEM userId.
  */
 export async function getTokenByWhatsAppAccount(unipileAccountId) {
-    if (!unipileAccountId) return process.env.PIPEDRIVE_API_TOKEN;
+    const globalToken = process.env.PIPEDRIVE_API_TOKEN;
+    if (!unipileAccountId) return { token: globalToken, userId: null };
 
     try {
         const { data: assigned } = await supabase
             .from('platform_users')
-            .select('id, name, pipedrive_api_token, permissions')
-            .contains('permissions', { whatsapp_accounts: [unipileAccountId] })
-            .not('pipedrive_api_token', 'is', null);
+            .select('id, name, pipedrive_api_token, pipedrive_user_id, permissions')
+            .contains('permissions', { whatsapp_accounts: [unipileAccountId] });
 
-        const withToken = (assigned || []).filter(u => u.pipedrive_api_token);
-        if (withToken.length === 1) {
-            return withToken[0].pipedrive_api_token;
+        const users = assigned || [];
+
+        if (users.length === 1) {
+            const u = users[0];
+            return {
+                token: u.pipedrive_api_token || globalToken,
+                userId: u.pipedrive_user_id || null,
+            };
         }
-        if (withToken.length > 1) {
-            logger.warn('Conta WhatsApp atribuída a múltiplos users com token — usando fallback global', {
-                unipile_account_id: unipileAccountId,
-                user_count: withToken.length,
-                user_names: withToken.map(u => u.name),
-            });
+
+        if (users.length > 1) {
+            const withToken = users.filter(u => u.pipedrive_api_token);
+            if (withToken.length === 1) {
+                return {
+                    token: withToken[0].pipedrive_api_token,
+                    userId: withToken[0].pipedrive_user_id || null,
+                };
+            }
+            if (withToken.length > 1) {
+                logger.warn('Conta WhatsApp atribuída a múltiplos users com token — usando fallback global', {
+                    unipile_account_id: unipileAccountId,
+                    user_count: withToken.length,
+                    user_names: withToken.map(u => u.name),
+                });
+            }
         }
     } catch (err) {
         logger.warn('Falha consultando permissions.whatsapp_accounts', {
@@ -100,7 +121,7 @@ export async function getTokenByWhatsAppAccount(unipileAccountId) {
         });
     }
 
-    return process.env.PIPEDRIVE_API_TOKEN;
+    return { token: globalToken, userId: null };
 }
 
 /**
@@ -138,7 +159,9 @@ export async function onOutboundMessage(conversationId, userId) {
             pipedriveUserId = r?.pipedriveUserId || null;
         }
         if (!token) {
-            token = await getTokenByWhatsAppAccount(info.whatsappAccountId);
+            const r = await getTokenByWhatsAppAccount(info.whatsappAccountId);
+            token = r.token;
+            pipedriveUserId = pipedriveUserId || r.userId;
         }
 
         try {
@@ -149,6 +172,7 @@ export async function onOutboundMessage(conversationId, userId) {
                 transcript: '',
                 done: true,
                 tokenOverride: token,
+                userId: pipedriveUserId,
             });
         } catch (err) {
             // Falha → reverte claim para tentar amanhã
@@ -206,8 +230,9 @@ export async function onInboundMessage(conversationId) {
             return;
         }
 
-        // Token pessoal do dono da conta WhatsApp (atividade no nome certo)
-        const replyToken = await getTokenByWhatsAppAccount(info.whatsappAccountId);
+        // Token + userId do dono da conta WhatsApp (atividade no nome certo
+        // mesmo quando o SDR não tem pipedrive_api_token cadastrado)
+        const { token: replyToken, userId: replyUserId } = await getTokenByWhatsAppAccount(info.whatsappAccountId);
 
         try {
             await createReplyActivity({
@@ -216,6 +241,7 @@ export async function onInboundMessage(conversationId) {
                 subject: `Resposta recebida — ${info.leadName}`,
                 content: `Lead respondeu via WhatsApp em ${new Date().toLocaleDateString('pt-BR')}`,
                 tokenOverride: replyToken,
+                userId: replyUserId,
             });
         } catch (err) {
             // Falha na criação → libera o claim pra próxima tentativa

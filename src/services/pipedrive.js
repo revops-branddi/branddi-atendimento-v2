@@ -239,7 +239,10 @@ export async function createDeal({ title, personId, orgId, pipelineId, stageId, 
 
 // ─── Activity ────────────────────────────────────────────────────────
 
-export async function createWhatsAppActivity({ dealId, personId, subject, transcript, done = true, tokenOverride }) {
+// userId: pipedrive_user_id do dono da conta WhatsApp. Quando informado,
+// força o assigned_to no Pipedrive mesmo se o token de auth for o global —
+// evita activity sair no nome de quem é dono do PIPEDRIVE_API_TOKEN.
+export async function createWhatsAppActivity({ dealId, personId, subject, transcript, done = true, tokenOverride, userId }) {
     const payload = {
         subject,
         type:      'whatsapp',
@@ -250,12 +253,13 @@ export async function createWhatsAppActivity({ dealId, personId, subject, transc
     };
     if (dealId)   payload.deal_id   = parseInt(dealId);
     if (personId) payload.person_id = parseInt(personId);
+    if (userId)   payload.user_id   = parseInt(userId);
 
     const res = await pdPost('/activities', payload, tokenOverride);
     return res.data || null;
 }
 
-export async function createReplyActivity({ dealId, personId, subject, content, tokenOverride }) {
+export async function createReplyActivity({ dealId, personId, subject, content, tokenOverride, userId }) {
     const payload = {
         subject,
         type:      'resposta',
@@ -266,6 +270,7 @@ export async function createReplyActivity({ dealId, personId, subject, content, 
     };
     if (dealId)   payload.deal_id   = parseInt(dealId);
     if (personId) payload.person_id = parseInt(personId);
+    if (userId)   payload.user_id   = parseInt(userId);
 
     const res = await pdPost('/activities', payload, tokenOverride);
     return res.data || null;
