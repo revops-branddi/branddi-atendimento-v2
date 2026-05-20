@@ -2000,19 +2000,27 @@ async function loadMessages(convId, chatId) {
             deduped.push(m);
         }
 
-        wrap.innerHTML = deduped.map(renderMessage).join('');
+        // Conversa "warm" = lead já respondeu pelo menos uma vez. Throttle do
+        // WhatsApp só atinge cold outreach, então em warm o aviso "Não confirmada"
+        // por bolha vira ruído — `delivered=false` aqui costuma ser só lag de
+        // sincronia do Unipile, não throttle real. O banner global (que olha
+        // cold vs warm no nível da conta) segue cobrindo o caso Stephanie.
+        const convHasInbound = deduped.some(m => m.direction === 'inbound');
+        const rendered = deduped.map(m => renderMessage(m, { convHasInbound })).join('');
+        wrap.innerHTML = rendered;
         wrap.scrollTop = wrap.scrollHeight;
     } catch (err) {
         console.error('Messages error:', err);
     }
 }
 
-function renderMessage(msg) {
+function renderMessage(msg, ctx = {}) {
     // SPEC v2 §3 — 5 tipos: inbound, outbound, bot, note, system
     const isSystem = msg.sender_type === 'system';
     const isBot    = msg.sender_type === 'bot';
     const isNote   = msg.sender_type === 'note';
     const isOut    = msg.direction === 'outbound';
+    const convHasInbound = !!ctx.convHasInbound;
     const cls      = isSystem ? 'system'
                    : isNote   ? 'note'
                    : isBot    ? 'bot'
@@ -2125,10 +2133,16 @@ function renderMessage(msg) {
     //   - ghost_chat: variante errada do número (com/sem 9 BR)
     //   - limbo: >5min sem delivered=true e sem failed_reason — provável
     //     throttle/shadowban do WhatsApp segurando mensagens novas
+    //
+    // Limbo só sinaliza em (a) outbound WhatsApp de verdade (notas internas não
+    // passam pelo Unipile, `delivered` nunca vira true) e (b) conversa ainda
+    // cold (sem inbound). Throttle só atinge cold outreach — em conv warm o
+    // `delivered=false` costuma ser lag de sincronia do Unipile, não throttle.
     let deliveryHtml = '';
     const isGhost = isOut && msg.failed_reason === 'ghost_chat';
     const msgAgeMs = msg.created_at ? (Date.now() - new Date(msg.created_at).getTime()) : 0;
-    const isLimbo = isOut && !isGhost && !msg.delivered && !msg.failed_reason && msgAgeMs > 5 * 60_000;
+    const isLimbo = isOut && !isNote && !isGhost && !convHasInbound
+        && !msg.delivered && !msg.failed_reason && msgAgeMs > 5 * 60_000;
     const isFail  = isGhost || isLimbo;
 
     if (isOut && !isNote) {
