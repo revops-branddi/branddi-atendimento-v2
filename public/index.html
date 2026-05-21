@@ -816,6 +816,11 @@
                 <h3 id="deal-contacts-title">Contatos do Deal</h3>
                 <button class="modal-close" data-action="close-deal-contacts">&times;</button>
             </div>
+            <!-- WA account picker — só aparece se user tem ≥2 contas -->
+            <div class="wa-persona-picker" id="wa-persona-picker" style="display:none">
+                <label for="wa-persona-select" class="wa-persona-label">Enviar como:</label>
+                <select id="wa-persona-select" class="wa-persona-select"></select>
+            </div>
             <div class="modal-body" id="deal-contacts-list">
                 <span class="lp-muted">Carregando contatos...</span>
             </div>

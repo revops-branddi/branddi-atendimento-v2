@@ -96,9 +96,21 @@ async function recordFailedSend({ conversationId, user, text, failedReason }) {
 
 // ─── POST /api/messages/:conversationId/send — Envia mensagem humana ──
 router.post('/messages/:conversationId/send', async (req, res) => {
-    const { text } = req.body;
+    const { text, whatsapp_account_id: overrideAccountId } = req.body;
     let { chatId } = req.body;
     if (!text) return res.status(400).json({ error: 'text é obrigatório' });
+
+    // Valida override de conta WA (quando user multi-conta escolhe persona).
+    // Admin pode usar qualquer; outros só as próprias permissions.
+    if (overrideAccountId) {
+        const isAdmin = req.user?.role === 'Admin';
+        const allowed = req.user?.permissions?.whatsapp_accounts || [];
+        if (!isAdmin && !allowed.includes(overrideAccountId)) {
+            return res.status(403).json({
+                error: 'Você não tem acesso a essa conta WhatsApp.',
+            });
+        }
+    }
 
     try {
         // Se conversa não tem chatId (outbound novo), inicia chat via Unipile
@@ -128,10 +140,11 @@ router.post('/messages/:conversationId/send', async (req, res) => {
                     const whatsappPhone = lead.phone.startsWith('55') ? lead.phone : `55${lead.phone}`;
 
                     // Resolve qual conta WhatsApp usar pra enviar:
-                    // 1. conversation.whatsapp_account_id (se já vinculada)
-                    // 2. primeiro número permitido ao user logado
-                    // 3. fallback no startNewChat (env / primeira ativa)
-                    let sendAccountId = conv.whatsapp_account_id || null;
+                    // 1. override explícito no body (picker do front)
+                    // 2. conversation.whatsapp_account_id (já vinculada antes)
+                    // 3. primeiro número permitido ao user logado
+                    // 4. fallback no startNewChat (env / primeira ativa)
+                    let sendAccountId = overrideAccountId || conv.whatsapp_account_id || null;
                     if (!sendAccountId && req.user?.permissions?.whatsapp_accounts?.length > 0) {
                         sendAccountId = req.user.permissions.whatsapp_accounts[0];
                     }

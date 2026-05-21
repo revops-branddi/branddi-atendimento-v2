@@ -128,6 +128,48 @@ router.get('/whatsapp/accounts', async (req, res) => {
     }
 });
 
+// ─── GET /api/whatsapp/sendable-by-me — Contas que o user logado pode usar pra ENVIAR
+//
+// Usado pelo picker de "iniciar conversa" quando o user tem múltiplas contas
+// atribuídas (caso clássico: Harylanne operando Giovanna + Ricardo).
+//
+// Lê de cache local (whatsapp_accounts) em vez do Unipile pra ser rápido —
+// não precisa do estado live, só de quem está conectada e disponível pra envio.
+//
+// Filtros:
+//   - permissions.whatsapp_accounts do user (Admin vê tudo)
+//   - status = 'OK' (CREDENTIALS/STOPPED/disconnected escondidas — não envia)
+//   - ignored != true (contas marcadas como ignoradas estão fora)
+router.get('/whatsapp/sendable-by-me', async (req, res) => {
+    try {
+        const isAdmin = req.user?.role === 'Admin';
+        const allowed = req.user?.permissions?.whatsapp_accounts || [];
+
+        if (!isAdmin && allowed.length === 0) {
+            return res.json({ accounts: [] });
+        }
+
+        let query = supabase
+            .from('whatsapp_accounts')
+            .select('unipile_account_id, phone_number, display_label, status')
+            .eq('status', 'OK')
+            .neq('ignored', true)
+            .order('display_label', { ascending: true });
+
+        if (!isAdmin) {
+            query = query.in('unipile_account_id', allowed);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        res.json({ accounts: data || [] });
+    } catch (err) {
+        logger.warn('sendable-by-me error', { error: err.message });
+        res.status(500).json({ accounts: [], error: err.message });
+    }
+});
+
 // ─── POST /api/whatsapp/connect — Conecta novo numero (QR Code) ──────
 // LEGADO: POST /accounts não retorna mais o QR inline na resposta — Unipile
 // migrou pra Hosted Auth. Mantido aqui só por compat com scripts antigos;

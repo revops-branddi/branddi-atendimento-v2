@@ -1857,6 +1857,8 @@ async function selectConversation(convId) {
     renderConversationList();
     renderChatArea(currentConversation);
     renderLeadPanel(currentConversation);
+    // Banner "Enviando como X" — só pra conv sem chat_id e user multi-conta
+    updateComposerPersonaBanner(currentConversation).catch(() => {});
     await loadMessages(convId, currentConversation.whatsapp_chat_id);
 }
 
@@ -1925,6 +1927,9 @@ function renderChatArea(conv) {
             <button class="chat-input-tab" data-action="chat-tab" data-tab="notes">Anotacoes internas</button>
         </div>
         <div class="chat-input-wrap" id="chat-tab-message">
+            <!-- Persona banner: "Enviando como X" para conversas novas sem chat_id.
+                 Só visível se user tem ≥2 contas WA e conv ainda não enviou msg. -->
+            <div id="composer-persona-banner" class="composer-persona-banner" style="display:none"></div>
             <div class="chat-input-toolbar">
                 <div class="scripts-dropdown" id="scripts-dropdown">
                     <button class="scripts-trigger" data-action="toggle-scripts-menu">📋 Scripts ▾</button>
@@ -2308,12 +2313,21 @@ async function sendMsg() {
     try {
         let res;
 
+        // Persona escolhida no banner (só relevante quando ainda não há chat_id —
+        // a partir da 2ª msg, a conv já tem whatsapp_account_id no banco e o
+        // backend usa esse). Manda no body sempre pra simplificar — backend ignora
+        // se já tem chat_id.
+        const personaAccountId = !currentConversation.whatsapp_chat_id
+            ? (_selectedWaAccountForSend || null)
+            : null;
+
         if (fileToSend) {
             // Envia com mídia via FormData
             const fd = new FormData();
             fd.append('file', fileToSend);
             if (text) fd.append('text', text);
             if (chatId) fd.append('chatId', chatId);
+            if (personaAccountId) fd.append('whatsapp_account_id', personaAccountId);
 
             const response = await fetch(`/api/messages/${currentConversation.id}/send-media`, {
                 method: 'POST',
@@ -2328,7 +2342,12 @@ async function sendMsg() {
         } else {
             // Envio de texto normal
             res = await apiFetch(`/api/messages/${currentConversation.id}/send`, {
-                method: 'POST', body: JSON.stringify({ text, chatId }),
+                method: 'POST',
+                body: JSON.stringify({
+                    text,
+                    chatId,
+                    whatsapp_account_id: personaAccountId,
+                }),
             });
         }
 
@@ -5597,6 +5616,52 @@ function setupHistoryFilters() {
 let _selectedDealForOutbound = null;
 let _selectedContactForOutbound = null;
 
+// ─── WA Account Picker (persona) ──────────────────────────────────────
+// Quando user tem ≥2 contas WA atribuídas (ex: Harylanne opera Giovanna +
+// Ricardo), precisa escolher qual usar antes de iniciar conversa.
+// Cache da lista evita refetch a cada modal aberto na mesma sessão.
+let _sendableWaAccountsCache = null;
+let _selectedWaAccountForSend = null; // string|null — escolha atual da sessão
+
+async function loadSendableWaAccounts(forceRefresh = false) {
+    if (_sendableWaAccountsCache && !forceRefresh) return _sendableWaAccountsCache;
+    try {
+        const data = await apiFetch('/api/whatsapp/sendable-by-me');
+        _sendableWaAccountsCache = data?.accounts || [];
+    } catch {
+        _sendableWaAccountsCache = [];
+    }
+    return _sendableWaAccountsCache;
+}
+
+function _waPickerStorageKey() {
+    // currentUser é setado no boot da app — id estável por sessão
+    const uid = (typeof currentUser !== 'undefined' && currentUser?.id) || 'anon';
+    return `wa_persona_last_${uid}`;
+}
+
+function getStoredWaAccountId() {
+    try { return localStorage.getItem(_waPickerStorageKey()); } catch { return null; }
+}
+
+function setStoredWaAccountId(accountId) {
+    try { localStorage.setItem(_waPickerStorageKey(), accountId); } catch { /* ignore */ }
+}
+
+// Resolve a conta selecionada: storage (se válida) → primeira da lista
+function resolveDefaultWaAccount(accounts) {
+    if (!accounts || accounts.length === 0) return null;
+    const stored = getStoredWaAccountId();
+    if (stored && accounts.some(a => a.unipile_account_id === stored)) return stored;
+    return accounts[0].unipile_account_id;
+}
+
+function formatWaAccountOption(acc) {
+    const label = acc.display_label || 'Sem rótulo';
+    const phone = acc.phone_number ? ` · ${acc.phone_number}` : '';
+    return `${label}${phone}`;
+}
+
 function loadDeals() {
     // Deals tab agora é busca — foca no input
     const input = document.getElementById('deals-search');
@@ -5871,6 +5936,10 @@ async function openDealContacts(dealId) {
     _selectedContactForOutbound = null;
     _selectedDealForOutbound = dealId;
 
+    // Render picker de persona (se user tem ≥2 contas). Roda em paralelo com
+    // fetch de contatos — não bloqueia. Se vier 0 ou 1, picker fica oculto.
+    renderWaPersonaPicker().catch(() => {});
+
     try {
         const data = await apiFetch(`/api/pipedrive/deal/${dealId}/contacts`);
         const contacts = data?.contacts || [];
@@ -5924,6 +5993,122 @@ async function openDealContacts(dealId) {
     }
 }
 
+// Banner sobre o composer mostrando "Enviando como X · phone · [Trocar]" pra
+// conversas novas (sem whatsapp_chat_id ainda). Some assim que SDR envia 1ª msg.
+// Se conv já tem account_id definido (ex: picker do modal já escolheu), exibe
+// esse. Senão, exibe o default (storage ou primeira da lista).
+async function updateComposerPersonaBanner(conv) {
+    const banner = document.getElementById('composer-persona-banner');
+    if (!banner) return;
+
+    // Se conv já tem chat_id, conv já está "amarrada" a uma conta — banner inútil
+    if (conv?.whatsapp_chat_id) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    const accounts = await loadSendableWaAccounts();
+    if (accounts.length < 2) {
+        // 0 ou 1 conta → não há escolha pra apresentar
+        banner.style.display = 'none';
+        // Mas pra 1 conta, ainda seta o selected pra o body do send
+        if (accounts.length === 1) _selectedWaAccountForSend = accounts[0].unipile_account_id;
+        return;
+    }
+
+    // Resolve qual conta exibir como ativa nesta conv
+    const currentId = conv?.whatsapp_account_id
+        || _selectedWaAccountForSend
+        || resolveDefaultWaAccount(accounts);
+
+    const current = accounts.find(a => a.unipile_account_id === currentId) || accounts[0];
+    _selectedWaAccountForSend = current.unipile_account_id;
+
+    // Renderiza via DOM API (security-friendly, sem innerHTML user-controlled)
+    banner.replaceChildren();
+
+    const info = document.createElement('div');
+    info.className = 'persona-info';
+
+    const text = document.createElement('span');
+    text.textContent = 'Enviando como ';
+
+    const name = document.createElement('span');
+    name.className = 'persona-name';
+    name.textContent = current.display_label || 'Sem rótulo';
+
+    const sep = document.createElement('span');
+    sep.className = 'persona-phone';
+    sep.textContent = current.phone_number ? ` · ${current.phone_number}` : '';
+
+    info.appendChild(text);
+    info.appendChild(name);
+    info.appendChild(sep);
+
+    // Dropdown direto (sem botão "Trocar" intermediário — menos cliques)
+    const select = document.createElement('select');
+    select.className = 'persona-switch persona-switch-select';
+    select.setAttribute('aria-label', 'Escolher conta WhatsApp');
+    for (const a of accounts) {
+        const opt = document.createElement('option');
+        opt.value = a.unipile_account_id;
+        opt.textContent = formatWaAccountOption(a);
+        if (a.unipile_account_id === current.unipile_account_id) opt.selected = true;
+        select.appendChild(opt);
+    }
+    select.onchange = (e) => {
+        _selectedWaAccountForSend = e.target.value;
+        setStoredWaAccountId(e.target.value);
+        updateComposerPersonaBanner(conv); // re-render pra atualizar o nome/phone exibido
+    };
+
+    banner.appendChild(info);
+    banner.appendChild(select);
+    banner.style.display = 'flex';
+}
+
+async function renderWaPersonaPicker() {
+    const wrap = document.getElementById('wa-persona-picker');
+    const select = document.getElementById('wa-persona-select');
+    if (!wrap || !select) return;
+
+    const accounts = await loadSendableWaAccounts();
+
+    // Se 0 contas → erro silencioso (o startNewChat fallback resolve)
+    // Se 1 conta → sem picker, mas seta como selecionada pro send body
+    // Se ≥2 → picker visível
+    if (accounts.length === 0) {
+        wrap.style.display = 'none';
+        _selectedWaAccountForSend = null;
+        return;
+    }
+    if (accounts.length === 1) {
+        wrap.style.display = 'none';
+        _selectedWaAccountForSend = accounts[0].unipile_account_id;
+        return;
+    }
+
+    const defaultId = resolveDefaultWaAccount(accounts);
+    _selectedWaAccountForSend = defaultId;
+
+    // Renderiza options via DOM API (evita innerHTML com user-controlled content)
+    select.replaceChildren();
+    for (const a of accounts) {
+        const opt = document.createElement('option');
+        opt.value = a.unipile_account_id;
+        opt.textContent = formatWaAccountOption(a);
+        if (a.unipile_account_id === defaultId) opt.selected = true;
+        select.appendChild(opt);
+    }
+
+    select.onchange = (e) => {
+        _selectedWaAccountForSend = e.target.value;
+        setStoredWaAccountId(e.target.value);
+    };
+
+    wrap.style.display = 'flex';
+}
+
 let _sendingOutbound = false;
 async function sendOutbound() {
     // Guard contra double-click — sem isso, 2 conversas idênticas eram criadas
@@ -5945,6 +6130,9 @@ async function sendOutbound() {
                 deal_id: _selectedDealForOutbound,
                 person_id: _selectedContactForOutbound.person_id,
                 phone: _selectedContactForOutbound.phone,
+                // Persona escolhida no picker (null se user só tem 1 conta — backend
+                // resolve via fallback). Sticky: última escolha é guardada no LS.
+                whatsapp_account_id: _selectedWaAccountForSend || null,
             }),
         });
 

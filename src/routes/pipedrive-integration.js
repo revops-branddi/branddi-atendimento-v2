@@ -182,9 +182,23 @@ router.get('/pipedrive/deal/:id/contacts', async (req, res) => {
 // SDR digita a primeira mensagem no inbox depois de criada
 router.post('/pipedrive/start-outbound', async (req, res) => {
     try {
-        const { deal_id, person_id, phone } = req.body;
+        const { deal_id, person_id, phone, whatsapp_account_id } = req.body;
         if (!deal_id || !person_id || !phone) {
             return res.status(400).json({ error: 'deal_id, person_id e phone são obrigatórios' });
+        }
+
+        // Valida que a conta WA escolhida pertence ao user logado (anti-spoofing).
+        // Admin pode usar qualquer conta. Sem account_id → fallback no envio da 1ª msg.
+        let chosenAccountId = null;
+        if (whatsapp_account_id) {
+            const isAdmin = req.user?.role === 'Admin';
+            const allowed = req.user?.permissions?.whatsapp_accounts || [];
+            if (!isAdmin && !allowed.includes(whatsapp_account_id)) {
+                return res.status(403).json({
+                    error: 'Você não tem acesso a essa conta WhatsApp.',
+                });
+            }
+            chosenAccountId = whatsapp_account_id;
         }
 
         // Busca dados do person no Pipedrive
@@ -224,6 +238,7 @@ router.post('/pipedrive/start-outbound', async (req, res) => {
         const conversation = await createConversation({
             lead_id: lead.id,
             whatsapp_chat_id: null, // Será preenchido quando SDR enviar a 1a msg
+            whatsapp_account_id: chosenAccountId, // null se SDR não escolheu — fallback no send
             channel: 'whatsapp_direct',
             type: 'prospecting',
             status: 'waiting',
