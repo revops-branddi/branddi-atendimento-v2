@@ -6,9 +6,23 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import logger from './logger.js';
 
+// Timeout 10s em toda query: previne backend pendurar 3min quando o Postgres
+// trava (incidente 2026-05-20 — Supabase com lock contention deixou requests
+// presos até gateway do Railway cortar em 180s, sem err handling no client).
+// Respeita signal upstream se a lib já passou um.
+const SUPABASE_TIMEOUT_MS = 10_000;
+
 const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY
+    process.env.SUPABASE_KEY,
+    {
+        global: {
+            fetch: (input, init = {}) => fetch(input, {
+                ...init,
+                signal: init.signal ?? AbortSignal.timeout(SUPABASE_TIMEOUT_MS),
+            }),
+        },
+    }
 );
 
 export default supabase;
