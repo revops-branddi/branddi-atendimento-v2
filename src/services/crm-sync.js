@@ -175,10 +175,10 @@ async function syncConversationAsActivity(conversationId, payload = {}) {
         return `[${time}] ${sender}: ${m.content}`;
     }).join('\n');
 
-    // Resolve token do atendente atribuído ao número (via permissions).
+    // Resolve token + userId do atendente atribuído ao número (via permissions).
     // Sem isso, atividade saía no nome do dono do token global (Sergio).
     const conv = await getConversationById(conversationId).catch(() => null);
-    const token = await getTokenByWhatsAppAccount(conv?.whatsapp_account_id);
+    const { token, userId } = await getTokenByWhatsAppAccount(conv?.whatsapp_account_id);
 
     const activity = await createWhatsAppActivity({
         dealId,
@@ -186,6 +186,7 @@ async function syncConversationAsActivity(conversationId, payload = {}) {
         subject: `WhatsApp — ${leadName || 'Lead'}`,
         transcript,
         tokenOverride: token,
+        userId,
     });
 
     return activity;
@@ -226,9 +227,9 @@ export async function syncConversationToPipedrive(conversationId) {
         return { already_synced: true, deal_id: conv.crm_deal_id };
     }
 
-    // Token do atendente atribuído (não admin que conectou). Aplicado em
-    // createDealNote e createWhatsAppActivity abaixo.
-    const ownerToken = await getTokenByWhatsAppAccount(conv.whatsapp_account_id);
+    // Token + userId do atendente atribuído (não admin que conectou).
+    // Aplicado em createDealNote e createWhatsAppActivity abaixo.
+    const { token: ownerToken, userId: ownerUserId } = await getTokenByWhatsAppAccount(conv.whatsapp_account_id);
 
     // 1) Person (reusa ou cria)
     let personId = lead.crm_person_id ? parseInt(lead.crm_person_id) : null;
@@ -316,6 +317,7 @@ export async function syncConversationToPipedrive(conversationId) {
             subject:  `WhatsApp — ${lead.name || 'Lead'}`,
             transcript,
             tokenOverride: ownerToken,
+            userId:   ownerUserId,
         });
     } catch (err) {
         logger.warn('Falha ao criar activity (não crítico)', { error: err.message });
