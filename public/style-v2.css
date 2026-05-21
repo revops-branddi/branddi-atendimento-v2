@@ -1251,6 +1251,79 @@ body {
 }
 
 .modal-body { padding: 22px; overflow-y: auto; flex: 1; min-height: 0; }
+
+/* WA account picker — header de modal, escolha de persona para envio.
+ * Usado quando user tem ≥2 contas WA atribuídas (caso clássico: Harylanne
+ * operando Giovanna + Ricardo). Esconde quando user tem só 1 conta. */
+.wa-persona-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--border-md);
+    background: rgba(255, 255, 255, 0.02);
+}
+.wa-persona-label {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 500;
+}
+.wa-persona-select {
+    flex: 1;
+    background: var(--bg-1);
+    color: var(--text-1);
+    border: 1px solid var(--border-md);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease);
+}
+.wa-persona-select:hover { border-color: var(--border-lg); }
+.wa-persona-select:focus { outline: none; border-color: var(--accent); }
+
+/* Composer banner — "Enviando como X" pra conversa nova sem chat_id ainda */
+.composer-persona-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(110, 168, 254, 0.08);
+    border: 1px solid rgba(110, 168, 254, 0.25);
+    border-radius: 8px;
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    color: var(--text-1);
+}
+.composer-persona-banner .persona-name {
+    font-weight: 600;
+    color: var(--accent, #6ea8fe);
+}
+.composer-persona-banner .persona-phone {
+    color: var(--text-2);
+    font-size: 12px;
+}
+.composer-persona-banner .persona-switch {
+    background: transparent;
+    border: 1px solid var(--border-md);
+    color: var(--text-1);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s var(--ease);
+}
+.composer-persona-banner .persona-switch:hover { background: rgba(255,255,255,0.05); }
+.composer-persona-banner select.persona-switch-select {
+    background: var(--bg-1);
+    color: var(--text-1);
+    border: 1px solid var(--border-md);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
 .modal-footer {
     padding: 14px 22px;
     border-top: 1px solid var(--border-md);
