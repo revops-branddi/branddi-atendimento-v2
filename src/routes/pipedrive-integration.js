@@ -88,10 +88,14 @@ router.get('/pipedrive/deal/:id/contacts', async (req, res) => {
         const data = await pdGet(`/deals/${dealId}/participants?limit=100`);
         const participants = data?.data || [];
 
-        // Também inclui o person principal do deal
+        // Também inclui o person principal do deal.
+        // Pipedrive v1 retorna deal.person_id como objeto { value, name, phone, ... }
+        // em /deals/:id — só o .value é o ID escalar. Defender contra ambos os
+        // formatos evita URLs tipo /persons/[object Object] quando o deal não tem
+        // participants (o caminho participants já entrega escalar, mascarava o bug).
         const dealData = await pdGet(`/deals/${dealId}`);
         const deal = dealData?.data;
-        const mainPersonId = deal?.person_id;
+        const mainPersonId = deal?.person_id?.value || deal?.person_id || null;
 
         const contacts = [];
         const seenIds = new Set();
@@ -134,7 +138,11 @@ router.get('/pipedrive/deal/:id/contacts', async (req, res) => {
                     email: person.email?.[0]?.value || null,
                     label_ids: person.label_ids || [],
                 });
-            } catch { /* ignora person com erro */ }
+            } catch (err) {
+                logger.warn('Deal contacts: falhou buscando person no Pipedrive', {
+                    deal_id: dealId, person_id: pid, error: err.message,
+                });
+            }
         }
 
         // Enrich com has_whatsapp do último apollo_enrichments completed por person.
