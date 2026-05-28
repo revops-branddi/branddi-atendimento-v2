@@ -83,7 +83,7 @@ function parseEmailChoice(text) {
 // ─── DB helpers ──────────────────────────────────────────────────────
 
 async function updateConversation(id, patch) {
-    const { error } = await sb.from('conversations')
+    const { error } = await sb.from('v_site_conversations')
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq('id', id);
     if (error) throw error;
@@ -97,7 +97,7 @@ async function saveBotMessage(conv, text, unipileMessageId) {
     // unipile_message_id é crítico: sem ele, o polling subsequente vê a
     // mesma msg voltando do Unipile e insere uma 2ª row (UNIQUE não bate)
     // — daí o balão duplicado "ATENDENTE" + "BOT" na UI.
-    const { error } = await sb.from('messages').insert({
+    const { error } = await sb.from('v_site_messages').insert({
         conversation_id:    conv.id,
         direction:          'outbound',
         text,

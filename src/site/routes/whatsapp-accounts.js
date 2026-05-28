@@ -53,7 +53,7 @@ router.post('/whatsapp-accounts/connect', requireRole('Admin'), async (req, res)
         if (!accountId) {
             return res.status(500).json({ error: 'Unipile não retornou account_id', raw: result });
         }
-        await sb.from('whatsapp_accounts').upsert({
+        await sb.from('v_site_whatsapp_accounts').upsert({
             unipile_account_id:   accountId,
             phone_number:         phone_number || result?.connection_params?.im?.phone_number || null,
             label,
@@ -77,7 +77,7 @@ router.post('/whatsapp-accounts', requireRole('Admin'), async (req, res) => {
         if (!unipile_account_id) {
             return res.status(400).json({ error: 'unipile_account_id é obrigatório' });
         }
-        const { data, error } = await sb.from('whatsapp_accounts').upsert({
+        const { data, error } = await sb.from('v_site_whatsapp_accounts').upsert({
             unipile_account_id,
             phone_number,
             label,
@@ -102,7 +102,7 @@ router.patch('/whatsapp-accounts/:id', requireRole('Admin'), async (req, res) =>
         if ('status'       in req.body) allowed.status       = req.body.status;
         allowed.updated_at = new Date().toISOString();
 
-        const { data, error } = await sb.from('whatsapp_accounts')
+        const { data, error } = await sb.from('v_site_whatsapp_accounts')
             .update(allowed).eq('id', req.params.id).select().single();
         if (error) throw error;
         res.json(data);
@@ -138,7 +138,7 @@ router.post('/whatsapp-accounts/connect-link', requireRole('Admin'), async (req,
 router.post('/whatsapp-accounts/:id/reconnect-link', requireRole('Admin'), async (req, res) => {
     try {
         // Resolve unipile_account_id pela PK local
-        const { data: row } = await sb.from('whatsapp_accounts')
+        const { data: row } = await sb.from('v_site_whatsapp_accounts')
             .select('unipile_account_id').eq('id', req.params.id).maybeSingle();
         if (!row?.unipile_account_id) {
             return res.status(404).json({ error: 'Conta não encontrada' });
@@ -168,13 +168,13 @@ router.post('/whatsapp-accounts/:id/reconnect-link', requireRole('Admin'), async
 // delete pra preservar histórico de conversas vinculadas via unipile_account_id.
 router.delete('/whatsapp-accounts/:id', requireRole('Admin'), async (req, res) => {
     try {
-        const { data: row } = await sb.from('whatsapp_accounts')
+        const { data: row } = await sb.from('v_site_whatsapp_accounts')
             .select('unipile_account_id').eq('id', req.params.id).maybeSingle();
         if (row?.unipile_account_id) {
             try { await unipile.deleteAccount(row.unipile_account_id); }
             catch (err) { logger.warn('Unipile delete failed (continuing)', { error: err.message }); }
         }
-        await sb.from('whatsapp_accounts')
+        await sb.from('v_site_whatsapp_accounts')
             .update({ status: 'disconnected', updated_at: new Date().toISOString() })
             .eq('id', req.params.id);
         res.json({ success: true });

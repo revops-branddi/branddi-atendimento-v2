@@ -166,7 +166,7 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
                         const atts   = detail?.attachments || [];
                         const enriched = atts.find(a => a.id);
                         if (enriched) {
-                            await sb.from('messages')
+                            await sb.from('v_site_messages')
                                 .update({ attachments: atts.map(a => ({
                                     id:        a.id,
                                     name:      a.name || a.file_name || file.originalname,
