@@ -75,10 +75,13 @@ export async function requireAuth(req, res, next) {
     // Webhooks e simulador passam direto
     if (req.path.startsWith('/webhooks')) return next();
     if (req.path.startsWith('/simulate')) return next();
-    // /api/attachments/:msgId/:attId — img/audio/video tags não conseguem
-    // mandar Authorization header. A URL já é gated por dois ids opacos
-    // do Unipile (~20+ chars random), então é seguro liberar.
+    // /api/attachments/:msgId/:attId e /api/site/attachments/:msgId/:attId —
+    // img/audio/video tags não conseguem mandar Authorization header. A URL
+    // já é gated por dois ids opacos do Unipile (~20+ chars random), então
+    // é seguro liberar. (requireAuth roda mount-strippado em /api, então
+    // pra rota do site o path aqui é /site/attachments/...)
     if (req.path.startsWith('/attachments/')) return next();
+    if (req.path.startsWith('/site/attachments/')) return next();
 
     const token = extractToken(req);
     if (!token) {
@@ -128,6 +131,11 @@ export function requireRole(...roles) {
 
 /** Exige permissions.site_access === true. Admin passa direto. */
 export function requireSiteAccess(req, res, next) {
+    // /api/site/attachments/:msgId/:attId — img/audio/video tags não conseguem
+    // mandar Authorization header. Mesma justificativa do bypass em requireAuth:
+    // a URL já é gated por dois ids opacos do Unipile (~20+ chars random),
+    // então é seguro liberar mesmo sem checagem de role/permission do site.
+    if (req.path.startsWith('/attachments/')) return next();
     if (!req.user) {
         return res.status(401).json({ error: 'Não autenticado.' });
     }
