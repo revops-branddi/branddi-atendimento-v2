@@ -29,9 +29,9 @@ router.get('/dashboard', requireRole('Admin'), async (req, res) => {
         const days = Math.min(Math.max(parseInt(req.query.days || '7', 10) || 7, 1), 365);
         const since = new Date(Date.now() - days * 24 * 60 * 60_000).toISOString();
 
-        // 1. Conversations no período
+        // 1. Conversations no período (via view public.v_site_conversations; ver mig 022)
         const { data: convs, error: convErr } = await sb
-            .from('conversations')
+            .from('v_site_conversations')
             .select('id, status, lead_id, assigned_user_id, bot_stage, bot_attempts, created_at')
             .gte('created_at', since);
         if (convErr) throw convErr;
@@ -41,7 +41,7 @@ router.get('/dashboard', requireRole('Admin'), async (req, res) => {
         let leads = [];
         if (leadIds.length) {
             const { data, error } = await sb
-                .from('leads')
+                .from('v_site_leads')
                 .select('id, classification, opec_category, crm_deal_id')
                 .in('id', leadIds);
             if (error) throw error;
@@ -53,8 +53,8 @@ router.get('/dashboard', requireRole('Admin'), async (req, res) => {
         const userIds = [...new Set(convs.map(c => c.assigned_user_id).filter(Boolean))];
         let users = [];
         if (userIds.length) {
-            // platform_users vive em public.* — usa cliente do site mas aponta
-            // pra schema 'public' explicitamente via .schema()
+            // platform_users vive em public.* — agora que o client default já
+            // é public, o .schema('public') vira no-op mas mantém intent claro.
             const { data, error } = await sb.schema('public')
                 .from('platform_users')
                 .select('id, name')

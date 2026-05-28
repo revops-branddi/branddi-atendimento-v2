@@ -14,6 +14,7 @@ import sb from './db.js';
 import * as unipile from './unipile.js';
 import logger from '../../services/logger.js';
 import { normalizePhone } from '../../services/supabase.js';
+import { renameEmbed } from './supabase.js';
 import { processBotTurn } from './bot.js';
 
 let _interval = null;
@@ -82,7 +83,7 @@ function isGroupChat(chat) {
 
 async function getActiveAccounts() {
     const { data, error } = await sb
-        .from('whatsapp_accounts')
+        .from('v_site_whatsapp_accounts')
         .select('id, unipile_account_id, label, phone_number')
         .neq('status', 'disconnected');
     if (error) {
@@ -184,14 +185,14 @@ async function processChat(chat, account) {
         }
         else if (msg.direction === 'outbound') {
             // Atualiza status de entrega se a mensagem já existia.
-            await sb.from('messages')
+            await sb.from('v_site_messages')
                 .update({ delivered: msg.delivered, seen: msg.seen })
                 .eq('unipile_message_id', msg.id);
         }
     }
 
     if (touched) {
-        await sb.from('conversations')
+        await sb.from('v_site_conversations')
             .update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() })
             .eq('id', conversation.id);
     }
@@ -215,7 +216,7 @@ async function processChat(chat, account) {
     const inboundIsFresh = lastInboundTimestamp
         && (Date.now() - new Date(lastInboundTimestamp).getTime()) < FRESH_INBOUND_WINDOW_MS;
     if (hasNewInbound && inboundIsFresh) {
-        const { data: freshConv } = await sb.from('conversations')
+        const { data: freshConv } = await sb.from('v_site_conversations')
             .select('id, lead_id, status, bot_stage, bot_attempts, whatsapp_chat_id, whatsapp_account_id')
             .eq('id', conversation.id)
             .maybeSingle();
@@ -233,7 +234,7 @@ async function processChat(chat, account) {
     }
 }
 
-// ─── DB helpers (schema site.*) ──────────────────────────────────────
+// ─── DB helpers (via views public.v_site_*; ver mig 022) ─────────────
 
 async function findConversationByChat(chatId) {
     // Só convs ATIVAS — resolved/archived ficam de fora pra não fazer
@@ -241,17 +242,17 @@ async function findConversationByChat(chatId) {
     // Casa com o UNIQUE PARTIAL index em (whatsapp_chat_id) WHERE status
     // ativo (migration 020): no máx 1 row por chat aqui, garantido.
     const { data } = await sb
-        .from('conversations')
-        .select('id, lead_id, status, whatsapp_account_id, leads(id, name, phone)')
+        .from('v_site_conversations')
+        .select('id, lead_id, status, whatsapp_account_id, v_site_leads(id, name, phone)')
         .eq('whatsapp_chat_id', chatId)
         .in('status', ['bot', 'waiting_human', 'in_progress'])
         .maybeSingle();
-    return data || null;
+    return data ? renameEmbed(data, 'v_site_leads', 'leads') : null;
 }
 
 async function findOrCreateLeadByPhone({ phone, name, attendeeId }) {
     const { data: existing } = await sb
-        .from('leads').select('*').eq('phone', phone).maybeSingle();
+        .from('v_site_leads').select('*').eq('phone', phone).maybeSingle();
     if (existing) return existing;
     return createLead({
         name,
@@ -262,29 +263,29 @@ async function findOrCreateLeadByPhone({ phone, name, attendeeId }) {
 }
 
 async function createLead(payload) {
-    const { data, error } = await sb.from('leads').insert(payload).select().single();
+    const { data, error } = await sb.from('v_site_leads').insert(payload).select().single();
     if (error) throw error;
     return data;
 }
 
 async function createConversation(payload) {
-    const { data, error } = await sb.from('conversations').insert(payload).select('*, leads(id, name, phone)').single();
+    const { data, error } = await sb.from('v_site_conversations').insert(payload).select('*, v_site_leads(id, name, phone)').single();
     if (error) {
         // 23505 = unique_violation. Outro worker (Railway tem 2 replicas)
         // ganhou a corrida e já criou a conv ativa pra esse chat. Não é
         // erro de verdade — relê e devolve a row vencedora.
         if (error.code === '23505') {
             const { data: existing } = await sb
-                .from('conversations')
-                .select('*, leads(id, name, phone)')
+                .from('v_site_conversations')
+                .select('*, v_site_leads(id, name, phone)')
                 .eq('whatsapp_chat_id', payload.whatsapp_chat_id)
                 .in('status', ['bot', 'waiting_human', 'in_progress'])
                 .maybeSingle();
-            if (existing) return existing;
+            if (existing) return renameEmbed(existing, 'v_site_leads', 'leads');
         }
         throw error;
     }
-    return data;
+    return renameEmbed(data, 'v_site_leads', 'leads');
 }
 
 /**
@@ -293,7 +294,7 @@ async function createConversation(payload) {
  */
 async function insertMessage(payload) {
     const { data, error } = await sb
-        .from('messages').insert(payload).select().single();
+        .from('v_site_messages').insert(payload).select().single();
     if (error) {
         // 23505 = unique_violation (UNIQUE em unipile_message_id)
         if (error.code === '23505') return null;
