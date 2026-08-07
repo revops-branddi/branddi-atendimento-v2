@@ -218,3 +218,319 @@
 [data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c6"] { color: #FB923C; }
 [data-theme="dark"] .conv-item .tag.tag-owner[data-color="c7"],
 [data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c7"] { color: #22D3EE; }
+
+/* ════════════════════════════════════════════════════════════
+   PARTE 2 — COMPONENTES (port fiel do mockup aprovado 07/08/26)
+   Cada bloco replica o visual do mockup-redesign-final.html
+   sobre os seletores reais do app. Source-order vence style-v2.
+   ════════════════════════════════════════════════════════════ */
+
+/* ─── 6. Side-nav (64px, ícone + label, ativo accent-soft) ── */
+.side-nav {
+    width: 64px;
+    background: var(--bg-elev-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-right: 1px solid var(--border-md);
+    padding: 12px 8px;
+}
+.side-nav-brand { color: var(--accent); }
+.side-nav .nav-btn {
+    width: 48px;
+    height: 46px;
+    margin: 0 auto 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: var(--r-md);
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    transition: background .12s, color .12s;
+}
+.side-nav .nav-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+.side-nav .nav-btn.active { background: var(--bg-active); color: var(--accent); }
+.side-nav .nav-btn .nav-icon { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
+.side-nav .nav-btn .nav-icon .icon { width: 18px; height: 18px; }
+.side-nav .nav-btn .nav-label {
+    display: block !important;
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+.nav-badge {
+    background: var(--danger);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    min-width: 15px;
+    height: 15px;
+    border-radius: 999px;
+}
+
+/* ─── 7. Topbar ─────────────────────────────────────────────── */
+.app-topbar {
+    height: 52px;
+    background: var(--bg-elev-1);
+    border-bottom: 1px solid var(--border-md);
+    padding: 0 20px;
+}
+.crumb { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.crumb-sep { color: var(--text-3); }
+.crumb-sub { color: var(--text-2); font-weight: 400; }
+.user-chip-avatar { background: var(--bg-active); color: var(--accent); font-weight: 600; }
+
+/* ─── 8. Sidebar de conversas ───────────────────────────────── */
+.inbox-sidebar { background: var(--bg-elev-1); border-right: 1px solid var(--border-md); }
+.sidebar-header { padding: 12px 14px; border-bottom: 1px solid var(--border-md); }
+.sidebar-title { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.sidebar-search {
+    height: 32px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-md);
+    color: var(--text-1);
+    font-family: var(--font);
+    font-size: 13px;
+}
+.sidebar-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); outline: none; }
+.filter-chip {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 500;
+}
+.filter-chip.active {
+    background: var(--bg-active);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+/* ─── 9. ConvRow (avatar + chip + AvatarStack — mockup §inbox) ─ */
+.conv-item {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 14px 10px 12px;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--border-sm);
+    background: transparent;
+    position: relative;
+    cursor: pointer;
+    transition: background .1s;
+}
+.conv-item:hover { background: var(--bg-hover); }
+.conv-item.active { background: var(--bg-active); border-left-color: var(--accent); }
+.conv-item.unread .conv-name { font-weight: 700; }
+.conv-item.archived { opacity: .65; }
+.conv-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-elev-3);
+    color: var(--text-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.conv-main { min-width: 0; }
+.conv-item-top { display: flex; align-items: center; gap: 6px; }
+.conv-name {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.conv-class {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 500;
+}
+.conv-class.hit  { background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.30); }
+.conv-class.near { background: rgba(245, 158, 11, 0.12); color: #92400E; border: 1px solid rgba(245, 158, 11, 0.30); }
+[data-theme="dark"] .conv-class.hit,  [data-theme="contrast"] .conv-class.hit  { color: var(--success); }
+[data-theme="dark"] .conv-class.near, [data-theme="contrast"] .conv-class.near { color: var(--warning); }
+.conv-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.conv-snippet { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.conv-snippet.replied { color: var(--accent); font-weight: 500; }
+.conv-meta-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 22px; }
+.conv-company { font-size: 11px; color: var(--text-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-meta-spacer { flex: 1; }
+.conv-unread {
+    align-self: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* AvatarStack (renderAvatarStack — 22px, overlap -8, +N) */
+.avatar-stack { display: flex; align-items: center; flex-shrink: 0; }
+.avatar-stack .avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 0 0 2px var(--bg-elev-1);
+}
+.avatar-stack .avatar:not(:first-child) { margin-left: -8px; }
+.avatar-stack .avatar-more { background: var(--bg-elev-3); color: var(--text-2); }
+.avatar-stack .avatar[data-color="c0"] { background: var(--accent); color: var(--accent-ink); }
+.avatar-stack .avatar[data-color="c1"] { background: #8B5CF6; }
+.avatar-stack .avatar[data-color="c2"] { background: #F59E0B; }
+.avatar-stack .avatar[data-color="c3"] { background: #10B981; }
+.avatar-stack .avatar[data-color="c4"] { background: #EC4899; }
+.avatar-stack .avatar[data-color="c5"] { background: #3B82F6; }
+.avatar-stack .avatar[data-color="c6"] { background: #F97316; }
+.avatar-stack .avatar[data-color="c7"] { background: #06B6D4; }
+
+/* ─── 10. Chat: header + bolhas + composer ─────────────────── */
+.chat-header { height: 58px; background: var(--bg-elev-1); border-bottom: 1px solid var(--border-md); }
+.ch-avatar, .chat-avatar { background: var(--avatar-grad); color: #fff; font-weight: 600; }
+.ch-name, .chat-meta-name { font-size: 14px; font-weight: 600; }
+.ch-status, .chat-meta-sub { font-size: 11px; color: var(--text-2); }
+.chat-area { background: var(--bg-base); }
+
+.msg-bubble {
+    max-width: min(560px, 72%);
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    box-shadow: var(--sh-sm);
+    color: var(--text-1);
+}
+.msg-bubble.inbound { background: var(--bg-elev-1); border-top-left-radius: 4px; }
+.msg-bubble.outbound {
+    background: var(--accent-dim);
+    border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+    border-top-right-radius: 4px;
+    color: var(--text-1);
+}
+.msg-bubble.bot {
+    background: color-mix(in oklab, var(--msg-bot) 7%, transparent);
+    border-color: color-mix(in oklab, var(--msg-bot) 35%, transparent);
+}
+.msg-bubble.note {
+    background: color-mix(in oklab, var(--msg-note) 8%, transparent);
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--msg-note) 45%, transparent);
+}
+.msg-bubble.system, .msg-bubble.msg-system {
+    background: transparent;
+    border: 1px dashed var(--border-lg);
+    color: var(--text-2);
+    box-shadow: none;
+}
+
+.chat-input-wrap { background: var(--bg-elev-1); border-top: 1px solid var(--border-md); }
+.chat-input-tab { color: var(--text-2); font-weight: 500; }
+.chat-input-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.chat-textarea {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-md);
+    color: var(--text-1);
+    font-family: var(--font);
+}
+.chat-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.composer-persona-banner {
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in oklab, var(--accent) 25%, transparent);
+    border-radius: var(--r-md);
+}
+.composer-persona-banner .persona-name { color: var(--accent); font-weight: 600; }
+
+/* ─── 11. Lead panel ───────────────────────────────────────── */
+.lead-panel { background: var(--bg-elev-1); border-left: 1px solid var(--border-md); }
+.lp-tabs { background: var(--bg-elev-2); border-bottom: 1px solid var(--border-md); }
+.lp-tab { color: var(--text-2); font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; }
+.lp-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ─── 12. Tabelas (Leads/Histórico/Deals/Grupos) ───────────── */
+.table-pro {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+}
+.table-pro thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+    color: var(--text-2);
+    background: var(--bg-elev-2);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-md);
+}
+.table-pro tbody td { padding: 11px 14px; font-size: 13px; border-top: 1px solid var(--border-sm); }
+.table-pro tbody tr:first-child td { border-top: none; }
+.table-pro tbody tr:hover { background: var(--bg-hover); }
+
+/* ─── 13. Cards, KPIs, scripts ─────────────────────────────── */
+.kpi-card, .script-card, .stat-card {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    box-shadow: var(--sh-sm);
+}
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); font-weight: 500; }
+.kpi-value { font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.01em; }
+.script-card:hover { border-color: var(--border-lg); }
+
+/* ─── 14. Modais ───────────────────────────────────────────── */
+.modal-overlay { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px); }
+.modal {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: 16px;
+    box-shadow: var(--sh-lg);
+}
+.modal-header { border-bottom: 1px solid var(--border-md); }
+.modal-header h3 { font-size: 16px; font-weight: 600; }
+.modal-footer { border-top: 1px solid var(--border-md); }
+
+/* ─── 15. Empty states ─────────────────────────────────────── */
+.empty-state-pro { color: var(--text-2); }
+.empty-illustration { background: var(--bg-elev-2); color: var(--text-2); border-radius: 50%; }
+.empty-title { color: var(--text-1); font-weight: 600; }

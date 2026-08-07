@@ -1792,17 +1792,12 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // Atendente — paleta determinística pelo nome.
-        // 1 owner = pill simples; 2+ owners = empilha tags (raro).
-        // Tag com nome > círculo com inicial: "S" pode ser Sergio OU Stephanie,
-        // mas "SERGIO" é inequívoco.
+        // Atendente — paleta determinística pelo nome (ownerColorClass).
+        // Mockup aprovado 07/08/26: AvatarStack (círculos 2 iniciais + "+N"),
+        // tooltip com nome completo cobre ambiguidade de iniciais.
         const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
             ? conv.account_owner_names
             : (conv.account_owner_name ? [conv.account_owner_name] : []);
-        const ownerTags = ownerNames
-            .slice(0, 3) // até 3 tags inline; depois corta (raro)
-            .map(n => `<span class="tag tag-owner" data-color="${ownerColorClass(n)}">${escHtml(n.slice(0, 14))}</span>`)
-            .join('');
 
         // Empresa: lead.company_name → fallback localStorage[atd:org:LEAD_ID]
         // (preenchido quando user seleciona deal no picker — Pipedrive deals
@@ -1823,14 +1818,22 @@ function renderConversationList() {
             ? `<span class="conv-unread">${conv.unread_count}</span>`
             : '';
 
+        // Mockup 07/08/26 — avatar do lead + chip de classificação + AvatarStack
+        const convInitials = name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+        const convCls = lead.classification;
+        const clsChip = convCls === 'comercial' ? '<span class="conv-class hit">Comercial</span>'
+                      : convCls === 'opec'      ? '<span class="conv-class near">OPEC</span>'
+                      : '';
+
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
+            <span class="conv-avatar">${escHtml(convInitials)}</span>
             <div class="conv-main">
                 <div class="conv-item-top">
-                    <span class="conv-name">${escHtml(name)}</span>
+                    <span class="conv-name">${escHtml(name)}${clsChip}</span>
                     <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
                 </div>
                 <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
-                ${(company || ownerTags) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerTags}</div>` : ''}
+                ${(company || ownerNames.length) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}<span class="conv-meta-spacer"></span>${ownerNames.length ? renderAvatarStack(ownerNames) : ''}</div>` : ''}
             </div>
             ${unreadHtml}
         </div>`;
