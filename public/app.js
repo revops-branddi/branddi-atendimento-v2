@@ -1645,13 +1645,43 @@ function setupInboxFilters() {
     // sendo aplicada server-side em getInbox via allowed_types.
 }
 
+let _lastServerSearchTerm = '';
 function setupInboxSearch() {
     const searchInput = document.getElementById('inbox-search');
     if (!searchInput) return;
-    searchInput.addEventListener('input', debounce(() => {
+
+    // Renderiza imediato (filtra os 100 em cache local — feedback < 1 frame),
+    // e em paralelo dispara busca server-side debounced pra cobrir convs fora
+    // do cache. Limpar a busca também fira um reload pra restaurar todas.
+    const onInput = () => {
         inboxSearchTerm = (searchInput.value || '').trim().toLowerCase();
         renderConversationList();
-    }, 300));
+    };
+    const debouncedServerFetch = debounce(() => {
+        const term = inboxSearchTerm;
+        const needsFetch = term.length >= 2 || (_lastServerSearchTerm.length >= 2 && term.length < 2);
+        if (!needsFetch) return;
+        _lastServerSearchTerm = term;
+        loadInbox();
+    }, 350);
+
+    searchInput.addEventListener('input', () => {
+        onInput();
+        debouncedServerFetch();
+    });
+
+    // Atalho Cmd+K / Ctrl+K pra focar a busca de qualquer lugar da inbox.
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+            // Só intercepta dentro da página de inbox (sidebar item ativo)
+            const inboxActive = document.querySelector('.sidebar-item.active')?.dataset?.page === 'inbox'
+                || document.getElementById('page-inbox')?.style?.display !== 'none';
+            if (!inboxActive) return;
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    });
 }
 
 function setInboxFilter(filter) {
@@ -1672,7 +1702,14 @@ async function loadInbox(silent = false) {
         const accountIds = MultiSelect.getEffectiveIds('inbox-account-filter');
         const accountParam = accountIds.length ? `&filter_account_ids=${encodeURIComponent(accountIds.join(','))}` : '';
         const archivedParam = currentFilter === 'archived' ? '&archived=true' : '';
-        const data = await apiFetch(`/api/inbox?limit=100${userParam}${accountParam}${archivedParam}`);
+        // Server-side search quando o usuário digitou >=2 chars. Server retorna
+        // só convs que batem (incluindo deal_title/org_name pra alcançar convs
+        // fora das 100 mais recentes). O filtro client-side em renderConversationList
+        // continua aplicando — idêntico, sem overhead.
+        const qParam = inboxSearchTerm && inboxSearchTerm.length >= 2
+            ? `&q=${encodeURIComponent(inboxSearchTerm)}`
+            : '';
+        const data = await apiFetch(`/api/inbox?limit=100${userParam}${accountParam}${archivedParam}${qParam}`);
         const newConversations = data.conversations || [];
 
         // Hash rápido para detectar mudanças e evitar re-render desnecessário (flicker)
@@ -1717,7 +1754,10 @@ function renderConversationList() {
         filtered = filtered.filter(c => !c.archived_at);
     }
 
-    // Client-side search
+    // Client-side search — instantâneo sobre os 100 em cache. Para queries
+    // que precisam alcançar convs fora do cache, o server-side q em loadInbox
+    // amplia a base; aqui só refina pra match exato do termo nos campos
+    // disponíveis.
     if (inboxSearchTerm) {
         filtered = filtered.filter(c => {
             const lead = c.leads || {};
@@ -1725,6 +1765,8 @@ function renderConversationList() {
                 lead.name || '',
                 lead.company_name || '',
                 lead.phone || '',
+                lead.crm_deal_title || '',
+                lead.crm_org_name || '',
             ].join(' ').toLowerCase();
             return haystack.includes(inboxSearchTerm);
         });
