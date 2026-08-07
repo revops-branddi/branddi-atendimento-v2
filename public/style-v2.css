@@ -1304,6 +1304,13 @@ body {
     color: var(--text-2);
     font-size: 12px;
 }
+/* Aviso de troca de emissor: a próxima mensagem abre uma thread nova no
+   WhatsApp do lead. Consequência que só aparece do lado dele, então precisa
+   ficar visível aqui — sem virar alarme, porque a ação é legítima. */
+.composer-persona-banner .persona-warning {
+    color: var(--warning, #e0a458);
+    font-size: 12px;
+}
 .composer-persona-banner .persona-switch {
     background: transparent;
     border: 1px solid var(--border-md);
