@@ -14,6 +14,7 @@ import { pdGet, pdPut } from '../services/pipedrive.js';
 import { syncLeadFromApollo } from './apollo.js';
 import logger from '../services/logger.js';
 import { normalizeWebhookBody } from '../services/webhook-body.js';
+import { isMessageEvent, ingestWebhookMessage } from '../services/webhook-ingest.js';
 
 const router = Router();
 
@@ -200,20 +201,20 @@ router.post('/webhooks/unipile', async (req, res) => {
             return res.json({ received: true, ignored: true, reason: 'account_marked_ignored' });
         }
 
-        // Eventos de MENSAGEM sao reconhecidos mas ainda nao ingeridos: a
-        // ingestao por webhook e' a Fase 2. Gravar em status_events poluiria a
-        // tabela — ela e' append-only sobre transicao de STATUS de conta, e um
-        // message_received nao tem status, entraria como null e estragaria
-        // qualquer analise de padrao de queda.
+        // Eventos de MENSAGEM seguem para a ingestao por webhook (Fase 2) e NAO
+        // entram em status_events: aquela tabela e' append-only sobre transicao de
+        // STATUS de conta, e um message_received nao tem status — entraria como
+        // null e estragaria a analise de padrao de queda.
         //
-        // Responder 200 aqui e' correto: o Unipile so' precisa saber que
-        // recebemos. O polling segue sendo o caminho de ingestao ate a Fase 2.
-        if (!status && !String(eventType).startsWith('account')) {
-            logger.info('Webhook Unipile: evento de mensagem reconhecido', {
-                event_type: eventType,
-                account_id: accountId,
-            });
-            return res.json({ received: true, handled: 'ack_only', event_type: eventType });
+        // O await e' deliberado. Responder antes de processar perderia o evento se
+        // a invocacao morresse no meio: o Unipile ja teria recebido 200 e nunca
+        // re-tentaria. Se ele desistir por timeout e re-entregar, o dedup por
+        // unipile_message_id torna a repeticao um no-op — trocar latencia por
+        // garantia e' o lado certo desse trade. Tambem e' o que funciona em
+        // serverless na Fase 3, onde trabalho em background morre com a resposta.
+        if (isMessageEvent(body)) {
+            const r = await ingestWebhookMessage(body);
+            return res.json({ received: true, ...r });
         }
 
         // Status anterior pra detectar transição

@@ -81,7 +81,7 @@ function isGroupChat(chat) {
     return chat?.type === 1 || String(chat?.provider_id || '').endsWith('@g.us');
 }
 
-async function getActiveAccounts() {
+export async function getActiveAccounts() {
     const { data, error } = await sb
         .from('v_site_whatsapp_accounts')
         .select('id, unipile_account_id, label, phone_number')
@@ -93,7 +93,9 @@ async function getActiveAccounts() {
     return data || [];
 }
 
-async function processChat(chat, account) {
+// Exportada para a ingestao por webhook (Fase 2) — ver comentario equivalente em
+// src/services/unipile.js. Mantem o disparo do bot e a janela de 5 min.
+export async function processChat(chat, account) {
     const accountId = chat.account_id || account.unipile_account_id;
 
     let conversation = await findConversationByChat(chat.id);
