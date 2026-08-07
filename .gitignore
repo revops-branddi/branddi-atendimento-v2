@@ -11,3 +11,6 @@ supabase/.temp/
 # These carry infrastructure maps and customer conversation data.
 reports/
 HANDOFF-MIGRACAO.md
+
+# Scratch do subagent-driven-development (ledger, briefs, review packages)
+.superpowers/
