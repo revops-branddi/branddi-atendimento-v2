@@ -54,3 +54,73 @@
     --teal:          #177A8B;
     --ring:          rgba(23, 122, 139, 0.15);
 }
+
+/* ─── 2b. Tinta sobre accent + gradiente de avatar ──────────
+   color:#fff sobre var(--accent) funciona no claro (#177A8B é
+   escuro), mas quebraria no escuro (#0ACFDE é claro). O ink
+   acompanha o tema; o gradiente de avatar (ex-cyan #0090ff)
+   vira var com tons onde branco sempre contrasta. */
+:root {
+    --accent-ink:  #FFFFFF;
+    --avatar-grad: linear-gradient(135deg, #177A8B, #299FB1);
+}
+
+.chat-header .btn-sm.btn-primary,
+.panel-actions .btn-primary,
+.panel-header .btn-primary,
+#modal-settings .btn-primary,
+#modal-script .btn-primary,
+#modal-wa-connect .btn-primary,
+.send-btn,
+.conv-unread {
+    color: var(--accent-ink) !important;
+}
+
+/* ─── 3. Tema Escuro ────────────────────────────────────────
+   Os tokens legacy (--bg-deep, --bg-surface, --border etc.) já
+   apontam via var() pros tokens base do v2 — redefinir os base
+   por tema é suficiente; a cascata leva o resto. */
+[data-theme="dark"] {
+    --bg-base:    #0B1014;
+    --bg-elev-1:  #11181E;
+    --bg-elev-2:  #1A2329;
+    --bg-elev-3:  #232F37;
+    --bg-hover:   #1A2329;
+    --bg-active:  rgba(10, 207, 222, 0.12);
+
+    --border-sm:  #1C262D;
+    --border-md:  #232F37;
+    --border-lg:  #2F3D47;
+
+    --text-1:     #E8EEF1;
+    --text-2:     #93A1AA;
+    --text-3:     #5C6B75;
+    --text-muted: #5C6B75;
+
+    /* Azul Branddi oficial assume no escuro */
+    --accent:      #0ACFDE;
+    --accent-50:   #07333A;
+    --accent-100:  #0A454C;
+    --accent-300:  #23AFC0;
+    --accent-600:  #0ACFDE;
+    --accent-700:  #56DEE9;
+
+    --accent-dim:    rgba(10, 207, 222, 0.12);
+    --accent-soft:   rgba(10, 207, 222, 0.08);
+    --accent-mid:    rgba(10, 207, 222, 0.22);
+    --accent-glow:   rgba(10, 207, 222, 0.06);
+    --border-accent: rgba(10, 207, 222, 0.30);
+    --ring:          rgba(10, 207, 222, 0.18);
+
+    --msg-inbound:  #5C6B75;
+    --msg-outbound: #0ACFDE;
+    --teal:         #0ACFDE;
+
+    --sh-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --sh-md: 0 4px 12px rgba(0,0,0,0.5);
+    --sh-lg: 0 12px 32px rgba(0,0,0,0.6);
+
+    /* Marinho oficial como tinta sobre o ciano */
+    --accent-ink:  #031C2D;
+    --avatar-grad: linear-gradient(135deg, #0F5E6B, #177A8B);
+}
