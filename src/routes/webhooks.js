@@ -154,6 +154,10 @@ router.post('/webhooks/unipile', async (req, res) => {
                     'user-agent': req.headers['user-agent'] || null,
                 },
                 body: req.body || {},
+                // O corpo cru e' o que realmente decide: a primeira rodada provou
+                // que o Unipile entrega, mas com content-type de formulario, entao
+                // `body` chegava {}. Truncado porque isto e' instrumentacao.
+                raw: (req.rawBody || '').slice(0, 8000) || null,
             });
         } catch { /* captura e' best-effort */ }
 

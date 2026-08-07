@@ -1,5 +1,8 @@
 node_modules/
-.env
+# `.env` sozinho casa exatamente com `.env` e mais nada — `.env.local`,
+# `.env.bak`, `.env.production` ficavam desprotegidos num repo PUBLICO.
+.env*
+!.env.example
 .claude/
 .serena/
 design_handoff_v2/
