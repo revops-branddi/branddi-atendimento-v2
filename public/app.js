@@ -869,6 +869,7 @@ window.dismissWaThrottleBanner = dismissWaThrottleBanner;
 // SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
 // e aplica em <html data-*>. Selects com [data-pref] disparam change.
 const APPEARANCE_DEFAULTS = {
+    theme:        'light',
     messageStyle: 'bubbles',
     density:      'compact',
     chatBg:       'dots',
@@ -876,6 +877,7 @@ const APPEARANCE_DEFAULTS = {
 // Valores aceitos por preferência. Se algo salvo no localStorage estiver
 // fora dessas listas (ex: chatBg='gradient' removido), migramos pra default.
 const APPEARANCE_VALID = {
+    theme:        ['light', 'dark', 'contrast'],
     messageStyle: ['bubbles'],
     density:      ['compact', 'comfortable'],
     chatBg:       ['dots', 'watermark', 'pattern'],
