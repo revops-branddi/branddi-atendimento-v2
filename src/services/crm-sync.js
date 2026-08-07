@@ -18,18 +18,30 @@ import logger from './logger.js';
 
 export function startCrmSyncWorker(intervalMs = 30_000) {
     logger.info('CRM Sync worker iniciado', { interval_ms: intervalMs });
-    setInterval(processPendingSyncs, intervalMs);
+    setInterval(() => {
+        // Aqui o catch e' obrigatorio: excecao escapando de um setInterval vira
+        // unhandled rejection e derruba o processo inteiro. Nao remover.
+        runCrmSyncOnce().catch(err =>
+            logger.warn('CRM Sync worker error', { error: err.message }));
+    }, intervalMs);
 }
 
-async function processPendingSyncs() {
-    try {
-        const pending = await getPendingSyncs(10);
-        for (const syncEntry of pending) {
-            await processSyncEntry(syncEntry);
-        }
-    } catch (err) {
-        logger.warn('CRM Sync worker error', { error: err.message });
+/**
+ * Um ciclo, com contagem e SEM engolir erro — e' o que o cron da Vercel chama.
+ *
+ * Em serverless nao ha processo longo a proteger, e ha um status HTTP a devolver:
+ * deixar a excecao subir e' o que permite ao endpoint responder 500 em vez de
+ * reportar sucesso apos ter falhado. O mesmo catch que protege o worker acima
+ * seria uma mentira aqui.
+ *
+ * @returns {Promise<{processed:number}>}
+ */
+export async function runCrmSyncOnce() {
+    const pending = await getPendingSyncs(10);
+    for (const syncEntry of pending) {
+        await processSyncEntry(syncEntry);
     }
+    return { processed: pending.length };
 }
 
 async function processSyncEntry(entry) {

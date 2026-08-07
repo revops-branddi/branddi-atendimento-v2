@@ -578,10 +578,30 @@ import cronRouter from './routes/cron.js';
 Run: `npm test`
 Expected: PASS — 9 testes
 
-- [ ] **Step 6: Confirmar que o Railway não regrediu**
+- [ ] **Step 6: Confirmar que o app carrega sem regressão**
 
-Run: `npm start` e, noutro terminal, `curl -s localhost:3000/api/health`
-Expected: JSON com `"status":"ok"` — o `app.listen` ainda roda fora da Vercel.
+**Não rodar `npm start`.** O `.env` local aponta para **produção**: subir o app aqui
+criaria uma segunda instância fazendo polling do Unipile, sincronizando com o Pipedrive
+e rodando o bot do `/site`, que pode **enviar WhatsApp de verdade para um lead**. O
+`unipile_message_id UNIQUE` evita mensagem duplicada no banco, mas não impede o bot de falar.
+
+A verificação equivalente e segura importa o módulo com o guard ligado — prova que tudo
+resolve (inclusive o `cronRouter` novo) e que nada fica escutando, sem iniciar worker algum:
+
+```bash
+VERCEL=1 node -e "
+const morte = setTimeout(() => { console.log('TRAVOU'); process.exit(1); }, 20000);
+const app = (await import('./src/server.js')).default;
+console.log('app:', typeof app === 'function' ? 'OK' : 'FALHOU');
+console.log('routers:', (app.router?.stack ?? app._router?.stack ?? []).length);
+clearTimeout(morte); process.exit(0);
+"
+```
+
+Expected: `app: OK`, contagem de routers > 0, e retorno imediato.
+
+Como o conteúdo do bloco `app.listen` não mudou — só ganhou um `if` em volta — o caminho
+do Railway está coberto pela mesma prova.
 
 - [ ] **Step 7: Commit**
 
