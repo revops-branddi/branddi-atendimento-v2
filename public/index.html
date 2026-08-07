@@ -56,7 +56,7 @@
 <div id="wa-best-practices-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="wa-bp-title">
     <div class="modal modal--wa-bp">
         <div class="modal-header">
-            <h3 id="wa-bp-title">📱 Como o WhatsApp limita mensagens</h3>
+            <h3 id="wa-bp-title">Como o WhatsApp limita mensagens</h3>
             <button class="modal-close" type="button" onclick="closeWaBestPractices()" aria-label="Fechar">×</button>
         </div>
         <div class="modal-body wa-bp-body">
@@ -66,11 +66,28 @@
                 a mensagem só nunca chega.
             </p>
 
+            <h3>Por que do meu celular vai, mas do app não?</h3>
+            <p>
+                Mesmo número, comportamento diferente. O WhatsApp aplica antispam
+                <strong>por sessão</strong>, não por número:
+            </p>
+            <ul>
+                <li><strong>Celular (app nativo):</strong> WhatsApp assume uso pessoal, antispam quase nulo.</li>
+                <li><strong>App Branddi (WhatsApp Web/Multi-device):</strong> WhatsApp assume possível automação, antispam agressivo.</li>
+            </ul>
+            <p>
+                Quando o canal Web está throttled e o Mobile não, é por isso que você consegue
+                mandar pelo celular mas não pelo Atendimento. Mesmo número, canais separados.
+                Não adianta trocar de número — se o padrão de envio não mudar, o canal Web do
+                número novo cai no mesmo throttle em poucos dias.
+            </p>
+
             <h3>Sinais que acionam o limite</h3>
             <ul>
                 <li><strong>Volume alto de novas conversas</strong> (1ª msg pra quem nunca te respondeu)</li>
                 <li><strong>Mensagens parecidas</strong> ("Boa tarde! Falo com X?") em sequência</li>
                 <li><strong>Velocidade</strong> (várias por minuto)</li>
+                <li><strong>Sequência rápida pra mesmo lead</strong> (3 msgs longas em 1 min — celular nunca faz isso)</li>
                 <li><strong>Lista com muitos números sem WhatsApp</strong> (taxa alta de não-entrega)</li>
                 <li><strong>Bloqueios recebidos</strong> dos destinatários</li>
             </ul>
@@ -79,19 +96,29 @@
             <ul>
                 <li><strong>Limite diário:</strong> ~20–30 cold/dia em conta nova; até ~80–100/dia depois de aquecida</li>
                 <li><strong>Espace os envios:</strong> 1 mensagem a cada 3–5 min, não em rajada</li>
+                <li><strong>Primeira msg curta:</strong> "Oii X, tudo bem?" passa quase sempre; pitch longo na 1ª aciona antispam</li>
                 <li><strong>Varie a copy:</strong> 3–5 templates rotacionando, evita o "msg idêntica"</li>
                 <li><strong>Não dobre se a 1ª não foi entregue:</strong> reenvio pra quem o WhatsApp já segurou só piora</li>
                 <li><strong>Limpe a lista antes:</strong> número que não tem WhatsApp mancha sua reputação</li>
                 <li><strong>Conversa quente sempre chega:</strong> se alguém já te respondeu antes, suas msgs pra essa pessoa passam normalmente</li>
             </ul>
 
-            <h3>Se aparecer o aviso amarelo</h3>
+            <h3>Se aparecer o aviso amarelo no topo</h3>
             <p>
                 Significa que detectamos várias mensagens novas suas sem confirmação de entrega
                 na última hora. <strong>Pause prospecção por algumas horas</strong> e foque em
                 quem já te respondeu — essas continuam chegando. Voltar a mandar cold em
                 seguida pode piorar e levar a bloqueio mais sério.
             </p>
+
+            <h3>Como recuperar um número travado</h3>
+            <ol>
+                <li><strong>Pause cold por 24–48h.</strong> WhatsApp reabilita gradualmente quando o ritmo normaliza.</li>
+                <li><strong>Aqueça com conversacional curto.</strong> Responda quem já te escreveu, mande mensagens de 1 frase em conversas existentes. Volume baixo, tom humano.</li>
+                <li><strong>Reconecte a sessão.</strong> Em Configurações → WhatsApp, desconectar e reescanear o QR às vezes reseta contadores de reputação.</li>
+                <li><strong>Em casos urgentes:</strong> envie do celular pelas próximas horas. Mesmo número, canal saudável.</li>
+                <li><strong>Não force.</strong> Continuar mandando cold em volume alto após sinal de throttle é o caminho mais rápido pra ban permanente.</li>
+            </ol>
 
             <h3>Tipos de limite (do mais leve ao mais grave)</h3>
             <ol>
