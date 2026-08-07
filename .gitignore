@@ -4,3 +4,10 @@ node_modules/
 .serena/
 design_handoff_v2/
 .playwright-mcp/
+.DS_Store
+supabase/.temp/
+
+# Operational docs and generated reports — this repo is PUBLIC.
+# These carry infrastructure maps and customer conversation data.
+reports/
+HANDOFF-MIGRACAO.md
