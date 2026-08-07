@@ -1,0 +1,17 @@
+-- Remove a captura temporaria de webhooks. Ela cumpriu o proposito.
+--
+-- Existiu para separar duas hipoteses indistinguiveis de fora: o Unipile nao
+-- entregava, ou entregava e o handler descartava em silencio. A resposta veio em
+-- 2026-08-07: entregava, com content-type application/x-www-form-urlencoded, e o
+-- app so' montava express.json() — o corpo era descartado antes do handler, que
+-- respondia 200 e nunca gerava retry. Ver PRs #178 e #179.
+--
+-- POR QUE REMOVER, e nao apenas parar de escrever: a coluna `raw` guarda o
+-- payload cru, que inclui TEXTO DA MENSAGEM, telefone e nome do lead. Eram 190
+-- linhas em ~4h, ~3.600/dia, sem politica de retencao e sem dono. Instrumentacao
+-- temporaria que nao e' removida nao fica neutra — envelhece para passivo.
+--
+-- Se precisar de novo: recriar com as migrations 023 e 024, que continuam no
+-- historico, e reinserir o bloco de captura no topo do handler em
+-- src/routes/webhooks.js (antes da validacao de secret, que era o ponto).
+drop table if exists public.webhook_raw_log;
