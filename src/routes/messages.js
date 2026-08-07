@@ -133,7 +133,14 @@ router.post('/messages/:conversationId/send', async (req, res) => {
                     });
                 }
                 chatId = picked.chatId;
-            } else if (conv?.whatsapp_chat_id) {
+            // Troca de emissor: quando o atendente escolhe uma conta DIFERENTE da
+            // que a conversa ja usa, o chat existente nao serve — cada conta tem
+            // um chat proprio com o mesmo lead. Cair no ramo de startNewChat abre
+            // (ou reencontra) o chat na conta nova e reamarra a conversa nas
+            // linhas abaixo. Sem esta condicao, o override era silenciosamente
+            // ignorado e a mensagem saia pelo numero antigo.
+            } else if (conv?.whatsapp_chat_id
+                       && !(overrideAccountId && overrideAccountId !== conv.whatsapp_account_id)) {
                 chatId = conv.whatsapp_chat_id;
             } else if (conv?.lead_id) {
                 const lead = await getLeadById(conv.lead_id);

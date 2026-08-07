@@ -2369,13 +2369,27 @@ async function sendMsg() {
     try {
         let res;
 
-        // Persona escolhida no banner (só relevante quando ainda não há chat_id —
-        // a partir da 2ª msg, a conv já tem whatsapp_account_id no banco e o
-        // backend usa esse). Manda no body sempre pra simplificar — backend ignora
-        // se já tem chat_id.
-        const personaAccountId = !currentConversation.whatsapp_chat_id
-            ? (_selectedWaAccountForSend || null)
-            : null;
+        // Conta escolhida no banner. Vale tanto pra conversa nova quanto pra
+        // TROCA de emissor numa conversa já amarrada.
+        const personaAccountId = _selectedWaAccountForSend || null;
+
+        // Trocando de emissor numa conversa que já tem chat? Então o chatId atual
+        // não serve: ele pertence à conta antiga. Mandar null força o backend a
+        // resolver (ou abrir) o chat na conta nova e reamarrar a conversa.
+        const trocandoEmissor = Boolean(
+            currentConversation.whatsapp_chat_id
+            && currentConversation.whatsapp_account_id
+            && personaAccountId
+            && personaAccountId !== currentConversation.whatsapp_account_id
+        );
+        const chatIdParaEnvio = trocandoEmissor ? null : chatId;
+
+        // Mídia não tem caminho de abrir chat novo: send-media exige um chat que
+        // já exista. Bloquear aqui, com o motivo, é melhor que deixar o anexo sair
+        // pelo número antigo — que é o que aconteceria em silêncio.
+        if (trocandoEmissor && fileToSend) {
+            throw new Error('Envie uma mensagem de texto primeiro para abrir a conversa neste número. Depois o anexo vai por ele.');
+        }
 
         if (fileToSend) {
             // Upload DIRETO pro Supabase Storage, nunca pelo corpo da request.
@@ -2409,7 +2423,7 @@ async function sendMsg() {
                     storage_key: key,
                     mime_type: fileToSend.type || 'application/octet-stream',
                     text,
-                    chatId,
+                    chatId: chatIdParaEnvio,
                     whatsapp_account_id: personaAccountId,
                 }),
             });
@@ -2419,7 +2433,7 @@ async function sendMsg() {
                 method: 'POST',
                 body: JSON.stringify({
                     text,
-                    chatId,
+                    chatId: chatIdParaEnvio,
                     whatsapp_account_id: personaAccountId,
                 }),
             });
@@ -6080,11 +6094,11 @@ async function updateComposerPersonaBanner(conv) {
     const banner = document.getElementById('composer-persona-banner');
     if (!banner) return;
 
-    // Se conv já tem chat_id, conv já está "amarrada" a uma conta — banner inútil
-    if (conv?.whatsapp_chat_id) {
-        banner.style.display = 'none';
-        return;
-    }
+    // Conversa já amarrada a uma conta TAMBÉM mostra o banner: é o único lugar
+    // onde dá pra trocar o emissor quando o número em uso caiu ou saiu do ar.
+    // Antes o banner sumia aqui, e a conversa ficava presa à conta original sem
+    // saída pela interface.
+    const jaAmarrada = Boolean(conv?.whatsapp_chat_id);
 
     const accounts = await loadSendableWaAccounts();
     if (accounts.length < 2) {
@@ -6123,6 +6137,19 @@ async function updateComposerPersonaBanner(conv) {
     info.appendChild(text);
     info.appendChild(name);
     info.appendChild(sep);
+
+    // Trocar o emissor de uma conversa JA amarrada nao e' so' mudar o remetente:
+    // cada conta tem um chat proprio com o mesmo lead, entao a proxima mensagem
+    // abre uma conversa NOVA no WhatsApp dele, a partir do outro numero. O
+    // historico daqui continua visivel, mas do lado do lead sao duas threads.
+    // Dizer isso antes vale mais que explicar depois.
+    if (jaAmarrada && conv?.whatsapp_account_id
+        && current.unipile_account_id !== conv.whatsapp_account_id) {
+        const aviso = document.createElement('span');
+        aviso.className = 'persona-warning';
+        aviso.textContent = ' — a próxima mensagem abre uma conversa nova a partir deste número';
+        info.appendChild(aviso);
+    }
 
     // Dropdown direto (sem botão "Trocar" intermediário — menos cliques)
     const select = document.createElement('select');
