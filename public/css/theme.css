@@ -1,0 +1,29 @@
+/* ============================================================
+   Branddi Atendimento — Visual Refresh (mockup aprovado 07/08/26)
+   ============================================================
+   Camada final da cascata: carregada DEPOIS de style.css e
+   style-v2.css. Mesmo padrão aditivo do bloco "Redesign v2" no
+   fim do style-v2.css: redefine tokens em :root e source-order
+   vence entre seletores de mesma especificidade.
+
+   ROLLBACK: comentar o <link href="/css/theme.css"> no index.html
+   e restaurar os links de fonte antigos (DM Sans/Inter) — ambos
+   marcados com "Visual refresh" no <head>.
+
+   Config aprovada: light default · accent Azul Branddi ·
+   compact · bubbles · lead panel fixo. Temas dark/contrast
+   opcionais via html[data-theme] (pref "theme" na Aparência).
+   ============================================================ */
+
+/* ─── 1. Tipografia — Geist ─────────────────────────────────── */
+:root {
+    --font: 'Geist', 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* Números, horários e métricas em mono tabular */
+.msg-time, .conv-time, .msg-status,
+.stat-value, .kpi-value, .table-pro td.num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
