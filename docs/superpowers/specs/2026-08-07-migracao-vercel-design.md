@@ -121,6 +121,36 @@ existe exatamente para isso e já deduplica por `unipile_message_id`.
 schemas. Limite deliberado: reconciliar todas as 2.428 conversas a cada 5 min seria
 desperdício, e uma conversa parada há dias não tem mensagem nova para recuperar.
 
+### Só o webhook dispara o bot — o reconciliador nunca
+
+O ingest do site carrega hoje duas guardas que existem por limitação do polling:
+
+- `listChats(..., { limit: 20 })` — vê só as 20 conversas mais recentes por ciclo
+- `NEW_CONV_HISTORY_WINDOW_MS = 5 min` — descarta conversa cujo inbound é mais antigo
+  que 5 min quando não há registro local
+
+Ambas existem porque polling **não distingue "mensagem nova" de "conversa antiga vista
+pela primeira vez"**: ao buscar uma lista, tudo chega igual. A heurística de tempo é uma
+aproximação, e erra — foi ela que suprimiu conversas legítimas e motivou
+`scripts/backfill-site-chat.js` (PR #173).
+
+Webhook não tem essa ambiguidade: o evento **é** a notificação de que algo acabou de
+acontecer, então recência é intrínseca. As duas guardas ficam obsoletas no caminho normal.
+
+**Mas isso cria um risco novo.** O reconciliador de 5 min faz o que o backfill faz: busca
+mensagens que podem ser antigas. O backfill já documenta a regra —
+*"não dispara bot — chats trazidos não devem disparar welcome com base em msg antiga"*.
+
+Portanto:
+
+> **Apenas o caminho do webhook pode chamar `processBotTurn()`. O reconciliador e
+> qualquer backfill gravam mensagem e criam conversa, mas nunca disparam o bot.**
+
+Sem essa regra, um lead que conversou ontem e foi perdido pelo webhook receberia um
+"olá!" espontâneo hoje, quando o reconciliador o encontrasse — que é auto-envio
+espontâneo, exatamente o que a regra do projeto proíbe. Conversas recuperadas entram
+como `waiting_human`, seguindo o precedente do backfill.
+
 ### Roteamento por conta — os dois fluxos dividem o mesmo webhook
 
 Este é o ponto mais delicado do desenho, e não existe hoje: o polling é separado por
@@ -249,6 +279,9 @@ Rollback em qualquer ponto: reapontar o webhook para o Railway.
 - [ ] Mensagem inbound aparece no inbox sem polling
 - [ ] **Roteamento por conta correto:** mensagem de conta de prospecção nunca dispara o
       bot; conta `ignored` é descartada; conta desconhecida é descartada e logada
+- [ ] **Reconciliador não dispara bot:** apagar uma conversa `/site` antiga, deixar o
+      reconciliador recuperá-la, confirmar que ela entra como `waiting_human` e que
+      nenhuma mensagem sai
 - [ ] Bot do `/site` responde em tempo igual ou menor que os 10 s de hoje
 - [ ] Reconciliador recupera uma mensagem deletada artificialmente
 - [ ] Diagnóstico de ~6 MB enviado com sucesso pela Vercel
