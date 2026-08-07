@@ -1024,7 +1024,9 @@ export async function pickSendAccount(conversation, user) {
     return resolve(accountIds[0]);
 }
 
-async function processChat(chat) {
+// Exportada para a ingestao por webhook (Fase 2): o webhook substitui apenas a
+// DESCOBERTA de chats (o listChats do polling), reaproveitando este caminho inteiro.
+export async function processChat(chat) {
     try {
         // Grupos seguem um caminho dedicado — sem lead, sem deal, sem auto-activity.
         // (Ver processGroupChat abaixo)
