@@ -193,18 +193,18 @@ router.post('/webhooks/unipile', async (req, res) => {
             return res.json({ received: true, ignored: true });
         }
 
-        // Skip eventos de contas ignored=true (outros times). Não grava em
-        // status_events nem atualiza status local — a conta nem deveria
-        // existir do ponto de vista do Atendimento-v2.
-        const ignoredIds = await getIgnoredAccountIds();
-        if (ignoredIds.includes(accountId)) {
-            return res.json({ received: true, ignored: true, reason: 'account_marked_ignored' });
-        }
-
-        // Eventos de MENSAGEM seguem para a ingestao por webhook (Fase 2) e NAO
-        // entram em status_events: aquela tabela e' append-only sobre transicao de
-        // STATUS de conta, e um message_received nao tem status — entraria como
-        // null e estragaria a analise de padrao de queda.
+        // Eventos de MENSAGEM vao para a ingestao (Fase 2) ANTES do gate de contas
+        // ignoradas abaixo — e essa ordem e' load-bearing.
+        //
+        // A flag `ignored` esta sobrecarregada: numa conta de outro time significa
+        // "nao toque", mas na conta do /site significa "nao e' da prospeccao".
+        // Barrar aqui deixava o fluxo /site inteiro inalcancavel. Quem sabe
+        // distinguir os dois casos e' classifyAccount(), entao o roteamento de
+        // mensagem e' decidido la', num lugar so'.
+        //
+        // Eventos de mensagem tambem NAO entram em status_events: aquela tabela e'
+        // append-only sobre transicao de STATUS de conta, e um message_received nao
+        // tem status — entraria como null e estragaria a analise de padrao de queda.
         //
         // O await e' deliberado. Responder antes de processar perderia o evento se
         // a invocacao morresse no meio: o Unipile ja teria recebido 200 e nunca
@@ -215,6 +215,13 @@ router.post('/webhooks/unipile', async (req, res) => {
         if (isMessageEvent(body)) {
             const r = await ingestWebhookMessage(body);
             return res.json({ received: true, ...r });
+        }
+
+        // Daqui pra baixo so' passam eventos de STATUS DE CONTA. Contas ignoradas
+        // (outros times) nao devem nem aparecer no historico de status local.
+        const ignoredIds = await getIgnoredAccountIds();
+        if (ignoredIds.includes(accountId)) {
+            return res.json({ received: true, ignored: true, reason: 'account_marked_ignored' });
         }
 
         // Status anterior pra detectar transição
