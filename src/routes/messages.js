@@ -9,6 +9,7 @@ import whatsapp from '../providers/unipile.js';
 import { applyScriptVariables } from '../services/script-variables.js';
 import { onOutboundMessage } from '../services/auto-activities.js';
 import supabase from '../services/supabase.js';
+import { downloadObject, createUploadUrl } from '../services/storage.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } }); // 16MB max
@@ -301,6 +302,21 @@ router.post('/messages/:conversationId/script', async (req, res) => {
     }
 });
 
+// ─── POST /api/messages/upload-url — URL assinada pro upload direto ──
+//
+// O browser sobe o arquivo direto pro Storage e depois chama send-media com a
+// chave. Assim o binario nunca transita pelo corpo da request, que na Vercel
+// e' limitado a 4,5 MB — teto que os diagnosticos comerciais ja ultrapassam.
+router.post('/messages/upload-url', async (req, res) => {
+    try {
+        const { file_name } = req.body || {};
+        const r = await createUploadUrl(file_name);
+        res.json(r);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── POST /api/messages/:conversationId/send-media — Envia mensagem com mídia
 router.post('/messages/:conversationId/send-media', upload.single('file'), async (req, res) => {
     try {
@@ -308,7 +324,30 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         let chatId = req.body.chatId || null;
         const file = req.file;
 
-        if (!file && !text) return res.status(400).json({ error: 'Texto ou arquivo é obrigatório' });
+        // Duas origens de midia, normalizadas num objeto so':
+        //   - multipart (`file`): caminho antigo, ainda usado no Railway
+        //   - `storage_key`: caminho novo, o browser subiu direto pro Supabase
+        //     Storage e mandou so' a chave — contorna o teto de 4,5 MB de corpo
+        //     de request da Vercel, que bloquearia os diagnosticos comerciais.
+        let midia = null;
+        if (file) {
+            midia = {
+                buffer:   file.buffer,
+                name:     file.originalname,
+                mimeType: file.mimetype,
+                size:     file.size,
+            };
+        } else if (req.body.storage_key) {
+            const baixado = await downloadObject(req.body.storage_key);
+            midia = {
+                buffer:   baixado.buffer,
+                name:     baixado.fileName,
+                mimeType: req.body.mime_type || 'application/octet-stream',
+                size:     baixado.buffer.length,
+            };
+        }
+
+        if (!midia && !text) return res.status(400).json({ error: 'Texto ou arquivo é obrigatório' });
         if (!chatId) {
             // Resolve chatId da conversa. Grupos canônicos exigem cascata
             // pickSendAccount pra resolver qual conta envia (chat_id é per-conta).
@@ -327,7 +366,7 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         if (!chatId) return res.status(400).json({ error: 'Conversa sem chat WhatsApp vinculado' });
 
         // Envia via Unipile com attachment e captura ID real
-        const mediaResult = await sendMessage(chatId, text || null, file?.buffer, file?.originalname);
+        const mediaResult = await sendMessage(chatId, text || null, midia?.buffer, midia?.name);
         const realUnipileId = mediaResult?.message_id || mediaResult?.id || null;
         const mediaMsgId = realUnipileId || `media_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -339,10 +378,10 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
         // Save com fallback de attachments. O attachment id real vem do Unipile
         // de forma assíncrona (>3s pra indexar), então kickamos um backfill em
         // background que atualiza a row quando o att.id estiver disponível.
-        const attachments = file ? [{
-            name: file.originalname,
-            mime_type: file.mimetype,
-            size: file.size,
+        const attachments = midia ? [{
+            name: midia.name,
+            mime_type: midia.mimeType,
+            size: midia.size,
         }] : [];
 
         const msg = await saveMessage({
@@ -352,7 +391,7 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
             sender_name:        req.user?.name || 'Atendente',
             sent_by_user_id:    req.user?.id || null,
             sent_by_name:       req.user?.name || null,
-            content:            text || (file && !file.mimetype?.startsWith('image/') ? `📎 ${file.originalname}` : ''),
+            content:            text || (midia && !midia.mimeType?.startsWith('image/') ? `📎 ${midia.name}` : ''),
             attachments,
             unipile_message_id: mediaMsgId,
         });
@@ -368,7 +407,7 @@ router.post('/messages/:conversationId/send-media', upload.single('file'), async
 
         // Background: assim que o Unipile indexar a msg, baixa attachments[].id
         // do detalhe e atualiza a row local. Tenta a cada 2s por até 20s.
-        if (msg && file && realUnipileId) {
+        if (msg && midia && realUnipileId) {
             (async () => {
                 for (let i = 0; i < 10; i++) {
                     await new Promise(r => setTimeout(r, 2000));

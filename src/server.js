@@ -32,6 +32,7 @@ import { requireAuth, requireSiteAccess } from './middleware/auth.js';
 
 import { startPolling }            from './services/unipile.js';
 import { startCrmSyncWorker }      from './services/crm-sync.js';
+import cronRouter                  from './routes/cron.js';
 import { startDeliveryRetryWorker } from './services/delivery-retry-worker.js';
 import { getPipedriveCircuitStatus } from './services/pipedrive.js';
 import { startSitePolling }        from './site/services/ingest.js';
@@ -157,6 +158,10 @@ app.get('/api/health', async (req, res) => {
 // ─── Rotas públicas (antes do middleware de auth) ─────────────────────
 app.use('/api', authRouter);
 app.use('/api', webhooksRouter);
+// Cron precisa ficar ANTES do requireAuth: a Vercel Cron manda o proprio
+// Bearer (CRON_SECRET), nao um cookie de sessao. O router tem guarda propria,
+// que falha fechado quando CRON_SECRET nao esta configurado.
+app.use('/api', cronRouter);
 
 // ─── Middleware global de autenticação ────────────────────────────────
 app.use('/api', requireAuth);
@@ -187,23 +192,29 @@ app.use((req, res, next) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-    logger.info('Branddi Atendimento v2.0.0 iniciado', { port: PORT });
+// Em serverless nao existe processo longo: a Vercel importa `app` e roteia por
+// invocacao. Escutar porta ali seria inofensivo mas inutil; iniciar os workers
+// de setInterval seria pior — eles morreriam junto com a invocacao, dando a
+// impressao de estarem rodando. No Railway, nada muda.
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        logger.info('Branddi Atendimento v2.0.0 iniciado', { port: PORT });
 
-    try { startPolling(); } catch (err) {
-        logger.warn('WhatsApp polling não iniciado', { error: err.message });
-    }
+        try { startPolling(); } catch (err) {
+            logger.warn('WhatsApp polling não iniciado', { error: err.message });
+        }
 
-    try { startSitePolling(); } catch (err) {
-        logger.warn('Site WhatsApp polling não iniciado', { error: err.message });
-    }
+        try { startSitePolling(); } catch (err) {
+            logger.warn('Site WhatsApp polling não iniciado', { error: err.message });
+        }
 
-    startCrmSyncWorker();
-    // Delivery retry worker DESATIVADO — bug de loop: o retry cria chat novo no
-    // Unipile, polling importa a msg de volta como nova outbound, worker pega
-    // de novo → enviou várias cópias da mesma msg pra leads (caso Jéssica/inFlux).
-    // Manter desativado até reescrever pra reusar chat existente em vez de criar novo.
-    // startDeliveryRetryWorker();
-});
+        startCrmSyncWorker();
+        // Delivery retry worker DESATIVADO — bug de loop: o retry cria chat novo no
+        // Unipile, polling importa a msg de volta como nova outbound, worker pega
+        // de novo → enviou várias cópias da mesma msg pra leads (caso Jéssica/inFlux).
+        // Manter desativado até reescrever pra reusar chat existente em vez de criar novo.
+        // startDeliveryRetryWorker();
+    });
+}
 
 export default app;

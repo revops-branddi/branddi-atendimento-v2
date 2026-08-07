@@ -134,6 +134,29 @@ router.post('/webhook/test', (req, res) => {
 // Sem secret configurado = aceita tudo (modo dev).
 router.post('/webhooks/unipile', async (req, res) => {
     try {
+        // PASSO 0 (TEMPORARIO) — registra tudo que chega, ANTES de validar.
+        //
+        // Precisa vir antes do secret check: se o secret estiver errado, e' isso
+        // mesmo que precisamos enxergar. E precisa vir antes do early-return de
+        // account_id, que hoje responde 200 e nao grava nada — o suspeito
+        // principal de a tabela de eventos estar zerada apos meses.
+        //
+        // O valor do secret NAO e' gravado, so' a presenca: o repo e' publico e
+        // varias pessoas leem este banco.
+        //
+        // Best-effort de proposito: a captura nunca pode derrubar o
+        // processamento real do webhook. Remover junto com a tabela na Fase 2.
+        try {
+            await supabase.from('webhook_raw_log').insert({
+                headers: {
+                    'x-webhook-secret-present': Boolean(req.headers['x-webhook-secret']),
+                    'content-type': req.headers['content-type'] || null,
+                    'user-agent': req.headers['user-agent'] || null,
+                },
+                body: req.body || {},
+            });
+        } catch { /* captura e' best-effort */ }
+
         const expected = process.env.UNIPILE_WEBHOOK_SECRET;
         if (expected) {
             const provided = req.headers['x-webhook-secret'];
