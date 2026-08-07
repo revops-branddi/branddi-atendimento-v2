@@ -124,3 +124,50 @@
     --accent-ink:  #031C2D;
     --avatar-grad: linear-gradient(135deg, #0F5E6B, #177A8B);
 }
+
+/* ─── 4. Tema Alto Contraste (WCAG AAA) ─────────────────────── */
+[data-theme="contrast"] {
+    --bg-base:    #000000;
+    --bg-elev-1:  #0A0A0A;
+    --bg-elev-2:  #141414;
+    --bg-elev-3:  #1F1F1F;
+    --bg-hover:   #141414;
+    --bg-active:  rgba(250, 204, 21, 0.14);
+
+    --border-sm:  #2A2A2A;
+    --border-md:  #2A2A2A;
+    --border-lg:  #4A4A4A;
+
+    --text-1:     #FFFFFF;
+    --text-2:     #C9C9C9;
+    --text-3:     #8A8A8A;
+    --text-muted: #C9C9C9;
+
+    --accent:      #FACC15;
+    --accent-50:   #332A04;
+    --accent-100:  #4A3D06;
+    --accent-300:  #D4AC0D;
+    --accent-600:  #FACC15;
+    --accent-700:  #FDE047;
+
+    --accent-dim:    rgba(250, 204, 21, 0.14);
+    --accent-soft:   rgba(250, 204, 21, 0.10);
+    --accent-mid:    rgba(250, 204, 21, 0.24);
+    --accent-glow:   rgba(250, 204, 21, 0.08);
+    --border-accent: rgba(250, 204, 21, 0.45);
+    --ring:          rgba(250, 204, 21, 0.35);
+
+    --success: #4ADE80;
+    --warning: #FACC15;
+    --danger:  #FB7185;
+    --msg-inbound:  #8A8A8A;
+    --msg-outbound: #FACC15;
+    --teal:         #FACC15;
+
+    --accent-ink:  #000000;
+    --avatar-grad: linear-gradient(135deg, #1F1F1F, #4A4A4A);
+
+    --sh-sm: none;
+    --sh-md: 0 0 0 1px var(--border-lg);
+    --sh-lg: 0 0 0 1px var(--border-lg);
+}
