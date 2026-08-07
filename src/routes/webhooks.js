@@ -13,6 +13,7 @@ import { queueLeadSync } from '../services/crm-sync.js';
 import { pdGet, pdPut } from '../services/pipedrive.js';
 import { syncLeadFromApollo } from './apollo.js';
 import logger from '../services/logger.js';
+import { normalizeWebhookBody } from '../services/webhook-body.js';
 
 const router = Router();
 
@@ -172,12 +173,16 @@ router.post('/webhooks/unipile', async (req, res) => {
             }
         }
 
-        const body = req.body || {};
+        // O Unipile entrega JSON com content-type de formulario. Sem esta
+        // normalizacao, `req.body` chega como `{ '<string json inteira>': '' }` e
+        // nada abaixo funciona. Ver src/services/webhook-body.js.
+        const body = normalizeWebhookBody(req.body, req.rawBody);
         // Unipile manda um envelope no formato:
         //   { event: 'account.disconnected', account: { id, status, ... }, ... }
         // ou:
         //   { type: 'account.status', account_id, status, ... }
-        // Aceita os 2 formatos pra robustez.
+        // Eventos de mensagem usam { event: 'message_received', account_id, chat_id, ... }
+        // Aceita os formatos pra robustez.
         const eventType = body.event || body.type || 'unknown';
         const accountId = body.account?.id || body.account_id || body.id;
         const status    = body.account?.status || body.status || body.account?.sources?.[0]?.status;
@@ -193,6 +198,22 @@ router.post('/webhooks/unipile', async (req, res) => {
         const ignoredIds = await getIgnoredAccountIds();
         if (ignoredIds.includes(accountId)) {
             return res.json({ received: true, ignored: true, reason: 'account_marked_ignored' });
+        }
+
+        // Eventos de MENSAGEM sao reconhecidos mas ainda nao ingeridos: a
+        // ingestao por webhook e' a Fase 2. Gravar em status_events poluiria a
+        // tabela — ela e' append-only sobre transicao de STATUS de conta, e um
+        // message_received nao tem status, entraria como null e estragaria
+        // qualquer analise de padrao de queda.
+        //
+        // Responder 200 aqui e' correto: o Unipile so' precisa saber que
+        // recebemos. O polling segue sendo o caminho de ingestao ate a Fase 2.
+        if (!status && !String(eventType).startsWith('account')) {
+            logger.info('Webhook Unipile: evento de mensagem reconhecido', {
+                event_type: eventType,
+                account_id: accountId,
+            });
+            return res.json({ received: true, handled: 'ack_only', event_type: eventType });
         }
 
         // Status anterior pra detectar transição
