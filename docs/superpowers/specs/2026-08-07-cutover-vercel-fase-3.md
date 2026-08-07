@@ -34,12 +34,21 @@ A ordem existe para manter a propriedade que tornou as fases anteriores seguras:
 variável por vez**, e sempre com o caminho antigo de pé até o novo se provar.
 
 **1. Deploy na Vercel sem mover o webhook.**
-A Vercel sobe com os crons ativos. Ela roda apenas o reconciliador e o CRM sync; a ingestão
-continua chegando no Railway. Prova que a plataforma sobe, conecta no banco e reconcilia —
-sem nenhum tráfego real dependendo dela.
+A Vercel sobe com **apenas o cron do reconciliador**. A ingestão continua chegando no
+Railway. Prova que a plataforma sobe, conecta no banco e reconcilia — sem nenhum tráfego
+real dependendo dela.
+
+> ⚠️ **O cron de CRM sync fica de fora deste passo, de propósito.** Ao contrário do
+> reconciliador, ele **não** é idempotente sob concorrência: `getPendingSyncs()` seleciona
+> `sync_status = 'pending'` e só marca o status depois de concluir, sem claim nem lease.
+> Rodá-lo na Vercel com `startCrmSyncWorker()` ainda de pé no Railway faria os dois pegarem
+> as mesmas entradas e criarem pessoa/deal/atividade **em duplicata no Pipedrive** — que não
+> tem constraint para desfazer. Ele entra no `vercel.json` no mesmo passo em que o worker do
+> Railway sai. Nunca os dois.
 
 Env vars necessárias: as mesmas do Railway, mais `CRON_SECRET`. Sem ele os endpoints de
-cron falham fechado, por desenho.
+cron falham fechado, por desenho. **`PUBLIC_URL` deve apontar para a Vercel, não para o
+Railway** — é ela que monta a URL de registro do webhook.
 
 **2. Desligar o polling no Railway.**
 Comentar as três chamadas dentro do `app.listen`. A ingestão passa a depender só do

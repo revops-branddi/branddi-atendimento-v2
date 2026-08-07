@@ -17,3 +17,7 @@ HANDOFF-MIGRACAO.md
 
 # Scratch do subagent-driven-development (ledger, briefs, review packages)
 .superpowers/
+
+# Link local com a Vercel (ids de projeto/org)
+.vercel/
+.vercel

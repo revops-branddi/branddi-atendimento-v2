@@ -183,12 +183,29 @@ roteamento deve falhar fechado: na dúvida, descartar e logar, nunca adivinhar.
 | `_lastPollTime` (memória) | **deixa de existir** | webhook é push, não pull |
 | lease lock | **não é necessário** | ver abaixo |
 
-**Por que não precisa de lease lock.** Ele existiria para impedir que duas invocações
-concorrentes do mesmo cron dupliquem ingestão. Com a ingestão em webhook, sobram dois
-crons de baixa frequência (reconciliador 5 min, CRM sync) cujas operações são idempotentes
-por construção — o reconciliador via `unipile_message_id UNIQUE`, o CRM sync via
-`crm_sync_log`. Sobreposição é no-op, não corrupção. Introduzir lease lock aqui seria
-adicionar um mecanismo de coordenação para um problema que a chave única já resolve.
+**Por que o reconciliador não precisa de lease lock.** Ele existiria para impedir que duas
+invocações concorrentes dupliquem ingestão. O reconciliador é idempotente por construção,
+via `unipile_message_id UNIQUE`: sobreposição é no-op, não corrupção. Coordenar isso seria
+adicionar um mecanismo para um problema que a chave única já resolve.
+
+> ⚠️ **Correção aplicada em 2026-08-07, ao configurar a Vercel.** A versão original desta
+> seção estendia o mesmo argumento ao CRM sync, afirmando que ele seria idempotente "via
+> `crm_sync_log`". **Isso é falso.**
+>
+> `getPendingSyncs()` seleciona `sync_status = 'pending'`, e o status só é escrito **depois**
+> de o trabalho concluir — não existe claim nem lease. Dois workers concorrentes pegam as
+> mesmas entradas e criam pessoa, deal e atividade **em duplicata no Pipedrive**, que não tem
+> constraint para desfazer.
+>
+> `crm_sync_log` registra desfecho; não reserva trabalho. São coisas diferentes, e a versão
+> original as confundiu.
+>
+> **Consequência prática:** o cron `/api/cron/crm-sync` não pode rodar enquanto
+> `startCrmSyncWorker()` estiver de pé no Railway. Ele foi retirado do `vercel.json` e entra
+> apenas no mesmo passo em que o worker sai — nunca os dois ao mesmo tempo. Se um dia for
+> preciso rodar ambos, aí sim é caso de claim atômico
+> (`UPDATE ... SET sync_status='processing' WHERE sync_status='pending' RETURNING *`) com
+> reclaim por timeout para entradas travadas.
 
 ### Upload direto para o Storage
 
