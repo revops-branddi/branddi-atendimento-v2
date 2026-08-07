@@ -1,8 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "services": {
+    "web": {
+      "root": ".",
+      "entrypoint": "src/server.js"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "type": "service", "service": "web" } }
+  ],
   "crons": [
-    { "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/crm-sync", "schedule": "*/2 * * * *" }
+    { "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" }
   ]
 }
