@@ -205,29 +205,35 @@ app.use((req, res, next) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────
-// Em serverless nao existe processo longo: a Vercel importa `app` e roteia por
-// invocacao. Escutar porta ali seria inofensivo mas inutil; iniciar os workers
-// de setInterval seria pior — eles morreriam junto com a invocacao, dando a
-// impressao de estarem rodando. No Railway, nada muda.
-if (!process.env.VERCEL) {
-    app.listen(PORT, () => {
-        logger.info('Branddi Atendimento v2.0.0 iniciado', { port: PORT });
+// O listen roda SEMPRE, inclusive na Vercel: e' assim que a plataforma detecta um
+// servidor Node e roteia trafego pra ele. Envolver isto num `if (!VERCEL)` — como
+// a versao anterior fazia — quebra a deteccao e o deploy nao serve nada.
+// Na Vercel a porta e' ignorada; serve so' como sinal de entrypoint.
+app.listen(PORT, () => {
+    logger.info('Branddi Atendimento v2.0.0 iniciado', { port: PORT });
 
-        try { startPolling(); } catch (err) {
-            logger.warn('WhatsApp polling não iniciado', { error: err.message });
-        }
+    // Os workers, sim, ficam fora da Vercel. setInterval nao sobrevive ao ciclo de
+    // vida de uma invocacao: morreria junto, dando a impressao de estar rodando.
+    // Na Vercel o equivalente sao os crons de /api/cron/*; no Railway, nada muda.
+    if (process.env.VERCEL) {
+        logger.info('Rodando na Vercel — workers de setInterval nao iniciados (usar crons)');
+        return;
+    }
 
-        try { startSitePolling(); } catch (err) {
-            logger.warn('Site WhatsApp polling não iniciado', { error: err.message });
-        }
+    try { startPolling(); } catch (err) {
+        logger.warn('WhatsApp polling não iniciado', { error: err.message });
+    }
 
-        startCrmSyncWorker();
-        // Delivery retry worker DESATIVADO — bug de loop: o retry cria chat novo no
-        // Unipile, polling importa a msg de volta como nova outbound, worker pega
-        // de novo → enviou várias cópias da mesma msg pra leads (caso Jéssica/inFlux).
-        // Manter desativado até reescrever pra reusar chat existente em vez de criar novo.
-        // startDeliveryRetryWorker();
-    });
-}
+    try { startSitePolling(); } catch (err) {
+        logger.warn('Site WhatsApp polling não iniciado', { error: err.message });
+    }
+
+    startCrmSyncWorker();
+    // Delivery retry worker DESATIVADO — bug de loop: o retry cria chat novo no
+    // Unipile, polling importa a msg de volta como nova outbound, worker pega
+    // de novo → enviou várias cópias da mesma msg pra leads (caso Jéssica/inFlux).
+    // Manter desativado até reescrever pra reusar chat existente em vez de criar novo.
+    // startDeliveryRetryWorker();
+});
 
 export default app;
