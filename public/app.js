@@ -2378,23 +2378,41 @@ async function sendMsg() {
             : null;
 
         if (fileToSend) {
-            // Envia com mídia via FormData
-            const fd = new FormData();
-            fd.append('file', fileToSend);
-            if (text) fd.append('text', text);
-            if (chatId) fd.append('chatId', chatId);
-            if (personaAccountId) fd.append('whatsapp_account_id', personaAccountId);
-
-            const response = await fetch(`/api/messages/${currentConversation.id}/send-media`, {
+            // Upload DIRETO pro Supabase Storage, nunca pelo corpo da request.
+            //
+            // A Vercel corta requests acima de 4,5 MB no nível da plataforma —
+            // o antigo FormData batia em HTTP 413 FUNCTION_PAYLOAD_TOO_LARGE
+            // antes de chegar no backend. Os diagnósticos comerciais têm
+            // 5–6 MB, então esse era exatamente o arquivo que mais importa.
+            //
+            // Sem branch por tamanho de propósito: um limiar seria um número
+            // mágico correndo contra um teto de plataforma que não controlamos,
+            // e a diferença de duas idas extras é irrelevante para um humano
+            // anexando arquivo.
+            const { key, signedUrl } = await apiFetch('/api/messages/upload-url', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${getToken()}` },
-                body: fd,
+                body: JSON.stringify({ file_name: fileToSend.name }),
             });
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Erro ao enviar mídia');
-            }
-            res = await response.json();
+
+            const up = await fetch(signedUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': fileToSend.type || 'application/octet-stream' },
+                body: fileToSend,
+            });
+            if (!up.ok) throw new Error('Falha ao subir o arquivo. Tente de novo.');
+
+            // O backend baixa do Storage pela chave e repassa ao Unipile. O teto
+            // da Vercel vale para o corpo que ENTRA, não para o fetch de saída.
+            res = await apiFetch(`/api/messages/${currentConversation.id}/send-media`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    storage_key: key,
+                    mime_type: fileToSend.type || 'application/octet-stream',
+                    text,
+                    chatId,
+                    whatsapp_account_id: personaAccountId,
+                }),
+            });
         } else {
             // Envio de texto normal
             res = await apiFetch(`/api/messages/${currentConversation.id}/send`, {
