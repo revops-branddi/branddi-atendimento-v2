@@ -46,16 +46,26 @@ export function chatFromWebhook(payload) {
  * Decide a qual fluxo a conta pertence. Falha fechado: o que nao for
  * reconhecido e' 'unknown' e nao entra em lugar nenhum.
  *
- * A ordem importa. Uma conta ignorada TAMBEM aparece em public.whatsapp_accounts
- * — e' la' que a flag mora. Checar prospeccao primeiro faria conversa de outro
- * time entrar no inbox da Branddi.
+ * A ORDEM IMPORTA, e nao e' obvia — a flag `ignored` esta sobrecarregada:
+ *
+ *   - numa conta de outro time no DSN compartilhado significa "nao toque"
+ *   - na conta do /site significa "nao e' da prospeccao", porque ela e' marcada
+ *     assim justamente para o poller de prospeccao nao encostar no numero do site
+ *
+ * Por isso `site` e' checado ANTES de `ignored`: conta registrada em
+ * site.whatsapp_accounts pertence ao /site, ponto. A lista de ignoradas so' faz
+ * sentido como gate do fluxo de prospeccao.
+ *
+ * A versao original checava `ignored` primeiro e deixava o /site inteiro
+ * inalcancavel em producao — a unica conta do site estava nas duas listas.
+ * Ver o teste de conjuntos sobrepostos em test/webhook-ingest.test.js.
  *
  * @returns {'ignored'|'site'|'prospecting'|'unknown'}
  */
 export function classifyAccount(accountId, { ignoredIds = [], siteIds = [], publicIds = [] } = {}) {
     if (typeof accountId !== 'string' || accountId.length === 0) return 'unknown';
-    if (ignoredIds.includes(accountId)) return 'ignored';
     if (siteIds.includes(accountId)) return 'site';
+    if (ignoredIds.includes(accountId)) return 'ignored';
     if (publicIds.includes(accountId)) return 'prospecting';
     return 'unknown';
 }

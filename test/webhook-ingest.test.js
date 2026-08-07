@@ -75,6 +75,29 @@ test('ignorada vence prospeccao mesmo estando nas duas listas', () => {
     assert.equal(classifyAccount('oxF_Ozs3RuakhJkHk130Zg', LISTAS), 'ignored');
 });
 
+// Regressao de producao (2026-08-07): a flag `ignored` esta SOBRECARREGADA.
+// Para uma conta de outro time significa "nao toque". Para a conta do /site
+// significa "nao e' da prospeccao" — ela e' marcada ignored justamente pra o
+// poller de prospeccao nao encostar no numero do site.
+//
+// Em producao a UNICA conta do /site (jo-4j82…) estava nas DUAS listas, e a
+// precedencia original a classificava como 'ignored': o fluxo /site inteiro
+// ficava inalcancavel. A fixture antiga modelava os conjuntos como disjuntos e
+// por isso nunca pegou.
+//
+// Regra: conta registrada como do /site pertence ao /site. A lista de ignoradas
+// so' faz sentido como gate do fluxo de prospeccao.
+test('conta do site vence ignorada quando esta nas duas listas', () => {
+    const sobrepostas = {
+        ignoredIds: ['conta-de-outro-time', 'conta-site-tambem-ignorada'],
+        siteIds:    ['conta-site-tambem-ignorada'],
+        publicIds:  ['conta-prospec', 'conta-site-tambem-ignorada'],
+    };
+    assert.equal(classifyAccount('conta-site-tambem-ignorada', sobrepostas), 'site');
+    // A de outro time continua barrada — a correcao nao pode afrouxar isso.
+    assert.equal(classifyAccount('conta-de-outro-time', sobrepostas), 'ignored');
+});
+
 test('classifica site e prospeccao', () => {
     assert.equal(classifyAccount('conta-site', LISTAS), 'site');
     assert.equal(classifyAccount('conta-prospec', LISTAS), 'prospecting');
