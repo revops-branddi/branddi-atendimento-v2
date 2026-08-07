@@ -53,6 +53,19 @@ app.set('trust proxy', 1);
 app.use(compression());
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '5mb' }));
+// O Unipile entrega os webhooks com content-type application/x-www-form-urlencoded,
+// mesmo tendo sido registrado com format: 'json'. Sem este parser o express.json()
+// ignora o corpo, req.body chega {} e o handler cai no early-return de account_id —
+// respondendo 200 sem gravar nada. Foi assim que 100% dos eventos se perderam em
+// silencio por meses: o Unipile via 200 e nunca re-tentou.
+//
+// `verify` guarda o corpo cru: se o Unipile mandar JSON com o content-type errado,
+// o parse de formulario devolve algo inutil e so' o cru permite recuperar.
+app.use(express.urlencoded({
+    limit: '5mb',
+    extended: true,
+    verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); },
+}));
 app.use(cookieParser());
 app.use(express.static(join(__dirname, '..', 'public')));
 
