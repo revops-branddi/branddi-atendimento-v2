@@ -3910,9 +3910,14 @@ async function apiFetch(url, options = {}) {
 
     const res = await fetch(url, { ...options, headers });
 
-    // Sessao expirada — lanca erro para o caller decidir o que fazer
+    // 401 tem TRES causas distintas no backend, com mensagens proprias: token
+    // ausente, token invalido/expirado, e usuario nao encontrado no banco.
+    // A versao anterior fixava "Sessao expirada" para as tres, o que mandava o
+    // usuario refazer login mesmo quando login nao era o problema — e escondia
+    // a unica informacao capaz de apontar a causa. Preserva a mensagem real.
     if (res.status === 401) {
-        const err = new Error('Sessao expirada');
+        const corpo = await res.json().catch(() => ({}));
+        const err = new Error(corpo.error || 'Sessão expirada. Faça login novamente.');
         err.status = 401;
         throw err;
     }
