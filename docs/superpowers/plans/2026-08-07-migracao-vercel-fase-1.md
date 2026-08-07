@@ -58,7 +58,7 @@ O projeto não tem teste nenhum. Sem isso, nenhuma task seguinte tem como provar
 
 **Interfaces:**
 - Consumes: nada
-- Produces: comando `npm test`, que roda `node --test test/`
+- Produces: comando `npm test`, que roda `node --test`
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -83,7 +83,7 @@ Expected: FAIL — `npm error Missing script: "test"`
 Em `package.json`, dentro de `"scripts"`, acrescentar:
 
 ```json
-"test": "node --test test/"
+"test": "node --test"
 ```
 
 - [ ] **Step 4: Rodar e confirmar que passa**
