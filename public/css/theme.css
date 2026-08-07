@@ -171,3 +171,50 @@
     --sh-md: 0 0 0 1px var(--border-lg);
     --sh-lg: 0 0 0 1px var(--border-lg);
 }
+
+/* ─── 5. Textos semânticos hardcoded p/ light — versão dark ──
+   style-v2 usa tons escuros (#047857, #92400E, #BE123C…) como
+   TEXTO sobre fundos translúcidos claros. Em fundo escuro esses
+   tons somem; aqui trocamos pelos tons claros das mesmas
+   famílias. Bgs translúcidos (alpha 10–14%) funcionam nos dois. */
+[data-theme="dark"] .status-pill,
+[data-theme="contrast"] .status-pill { color: var(--success); }
+[data-theme="dark"] .status-pill.offline,
+[data-theme="contrast"] .status-pill.offline { color: #FB7185; }
+
+[data-theme="dark"] .ch-menu-item .badge-admin,
+[data-theme="contrast"] .ch-menu-item .badge-admin { color: #FB7185; }
+
+[data-theme="dark"] .deal-status-badge.deal-won,
+[data-theme="contrast"] .deal-status-badge.deal-won { color: var(--success) !important; }
+[data-theme="dark"] .deal-status-badge.deal-lost,
+[data-theme="contrast"] .deal-status-badge.deal-lost { color: #FB7185 !important; }
+
+[data-theme="dark"] .wa-banner,
+[data-theme="contrast"] .wa-banner { color: var(--warning); }
+[data-theme="dark"] .msg-fail-note,
+[data-theme="contrast"] .msg-fail-note { color: var(--warning); }
+[data-theme="dark"] .msg-bubble.msg-row.msg-note .msg-author,
+[data-theme="contrast"] .msg-bubble.msg-row.msg-note .msg-author { color: var(--warning); }
+
+[data-theme="dark"] .kpi-card.kpi-green .kpi-value,
+[data-theme="contrast"] .kpi-card.kpi-green .kpi-value { color: var(--success) !important; }
+[data-theme="dark"] .kpi-card.kpi-amber .kpi-value,
+[data-theme="contrast"] .kpi-card.kpi-amber .kpi-value { color: var(--warning) !important; }
+
+/* Tags de atendente (paleta djb2 c0–c7): tons claros no escuro.
+   c0 usa vars de accent e já acompanha o tema sozinho. */
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c1"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c1"] { color: #A78BFA; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c2"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c2"] { color: #FBBF24; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c3"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c3"] { color: #34D399; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c4"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c4"] { color: #F472B6; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c5"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c5"] { color: #60A5FA; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c6"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c6"] { color: #FB923C; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c7"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c7"] { color: #22D3EE; }
