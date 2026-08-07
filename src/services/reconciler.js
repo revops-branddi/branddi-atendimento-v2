@@ -29,6 +29,11 @@ const WINDOW_MS = 48 * 60 * 60 * 1000;
 export function pickStaleConversations(convs, { now, windowMs = WINDOW_MS }) {
     return convs
         .filter(c => {
+            // Nem toda conversa e' de WhatsApp. resyncConversation() rejeita as que
+            // nao tem chat_id, e sem este filtro elas viravam um erro logado a cada
+            // ciclo de 5 min — poluindo a contagem de `errors` a ponto de um erro
+            // real nao se distinguir do ruido previsivel.
+            if (!c.whatsapp_chat_id) return false;
             if (!c.last_message_at) return false;
             const t = new Date(c.last_message_at).getTime();
             return Number.isFinite(t) && now - t <= windowMs;
@@ -45,7 +50,7 @@ export async function runReconciler({ now = Date.now() } = {}) {
 
     const { data, error } = await sb
         .from('conversations')
-        .select('id, last_message_at')
+        .select('id, last_message_at, whatsapp_chat_id')
         .gte('last_message_at', since);
 
     if (error) throw new Error(`reconciler: ${error.message}`);

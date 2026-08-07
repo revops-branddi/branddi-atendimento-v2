@@ -7,27 +7,27 @@ const NOW = new Date('2026-08-07T12:00:00Z').getTime();
 const WINDOW = 48 * 60 * 60 * 1000;
 
 test('inclui conversa dentro da janela de 48h', () => {
-    const convs = [{ id: 'a', last_message_at: '2026-08-07T11:00:00Z' }];
+    const convs = [{ id: 'a', whatsapp_chat_id: 'chat-a', last_message_at: '2026-08-07T11:00:00Z' }];
     assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), [{ id: 'a' }]);
 });
 
 test('exclui conversa fora da janela', () => {
-    const convs = [{ id: 'velha', last_message_at: '2026-08-01T12:00:00Z' }];
+    const convs = [{ id: 'velha', whatsapp_chat_id: 'chat-v', last_message_at: '2026-08-01T12:00:00Z' }];
     assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), []);
 });
 
 test('exclui conversa sem last_message_at em vez de quebrar', () => {
-    const convs = [{ id: 'sem-data', last_message_at: null }];
+    const convs = [{ id: 'sem-data', whatsapp_chat_id: 'chat-s', last_message_at: null }];
     assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), []);
 });
 
 test('exclui data invalida em vez de propagar NaN', () => {
-    const convs = [{ id: 'lixo', last_message_at: 'nao-e-data' }];
+    const convs = [{ id: 'lixo', whatsapp_chat_id: 'chat-l', last_message_at: 'nao-e-data' }];
     assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), []);
 });
 
 test('inclui exatamente na borda da janela', () => {
-    const convs = [{ id: 'borda', last_message_at: new Date(NOW - WINDOW).toISOString() }];
+    const convs = [{ id: 'borda', whatsapp_chat_id: 'chat-b', last_message_at: new Date(NOW - WINDOW).toISOString() }];
     assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), [{ id: 'borda' }]);
 });
 
@@ -35,6 +35,13 @@ test('inclui exatamente na borda da janela', () => {
 // entao disparar o bot a partir dele seria auto-envio espontaneo. Verificamos o
 // codigo-fonte, e nao apenas os nomes exportados, porque a violacao que importa e'
 // uma chamada interna — que nenhuma inspecao de exports revelaria.
+test('exclui conversa que nao e de WhatsApp', () => {
+    // Sem chat_id o resyncConversation rejeita; incluir so' gera erro logado a cada
+    // ciclo de 5 min, afogando erros reais em ruido previsivel.
+    const convs = [{ id: 'nao-wa', whatsapp_chat_id: null, last_message_at: '2026-08-07T11:00:00Z' }];
+    assert.deepEqual(pickStaleConversations(convs, { now: NOW, windowMs: WINDOW }), []);
+});
+
 test('reconciliador nunca importa nem chama o bot', async () => {
     const src = await readFile(new URL('../src/services/reconciler.js', import.meta.url), 'utf8');
     const codigo = src
