@@ -10,6 +10,7 @@
     { "source": "/(.*)", "destination": { "type": "service", "service": "web" } }
   ],
   "crons": [
-    { "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/crm-sync", "schedule": "*/2 * * * *" }
   ]
 }
