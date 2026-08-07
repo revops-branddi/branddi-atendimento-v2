@@ -2404,7 +2404,7 @@ html, body { height: 100%; min-height: 0; }
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 8px;
-  box-shadow: 0 0 0 4px rgba(15, 157, 143, 0.08);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 .lp-contact-header .lp-name {
   font-size: 16px !important;
@@ -2830,7 +2830,7 @@ html, body { height: 100%; min-height: 0; }
 }
 .settings-input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 textarea.settings-input { min-height: 60px; resize: vertical; }
 select.settings-input { appearance: auto; padding-right: 28px; }
@@ -3488,7 +3488,7 @@ select.settings-input { appearance: auto; padding-right: 28px; }
 }
 #lp-link-deal-input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* Filtered empty state (renderConversationList → "Nenhuma conversa")
@@ -3794,7 +3794,7 @@ body.app-body, body, .app-layout {
 .sidebar-search::placeholder { color: var(--text-3) !important; }
 .sidebar-search:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
   outline: none;
 }
 
@@ -3924,7 +3924,7 @@ body.app-body, body, .app-layout {
 .filter-select:focus,
 .deals-search-input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* Botões dos panel-actions (btn-primary, btn-outline) */
@@ -4204,7 +4204,7 @@ body.app-body, body, .app-layout {
 #chat-input:focus,
 #chat-notes-input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(15, 157, 143, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 .scripts-trigger,
 .attach-btn {

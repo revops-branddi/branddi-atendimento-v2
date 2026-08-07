@@ -27,3 +27,30 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
+
+/* ─── 2. Accent — Azul Branddi (tema claro) ─────────────────
+   Paleta oficial do manual: Azul #0ACFDE · Turquesa #299FB1 ·
+   Teal #177A8B · Marinho #031C2D. No claro usamos o Teal
+   oficial #177A8B (contraste AA sobre branco); o Azul #0ACFDE
+   assume no tema escuro. */
+:root {
+    --accent:      #177A8B;
+    --accent-50:   #E8F1F3;
+    --accent-100:  #C6DFE4;
+    --accent-300:  #6FAEBC;
+    --accent-600:  #177A8B;
+    --accent-700:  #115F6D;
+
+    /* Legacy rgba tokens (consumidos pelo CSS antigo) */
+    --accent-dim:    rgba(23, 122, 139, 0.10);
+    --accent-soft:   rgba(23, 122, 139, 0.08);
+    --accent-mid:    rgba(23, 122, 139, 0.20);
+    --accent-glow:   rgba(23, 122, 139, 0.06);
+    --border-accent: rgba(23, 122, 139, 0.30);
+
+    /* Tokens que carregam o accent embutido */
+    --bg-active:     rgba(23, 122, 139, 0.10);
+    --msg-outbound:  #177A8B;
+    --teal:          #177A8B;
+    --ring:          rgba(23, 122, 139, 0.15);
+}
