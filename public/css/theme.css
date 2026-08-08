@@ -428,6 +428,9 @@
 .ch-name, .chat-meta-name { font-size: 14px; font-weight: 600; }
 .ch-status, .chat-meta-sub { font-size: 11px; color: var(--text-2); }
 .chat-area { background: var(--bg-base); }
+/* O style-v2 fixa o pattern da marca no chat com !important e sem gate;
+   com o pref "none" (default do mockup) o fundo tem que ficar limpo. */
+html[data-chat-bg="none"] .chat-area { background-image: none !important; }
 
 /* Bolhas — especificidade (0,3,0) pra vencer o conjunto legado
    .msg-bubble.msg-row.msg-* do style-v2 (era SPEC), que estava
