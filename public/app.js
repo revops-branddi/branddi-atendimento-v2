@@ -872,7 +872,7 @@ const APPEARANCE_DEFAULTS = {
     theme:        'light',
     messageStyle: 'bubbles',
     density:      'compact',
-    chatBg:       'dots',
+    chatBg:       'none',
 };
 // Valores aceitos por preferência. Se algo salvo no localStorage estiver
 // fora dessas listas (ex: chatBg='gradient' removido), migramos pra default.
@@ -880,7 +880,9 @@ const APPEARANCE_VALID = {
     theme:        ['light', 'dark', 'contrast'],
     messageStyle: ['bubbles'],
     density:      ['compact', 'comfortable'],
-    chatBg:       ['dots', 'watermark', 'pattern'],
+    // 'dots' removido (era default imposto, não escolha) → migra pra 'none'
+    // (fundo limpo do mockup). Watermark/pattern são escolhas explícitas, ficam.
+    chatBg:       ['none', 'watermark', 'pattern'],
 };
 
 function applyAppearancePrefsOnLoad() {

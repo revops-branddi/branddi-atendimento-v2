@@ -429,36 +429,63 @@
 .ch-status, .chat-meta-sub { font-size: 11px; color: var(--text-2); }
 .chat-area { background: var(--bg-base); }
 
-.msg-bubble {
+/* Bolhas — especificidade (0,3,0) pra vencer o conjunto legado
+   .msg-bubble.msg-row.msg-* do style-v2 (era SPEC), que estava
+   atropelando o port com tints pálidos (accent-50/100). */
+.msg-bubble.msg-row {
     max-width: min(560px, 72%);
     background: var(--bg-elev-1);
     border: 1px solid var(--border-md);
     border-radius: var(--r-lg);
+    padding: 8px 12px 6px;
+    gap: 2px;
     box-shadow: var(--sh-sm);
     color: var(--text-1);
 }
-.msg-bubble.inbound { background: var(--bg-elev-1); border-top-left-radius: 4px; }
-.msg-bubble.outbound {
-    background: var(--accent-dim);
-    border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+.msg-bubble.msg-row.msg-inbound {
+    align-self: flex-start;
+    background: var(--bg-elev-1);
+    border-color: var(--border-md);
+    border-top-left-radius: 4px;
+    border-bottom-right-radius: var(--r-lg);
+}
+.msg-bubble.msg-row.msg-outbound {
+    align-self: flex-end;
+    background: color-mix(in oklab, var(--accent) 9%, var(--bg-elev-1));
+    border-color: color-mix(in oklab, var(--accent) 35%, transparent);
     border-top-right-radius: 4px;
+    border-bottom-right-radius: var(--r-lg);
     color: var(--text-1);
 }
-.msg-bubble.bot {
-    background: color-mix(in oklab, var(--msg-bot) 7%, transparent);
+.msg-bubble.msg-row.msg-bot {
+    align-self: flex-end;
+    background: color-mix(in oklab, var(--msg-bot) 8%, var(--bg-elev-1));
     border-color: color-mix(in oklab, var(--msg-bot) 35%, transparent);
 }
-.msg-bubble.note {
-    background: color-mix(in oklab, var(--msg-note) 8%, transparent);
+.msg-bubble.msg-row.msg-note {
+    align-self: center;
+    max-width: 88%;
+    background: color-mix(in oklab, var(--msg-note) 9%, var(--bg-elev-1));
     border-style: dashed;
     border-color: color-mix(in oklab, var(--msg-note) 45%, transparent);
 }
-.msg-bubble.system, .msg-bubble.msg-system {
+.msg-bubble.msg-row.msg-system {
+    align-self: center;
     background: transparent;
     border: 1px dashed var(--border-lg);
     color: var(--text-2);
     box-shadow: none;
+    font-size: 12px;
 }
+/* Interior da bolha: autor colorido por tipo, hora mono visível */
+.msg-bubble .msg-author { font-size: 11px; font-weight: 600; color: var(--text-2); }
+.msg-bubble.msg-row.msg-outbound .msg-author { color: var(--accent); }
+.msg-bubble.msg-row.msg-bot .msg-author { color: var(--msg-bot); }
+.msg-bubble.msg-row.msg-note .msg-author { color: var(--msg-note); }
+.msg-bubble .msg-status-col { display: flex; align-items: center; gap: 4px; align-self: flex-end; }
+.msg-bubble .msg-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.msg-bubble .msg-check { font-size: 10px; color: var(--text-3); }
+.msg-bubble .msg-check.read { color: var(--accent); }
 
 .chat-input-wrap { background: var(--bg-elev-1); border-top: 1px solid var(--border-md); }
 .chat-input-tab { color: var(--text-2); font-weight: 500; }
