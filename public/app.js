@@ -1241,8 +1241,7 @@ function renderGruposList() {
         top.className = 'conv-item-top';
         const name = document.createElement('span');
         name.className = 'conv-name';
-        // Prefix com 👥 inline em vez de avatar separado (mais compacto)
-        name.textContent = `👥 ${g.group_subject || '(grupo sem nome)'}`;
+        name.textContent = g.group_subject || '(grupo sem nome)';
         const time = document.createElement('span');
         time.className = 'conv-time';
         time.textContent = g.last_message_at ? formatTime(g.last_message_at) : '';
@@ -1263,30 +1262,27 @@ function renderGruposList() {
         main.appendChild(top);
         main.appendChild(snippet);
 
-        // Badges de contas Branddi que estão no grupo (Caroline, Ricardo, etc).
-        // Útil quando o mesmo grupo tem múltiplas contas — antes da consolidação
-        // canonical viravam linhas duplicadas; agora ficam num só card com tags.
+        // Contas Branddi no grupo (Caroline, Ricardo, etc) — mesmo AvatarStack
+        // do inbox (mockup 07/08/26). Antes da consolidação canonical viravam
+        // linhas duplicadas; agora ficam num só card.
         const labels = (g.account_display_labels || []).filter(Boolean);
         if (labels.length > 0) {
-            const tagsRow = document.createElement('div');
-            tagsRow.className = 'conv-account-tags';
-            tagsRow.style.display = 'flex';
-            tagsRow.style.flexWrap = 'wrap';
-            tagsRow.style.gap = '4px';
-            tagsRow.style.marginTop = '4px';
-            for (const label of labels) {
-                const tag = document.createElement('span');
-                tag.textContent = `📱 ${label}`;
-                tag.style.fontSize = '10px';
-                tag.style.padding = '1px 6px';
-                tag.style.borderRadius = '4px';
-                tag.style.background = 'var(--bg-2)';
-                tag.style.color = 'var(--text-2)';
-                tagsRow.appendChild(tag);
-            }
-            main.appendChild(tagsRow);
+            const metaRow = document.createElement('div');
+            metaRow.className = 'conv-meta-row';
+            const spacer = document.createElement('span');
+            spacer.className = 'conv-meta-spacer';
+            metaRow.appendChild(spacer);
+            metaRow.insertAdjacentHTML('beforeend', renderAvatarStack(labels));
+            main.appendChild(metaRow);
         }
 
+        // Avatar do grupo (iniciais só-letras; fallback G) — coluna 1 do grid
+        const gAvatar = document.createElement('span');
+        gAvatar.className = 'conv-avatar';
+        gAvatar.textContent = ((g.group_subject || '').split(' ')
+            .map(w => (w.match(/\p{L}/u) || [])[0])
+            .filter(Boolean).slice(0, 2).join('') || 'G').toUpperCase();
+        item.appendChild(gAvatar);
         item.appendChild(main);
 
         if (hasUnread) {
