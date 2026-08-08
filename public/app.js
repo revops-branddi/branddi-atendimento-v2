@@ -869,16 +869,20 @@ window.dismissWaThrottleBanner = dismissWaThrottleBanner;
 // SPEC v2 §5 — Aparência: persiste prefs em localStorage["atd:prefs"]
 // e aplica em <html data-*>. Selects com [data-pref] disparam change.
 const APPEARANCE_DEFAULTS = {
+    theme:        'light',
     messageStyle: 'bubbles',
     density:      'compact',
-    chatBg:       'dots',
+    chatBg:       'none',
 };
 // Valores aceitos por preferência. Se algo salvo no localStorage estiver
 // fora dessas listas (ex: chatBg='gradient' removido), migramos pra default.
 const APPEARANCE_VALID = {
+    theme:        ['light', 'dark', 'contrast'],
     messageStyle: ['bubbles'],
     density:      ['compact', 'comfortable'],
-    chatBg:       ['dots', 'watermark', 'pattern'],
+    // 'dots' removido (era default imposto, não escolha) → migra pra 'none'
+    // (fundo limpo do mockup). Watermark/pattern são escolhas explícitas, ficam.
+    chatBg:       ['none', 'watermark', 'pattern'],
 };
 
 function applyAppearancePrefsOnLoad() {
@@ -1237,8 +1241,7 @@ function renderGruposList() {
         top.className = 'conv-item-top';
         const name = document.createElement('span');
         name.className = 'conv-name';
-        // Prefix com 👥 inline em vez de avatar separado (mais compacto)
-        name.textContent = `👥 ${g.group_subject || '(grupo sem nome)'}`;
+        name.textContent = g.group_subject || '(grupo sem nome)';
         const time = document.createElement('span');
         time.className = 'conv-time';
         time.textContent = g.last_message_at ? formatTime(g.last_message_at) : '';
@@ -1259,30 +1262,27 @@ function renderGruposList() {
         main.appendChild(top);
         main.appendChild(snippet);
 
-        // Badges de contas Branddi que estão no grupo (Caroline, Ricardo, etc).
-        // Útil quando o mesmo grupo tem múltiplas contas — antes da consolidação
-        // canonical viravam linhas duplicadas; agora ficam num só card com tags.
+        // Contas Branddi no grupo (Caroline, Ricardo, etc) — mesmo AvatarStack
+        // do inbox (mockup 07/08/26). Antes da consolidação canonical viravam
+        // linhas duplicadas; agora ficam num só card.
         const labels = (g.account_display_labels || []).filter(Boolean);
         if (labels.length > 0) {
-            const tagsRow = document.createElement('div');
-            tagsRow.className = 'conv-account-tags';
-            tagsRow.style.display = 'flex';
-            tagsRow.style.flexWrap = 'wrap';
-            tagsRow.style.gap = '4px';
-            tagsRow.style.marginTop = '4px';
-            for (const label of labels) {
-                const tag = document.createElement('span');
-                tag.textContent = `📱 ${label}`;
-                tag.style.fontSize = '10px';
-                tag.style.padding = '1px 6px';
-                tag.style.borderRadius = '4px';
-                tag.style.background = 'var(--bg-2)';
-                tag.style.color = 'var(--text-2)';
-                tagsRow.appendChild(tag);
-            }
-            main.appendChild(tagsRow);
+            const metaRow = document.createElement('div');
+            metaRow.className = 'conv-meta-row';
+            const spacer = document.createElement('span');
+            spacer.className = 'conv-meta-spacer';
+            metaRow.appendChild(spacer);
+            metaRow.insertAdjacentHTML('beforeend', renderAvatarStack(labels));
+            main.appendChild(metaRow);
         }
 
+        // Avatar do grupo (iniciais só-letras; fallback G) — coluna 1 do grid
+        const gAvatar = document.createElement('span');
+        gAvatar.className = 'conv-avatar';
+        gAvatar.textContent = ((g.group_subject || '').split(' ')
+            .map(w => (w.match(/\p{L}/u) || [])[0])
+            .filter(Boolean).slice(0, 2).join('') || 'G').toUpperCase();
+        item.appendChild(gAvatar);
         item.appendChild(main);
 
         if (hasUnread) {
@@ -1790,17 +1790,12 @@ function renderConversationList() {
         // Última mensagem foi do lead → highlight visual diferente do "nova msg"
         const lastFromLead = conv.last_message?.direction === 'inbound';
 
-        // Atendente — paleta determinística pelo nome.
-        // 1 owner = pill simples; 2+ owners = empilha tags (raro).
-        // Tag com nome > círculo com inicial: "S" pode ser Sergio OU Stephanie,
-        // mas "SERGIO" é inequívoco.
+        // Atendente — paleta determinística pelo nome (ownerColorClass).
+        // Mockup aprovado 07/08/26: AvatarStack (círculos 2 iniciais + "+N"),
+        // tooltip com nome completo cobre ambiguidade de iniciais.
         const ownerNames = Array.isArray(conv.account_owner_names) && conv.account_owner_names.length > 0
             ? conv.account_owner_names
             : (conv.account_owner_name ? [conv.account_owner_name] : []);
-        const ownerTags = ownerNames
-            .slice(0, 3) // até 3 tags inline; depois corta (raro)
-            .map(n => `<span class="tag tag-owner" data-color="${ownerColorClass(n)}">${escHtml(n.slice(0, 14))}</span>`)
-            .join('');
 
         // Empresa: lead.company_name → fallback localStorage[atd:org:LEAD_ID]
         // (preenchido quando user seleciona deal no picker — Pipedrive deals
@@ -1821,14 +1816,25 @@ function renderConversationList() {
             ? `<span class="conv-unread">${conv.unread_count}</span>`
             : '';
 
+        // Mockup 07/08/26 — avatar do lead + chip de classificação + AvatarStack
+        // Só letras (nomes de WA vêm com emoji: "🧙 Miriam" → "M", não "�")
+        const convInitials = name.split(' ')
+            .map(w => (w.match(/\p{L}/u) || [])[0])
+            .filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+        const convCls = lead.classification;
+        const clsChip = convCls === 'comercial' ? '<span class="conv-class hit">Comercial</span>'
+                      : convCls === 'opec'      ? '<span class="conv-class near">OPEC</span>'
+                      : '';
+
         return `<div class="${klass.join(' ')}" data-id="${conv.id}" data-action="select-conversation">
+            <span class="conv-avatar">${escHtml(convInitials)}</span>
             <div class="conv-main">
                 <div class="conv-item-top">
-                    <span class="conv-name">${escHtml(name)}</span>
+                    <span class="conv-name">${escHtml(name)}${clsChip}</span>
                     <span class="conv-time">${time}${isArchived ? ' 🗃️' : ''}</span>
                 </div>
                 <div class="conv-snippet${lastFromLead ? ' replied' : ''}">${lastFromLead ? '↩ ' : ''}${escHtml(preview)}</div>
-                ${(company || ownerTags) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}${ownerTags}</div>` : ''}
+                ${(company || ownerNames.length) ? `<div class="conv-meta-row">${company ? `<span class="conv-company">${escHtml(company)}</span>` : ''}<span class="conv-meta-spacer"></span>${ownerNames.length ? renderAvatarStack(ownerNames) : ''}</div>` : ''}
             </div>
             ${unreadHtml}
         </div>`;

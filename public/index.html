@@ -17,19 +17,23 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Visual refresh: Geist substitui Inter/DM Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
     <link rel="stylesheet" href="style.css" />
     <!-- Redesign v2 (Remix). Comente a linha abaixo para rollback instantaneo. -->
     <link rel="stylesheet" href="style-v2.css" />
+    <!-- Visual refresh (mockup 07/08/26). Comente a linha abaixo para rollback. -->
+    <link rel="stylesheet" href="/css/theme.css" />
     <!-- v2 §5 — FOUC-safe: aplica prefs de aparência ANTES do CSS render -->
     <script>
       (function () {
         try {
           var prefs = JSON.parse(localStorage.getItem("atd:prefs") || "{}");
           var d = document.documentElement.dataset;
+          if (prefs.theme) d.theme = prefs.theme;
           if (prefs.messageStyle) d.messageStyle = prefs.messageStyle;
           if (prefs.density) d.density = prefs.density;
         } catch (e) {}
@@ -204,7 +208,7 @@
     <div class="topbar-actions">
         <!-- Badge de contas caídas (visível só quando há queda em conta DELE) -->
         <button id="topbar-down-badge" type="button"
-                style="display:none;background:#dc2626;color:#fff;border:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;animation:pulse 2s ease-in-out infinite"
+                style="display:none;background:var(--danger);color:#fff;border:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:14px;cursor:pointer;animation:pulse 2s ease-in-out infinite"
                 onclick="openWaConnect()"
                 title="Click pra abrir o modal de religar">
             <span id="topbar-down-badge-text">⚠️ 1 conta caída</span>
@@ -1039,6 +1043,14 @@
                     <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Preferências locais de visualização. Salvas neste navegador.</p>
                     <div class="pref-grid">
                         <div class="pref-field">
+                            <label for="pref-theme">Tema</label>
+                            <select id="pref-theme" class="settings-input" data-pref="theme">
+                                <option value="light">Claro</option>
+                                <option value="dark">Escuro</option>
+                                <option value="contrast">Alto contraste</option>
+                            </select>
+                        </div>
+                        <div class="pref-field">
                             <label for="pref-message-style">Estilo de mensagens</label>
                             <select id="pref-message-style" class="settings-input" data-pref="messageStyle">
                                 <option value="bubbles">Bolhas (WhatsApp)</option>
@@ -1054,7 +1066,7 @@
                         <div class="pref-field">
                             <label for="pref-chat-bg">Fundo do chat</label>
                             <select id="pref-chat-bg" class="settings-input" data-pref="chatBg">
-                                <option value="dots">Pontilhado (padrão)</option>
+                                <option value="none">Limpo (padrão)</option>
                                 <option value="watermark">Logo Branddi central</option>
                                 <option value="pattern">Marca repetida (original)</option>
                             </select>

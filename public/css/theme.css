@@ -1,0 +1,566 @@
+/* ============================================================
+   Branddi Atendimento — Visual Refresh (mockup aprovado 07/08/26)
+   ============================================================
+   Camada final da cascata: carregada DEPOIS de style.css e
+   style-v2.css. Mesmo padrão aditivo do bloco "Redesign v2" no
+   fim do style-v2.css: redefine tokens em :root e source-order
+   vence entre seletores de mesma especificidade.
+
+   ROLLBACK: comentar o <link href="/css/theme.css"> no index.html
+   e restaurar os links de fonte antigos (DM Sans/Inter) — ambos
+   marcados com "Visual refresh" no <head>.
+
+   Config aprovada: light default · accent Azul Branddi ·
+   compact · bubbles · lead panel fixo. Temas dark/contrast
+   opcionais via html[data-theme] (pref "theme" na Aparência).
+   ============================================================ */
+
+/* ─── 1. Tipografia — Geist ─────────────────────────────────── */
+:root {
+    --font: 'Geist', 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* Números, horários e métricas em mono tabular */
+.msg-time, .conv-time, .msg-status,
+.stat-value, .kpi-value, .table-pro td.num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─── 2. Accent — Azul Branddi (tema claro) ─────────────────
+   Paleta oficial do manual: Azul #0ACFDE · Turquesa #299FB1 ·
+   Teal #177A8B · Marinho #031C2D. No claro usamos o Teal
+   oficial #177A8B (contraste AA sobre branco); o Azul #0ACFDE
+   assume no tema escuro. */
+:root {
+    --accent:      #177A8B;
+    --accent-50:   #E8F1F3;
+    --accent-100:  #C6DFE4;
+    --accent-300:  #6FAEBC;
+    --accent-600:  #177A8B;
+    --accent-700:  #115F6D;
+
+    /* Legacy rgba tokens (consumidos pelo CSS antigo) */
+    --accent-dim:    rgba(23, 122, 139, 0.10);
+    --accent-soft:   rgba(23, 122, 139, 0.08);
+    --accent-mid:    rgba(23, 122, 139, 0.20);
+    --accent-glow:   rgba(23, 122, 139, 0.06);
+    --border-accent: rgba(23, 122, 139, 0.30);
+
+    /* Tokens que carregam o accent embutido */
+    --bg-active:     rgba(23, 122, 139, 0.10);
+    --msg-outbound:  #177A8B;
+    --teal:          #177A8B;
+    --ring:          rgba(23, 122, 139, 0.15);
+}
+
+/* ─── 2b. Tinta sobre accent + gradiente de avatar ──────────
+   color:#fff sobre var(--accent) funciona no claro (#177A8B é
+   escuro), mas quebraria no escuro (#0ACFDE é claro). O ink
+   acompanha o tema; o gradiente de avatar (ex-cyan #0090ff)
+   vira var com tons onde branco sempre contrasta. */
+:root {
+    --accent-ink:  #FFFFFF;
+    --avatar-grad: linear-gradient(135deg, #177A8B, #299FB1);
+}
+
+.chat-header .btn-sm.btn-primary,
+.panel-actions .btn-primary,
+.panel-header .btn-primary,
+#modal-settings .btn-primary,
+#modal-script .btn-primary,
+#modal-wa-connect .btn-primary,
+.send-btn,
+.conv-unread {
+    color: var(--accent-ink) !important;
+}
+
+/* ─── 3. Tema Escuro ────────────────────────────────────────
+   Os tokens legacy (--bg-deep, --bg-surface, --border etc.) já
+   apontam via var() pros tokens base do v2 — redefinir os base
+   por tema é suficiente; a cascata leva o resto. */
+[data-theme="dark"] {
+    --bg-base:    #0B1014;
+    --bg-elev-1:  #11181E;
+    --bg-elev-2:  #1A2329;
+    --bg-elev-3:  #232F37;
+    --bg-hover:   #1A2329;
+    --bg-active:  rgba(10, 207, 222, 0.12);
+
+    --border-sm:  #1C262D;
+    --border-md:  #232F37;
+    --border-lg:  #2F3D47;
+
+    --text-1:     #E8EEF1;
+    --text-2:     #93A1AA;
+    --text-3:     #5C6B75;
+    --text-muted: #5C6B75;
+
+    /* Azul Branddi oficial assume no escuro */
+    --accent:      #0ACFDE;
+    --accent-50:   #07333A;
+    --accent-100:  #0A454C;
+    --accent-300:  #23AFC0;
+    --accent-600:  #0ACFDE;
+    --accent-700:  #56DEE9;
+
+    --accent-dim:    rgba(10, 207, 222, 0.12);
+    --accent-soft:   rgba(10, 207, 222, 0.08);
+    --accent-mid:    rgba(10, 207, 222, 0.22);
+    --accent-glow:   rgba(10, 207, 222, 0.06);
+    --border-accent: rgba(10, 207, 222, 0.30);
+    --ring:          rgba(10, 207, 222, 0.18);
+
+    --msg-inbound:  #5C6B75;
+    --msg-outbound: #0ACFDE;
+    --teal:         #0ACFDE;
+
+    --sh-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --sh-md: 0 4px 12px rgba(0,0,0,0.5);
+    --sh-lg: 0 12px 32px rgba(0,0,0,0.6);
+
+    /* Marinho oficial como tinta sobre o ciano */
+    --accent-ink:  #031C2D;
+    --avatar-grad: linear-gradient(135deg, #0F5E6B, #177A8B);
+}
+
+/* ─── 4. Tema Alto Contraste (WCAG AAA) ─────────────────────── */
+[data-theme="contrast"] {
+    --bg-base:    #000000;
+    --bg-elev-1:  #0A0A0A;
+    --bg-elev-2:  #141414;
+    --bg-elev-3:  #1F1F1F;
+    --bg-hover:   #141414;
+    --bg-active:  rgba(250, 204, 21, 0.14);
+
+    --border-sm:  #2A2A2A;
+    --border-md:  #2A2A2A;
+    --border-lg:  #4A4A4A;
+
+    --text-1:     #FFFFFF;
+    --text-2:     #C9C9C9;
+    --text-3:     #8A8A8A;
+    --text-muted: #C9C9C9;
+
+    --accent:      #FACC15;
+    --accent-50:   #332A04;
+    --accent-100:  #4A3D06;
+    --accent-300:  #D4AC0D;
+    --accent-600:  #FACC15;
+    --accent-700:  #FDE047;
+
+    --accent-dim:    rgba(250, 204, 21, 0.14);
+    --accent-soft:   rgba(250, 204, 21, 0.10);
+    --accent-mid:    rgba(250, 204, 21, 0.24);
+    --accent-glow:   rgba(250, 204, 21, 0.08);
+    --border-accent: rgba(250, 204, 21, 0.45);
+    --ring:          rgba(250, 204, 21, 0.35);
+
+    --success: #4ADE80;
+    --warning: #FACC15;
+    --danger:  #FB7185;
+    --msg-inbound:  #8A8A8A;
+    --msg-outbound: #FACC15;
+    --teal:         #FACC15;
+
+    --accent-ink:  #000000;
+    --avatar-grad: linear-gradient(135deg, #1F1F1F, #4A4A4A);
+
+    --sh-sm: none;
+    --sh-md: 0 0 0 1px var(--border-lg);
+    --sh-lg: 0 0 0 1px var(--border-lg);
+}
+
+/* ─── 5. Textos semânticos hardcoded p/ light — versão dark ──
+   style-v2 usa tons escuros (#047857, #92400E, #BE123C…) como
+   TEXTO sobre fundos translúcidos claros. Em fundo escuro esses
+   tons somem; aqui trocamos pelos tons claros das mesmas
+   famílias. Bgs translúcidos (alpha 10–14%) funcionam nos dois. */
+[data-theme="dark"] .status-pill,
+[data-theme="contrast"] .status-pill { color: var(--success); }
+[data-theme="dark"] .status-pill.offline,
+[data-theme="contrast"] .status-pill.offline { color: #FB7185; }
+
+[data-theme="dark"] .ch-menu-item .badge-admin,
+[data-theme="contrast"] .ch-menu-item .badge-admin { color: #FB7185; }
+
+[data-theme="dark"] .deal-status-badge.deal-won,
+[data-theme="contrast"] .deal-status-badge.deal-won { color: var(--success) !important; }
+[data-theme="dark"] .deal-status-badge.deal-lost,
+[data-theme="contrast"] .deal-status-badge.deal-lost { color: #FB7185 !important; }
+
+[data-theme="dark"] .wa-banner,
+[data-theme="contrast"] .wa-banner { color: var(--warning); }
+[data-theme="dark"] .msg-fail-note,
+[data-theme="contrast"] .msg-fail-note { color: var(--warning); }
+[data-theme="dark"] .msg-bubble.msg-row.msg-note .msg-author,
+[data-theme="contrast"] .msg-bubble.msg-row.msg-note .msg-author { color: var(--warning); }
+
+[data-theme="dark"] .kpi-card.kpi-green .kpi-value,
+[data-theme="contrast"] .kpi-card.kpi-green .kpi-value { color: var(--success) !important; }
+[data-theme="dark"] .kpi-card.kpi-amber .kpi-value,
+[data-theme="contrast"] .kpi-card.kpi-amber .kpi-value { color: var(--warning) !important; }
+
+/* Tags de atendente (paleta djb2 c0–c7): tons claros no escuro.
+   c0 usa vars de accent e já acompanha o tema sozinho. */
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c1"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c1"] { color: #A78BFA; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c2"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c2"] { color: #FBBF24; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c3"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c3"] { color: #34D399; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c4"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c4"] { color: #F472B6; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c5"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c5"] { color: #60A5FA; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c6"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c6"] { color: #FB923C; }
+[data-theme="dark"] .conv-item .tag.tag-owner[data-color="c7"],
+[data-theme="contrast"] .conv-item .tag.tag-owner[data-color="c7"] { color: #22D3EE; }
+
+/* ════════════════════════════════════════════════════════════
+   PARTE 2 — COMPONENTES (port fiel do mockup aprovado 07/08/26)
+   Cada bloco replica o visual do mockup-redesign-final.html
+   sobre os seletores reais do app. Source-order vence style-v2.
+   ════════════════════════════════════════════════════════════ */
+
+/* ─── 6. Side-nav (64px, ícone + label, ativo accent-soft) ── */
+.side-nav {
+    width: 64px;
+    background: var(--bg-elev-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-right: 1px solid var(--border-md);
+    padding: 12px 8px;
+}
+.side-nav-brand { color: var(--accent); }
+.side-nav .nav-btn {
+    width: 48px;
+    height: 46px;
+    margin: 0 auto 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: var(--r-md);
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    transition: background .12s, color .12s;
+}
+.side-nav .nav-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+.side-nav .nav-btn.active { background: var(--bg-active); color: var(--accent); }
+.side-nav .nav-btn .nav-icon { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
+.side-nav .nav-btn .nav-icon .icon { width: 18px; height: 18px; }
+.side-nav .nav-btn .nav-label {
+    display: block !important;
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+.nav-badge {
+    background: var(--danger);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    min-width: 15px;
+    height: 15px;
+    border-radius: 999px;
+}
+
+/* ─── 7. Topbar ─────────────────────────────────────────────── */
+.app-topbar {
+    height: 52px;
+    background: var(--bg-elev-1);
+    border-bottom: 1px solid var(--border-md);
+    padding: 0 20px;
+}
+.crumb { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.crumb-sep { color: var(--text-3); }
+.crumb-sub { color: var(--text-2); font-weight: 400; }
+.user-chip-avatar { background: var(--bg-active); color: var(--accent); font-weight: 600; }
+
+/* ─── 8. Sidebar de conversas ───────────────────────────────── */
+.inbox-sidebar { background: var(--bg-elev-1); border-right: 1px solid var(--border-md); }
+.sidebar-header { padding: 12px 14px; border-bottom: 1px solid var(--border-md); }
+.sidebar-title { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.sidebar-search {
+    height: 32px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-md);
+    color: var(--text-1);
+    font-family: var(--font);
+    font-size: 13px;
+}
+.sidebar-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); outline: none; }
+.filter-chip {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 500;
+}
+.filter-chip.active {
+    background: var(--bg-active);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+/* ─── 9. ConvRow (avatar + chip + AvatarStack — mockup §inbox) ─ */
+.conv-item {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 14px 10px 12px;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--border-sm);
+    background: transparent;
+    position: relative;
+    cursor: pointer;
+    transition: background .1s;
+}
+.conv-item:hover { background: var(--bg-hover); }
+.conv-item.active { background: var(--bg-active); border-left-color: var(--accent); }
+.conv-item.unread .conv-name { font-weight: 700; }
+.conv-item.archived { opacity: .65; }
+.conv-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-elev-3);
+    color: var(--text-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.conv-main { min-width: 0; }
+.conv-item-top { display: flex; align-items: center; gap: 6px; }
+.conv-name {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.conv-class {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 500;
+}
+.conv-class.hit  { background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.30); }
+.conv-class.near { background: rgba(245, 158, 11, 0.12); color: #92400E; border: 1px solid rgba(245, 158, 11, 0.30); }
+[data-theme="dark"] .conv-class.hit,  [data-theme="contrast"] .conv-class.hit  { color: var(--success); }
+[data-theme="dark"] .conv-class.near, [data-theme="contrast"] .conv-class.near { color: var(--warning); }
+.conv-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.conv-snippet { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.conv-snippet.replied { color: var(--accent); font-weight: 500; }
+.conv-meta-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 22px; }
+.conv-company { font-size: 11px; color: var(--text-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-meta-spacer { flex: 1; }
+.conv-unread {
+    align-self: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* AvatarStack (renderAvatarStack — 22px, overlap -8, +N) */
+.avatar-stack { display: flex; align-items: center; flex-shrink: 0; }
+.avatar-stack .avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 0 0 2px var(--bg-elev-1);
+}
+.avatar-stack .avatar:not(:first-child) { margin-left: -8px; }
+.avatar-stack .avatar-more { background: var(--bg-elev-3); color: var(--text-2); }
+.avatar-stack .avatar[data-color="c0"] { background: var(--accent); color: var(--accent-ink); }
+.avatar-stack .avatar[data-color="c1"] { background: #8B5CF6; }
+.avatar-stack .avatar[data-color="c2"] { background: #F59E0B; }
+.avatar-stack .avatar[data-color="c3"] { background: #10B981; }
+.avatar-stack .avatar[data-color="c4"] { background: #EC4899; }
+.avatar-stack .avatar[data-color="c5"] { background: #3B82F6; }
+.avatar-stack .avatar[data-color="c6"] { background: #F97316; }
+.avatar-stack .avatar[data-color="c7"] { background: #06B6D4; }
+
+/* ─── 10. Chat: header + bolhas + composer ─────────────────── */
+.chat-header { height: 58px; background: var(--bg-elev-1); border-bottom: 1px solid var(--border-md); }
+.ch-avatar, .chat-avatar { background: var(--avatar-grad); color: #fff; font-weight: 600; }
+.ch-name, .chat-meta-name { font-size: 14px; font-weight: 600; }
+.ch-status, .chat-meta-sub { font-size: 11px; color: var(--text-2); }
+.chat-area { background: var(--bg-base); }
+/* O style-v2 fixa o pattern da marca no chat com !important e sem gate;
+   com o pref "none" (default do mockup) o fundo tem que ficar limpo. */
+html[data-chat-bg="none"] .chat-area { background-image: none !important; }
+
+/* Bolhas — especificidade (0,3,0) pra vencer o conjunto legado
+   .msg-bubble.msg-row.msg-* do style-v2 (era SPEC), que estava
+   atropelando o port com tints pálidos (accent-50/100). */
+.msg-bubble.msg-row {
+    max-width: min(560px, 72%);
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    padding: 8px 12px 6px;
+    gap: 2px;
+    box-shadow: var(--sh-sm);
+    color: var(--text-1);
+}
+.msg-bubble.msg-row.msg-inbound {
+    align-self: flex-start;
+    background: var(--bg-elev-1);
+    border-color: var(--border-md);
+    border-top-left-radius: 4px;
+    border-bottom-right-radius: var(--r-lg);
+}
+.msg-bubble.msg-row.msg-outbound {
+    align-self: flex-end;
+    background: color-mix(in oklab, var(--accent) 9%, var(--bg-elev-1));
+    border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: var(--r-lg);
+    color: var(--text-1);
+}
+.msg-bubble.msg-row.msg-bot {
+    align-self: flex-end;
+    background: color-mix(in oklab, var(--msg-bot) 8%, var(--bg-elev-1));
+    border-color: color-mix(in oklab, var(--msg-bot) 35%, transparent);
+}
+.msg-bubble.msg-row.msg-note {
+    align-self: center;
+    max-width: 88%;
+    background: color-mix(in oklab, var(--msg-note) 9%, var(--bg-elev-1));
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--msg-note) 45%, transparent);
+}
+.msg-bubble.msg-row.msg-system {
+    align-self: center;
+    background: transparent;
+    border: 1px dashed var(--border-lg);
+    color: var(--text-2);
+    box-shadow: none;
+    font-size: 12px;
+}
+/* Interior da bolha: autor colorido por tipo, hora mono visível */
+.msg-bubble .msg-author { font-size: 11px; font-weight: 600; color: var(--text-2); }
+.msg-bubble.msg-row.msg-outbound .msg-author { color: var(--accent); }
+.msg-bubble.msg-row.msg-bot .msg-author { color: var(--msg-bot); }
+.msg-bubble.msg-row.msg-note .msg-author { color: var(--msg-note); }
+.msg-bubble .msg-status-col { display: flex; align-items: center; gap: 4px; align-self: flex-end; }
+.msg-bubble .msg-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.msg-bubble .msg-check { font-size: 10px; color: var(--text-3); }
+.msg-bubble .msg-check.read { color: var(--accent); }
+
+.chat-input-wrap { background: var(--bg-elev-1); border-top: 1px solid var(--border-md); }
+.chat-input-tab { color: var(--text-2); font-weight: 500; }
+.chat-input-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.chat-textarea {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-md);
+    color: var(--text-1);
+    font-family: var(--font);
+}
+.chat-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.composer-persona-banner {
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in oklab, var(--accent) 25%, transparent);
+    border-radius: var(--r-md);
+}
+.composer-persona-banner .persona-name { color: var(--accent); font-weight: 600; }
+
+/* ─── 11. Lead panel ───────────────────────────────────────── */
+.lead-panel { background: var(--bg-elev-1); border-left: 1px solid var(--border-md); }
+.lp-tabs { background: var(--bg-elev-2); border-bottom: 1px solid var(--border-md); }
+.lp-tab { color: var(--text-2); font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; }
+.lp-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ─── 12. Tabelas (Leads/Histórico/Deals/Grupos) ───────────── */
+.table-pro {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+}
+.table-pro thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+    color: var(--text-2);
+    background: var(--bg-elev-2);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-md);
+}
+.table-pro tbody td { padding: 11px 14px; font-size: 13px; border-top: 1px solid var(--border-sm); }
+.table-pro tbody tr:first-child td { border-top: none; }
+.table-pro tbody tr:hover { background: var(--bg-hover); }
+
+/* ─── 13. Cards, KPIs, scripts ─────────────────────────────── */
+.kpi-card, .script-card, .stat-card {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    box-shadow: var(--sh-sm);
+}
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); font-weight: 500; }
+.kpi-value { font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.01em; }
+.script-card:hover { border-color: var(--border-lg); }
+
+/* ─── 14. Modais ───────────────────────────────────────────── */
+.modal-overlay { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px); }
+.modal {
+    background: var(--bg-elev-1);
+    border: 1px solid var(--border-md);
+    border-radius: 16px;
+    box-shadow: var(--sh-lg);
+}
+.modal-header { border-bottom: 1px solid var(--border-md); }
+.modal-header h3 { font-size: 16px; font-weight: 600; }
+.modal-footer { border-top: 1px solid var(--border-md); }
+
+/* ─── 15. Empty states ─────────────────────────────────────── */
+.empty-state-pro { color: var(--text-2); }
+.empty-illustration { background: var(--bg-elev-2); color: var(--text-2); border-radius: 50%; }
+.empty-title { color: var(--text-1); font-weight: 600; }

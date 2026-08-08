@@ -6,7 +6,7 @@
   <title>Branddi Atendimento — Login</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <meta name="theme-color" content="#128C7E">
+  <meta name="theme-color" content="#177A8B">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://atendimento.branddi.com/">
   <meta property="og:title" content="Branddi Atendimento — WhatsApp Inbox">
@@ -16,26 +16,29 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Visual refresh: Geist substitui DM Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg-base: #0f1923;
-      --bg-elevated: #1e3248;
-      --bg-input: #1a2a3a;
-      --accent: #00E5FF;
-      --accent-dim: rgba(0, 229, 255, 0.12);
-      --accent-mid: rgba(0, 229, 255, 0.22);
-      --text-1: #ECF2F8;
-      --text-2: #8DA4B8;
-      --text-3: #546A7B;
-      --border-md: rgba(255, 255, 255, 0.10);
-      --border-strong: rgba(255, 255, 255, 0.14);
-      --red: #ff5c5c;
+      /* Visual refresh 07/08/26 — light + Azul Branddi (paleta oficial) */
+      --bg-base: #F6F7F8;
+      --bg-elevated: #FFFFFF;
+      --bg-input: #F1F3F5;
+      --accent: #177A8B;
+      --accent-dim: rgba(23, 122, 139, 0.12);
+      --accent-mid: rgba(23, 122, 139, 0.30);
+      --text-1: #0E1620;
+      --text-2: #5A6672;
+      --text-3: #8A95A0;
+      --border-md: #E4E7EB;
+      --border-strong: #D1D6DB;
+      --red: #E11D48;
       --radius: 10px;
       --radius-sm: 7px;
       --radius-xl: 18px;
-      --font: 'DM Sans', 'Inter', system-ui, sans-serif;
+      --font: 'Geist', 'DM Sans', system-ui, sans-serif;
       --ease: cubic-bezier(0.4, 0, 0.2, 1);
     }
     body {
@@ -46,7 +49,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 229, 255, 0.08) 0%, transparent 60%);
+      background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(23, 122, 139, 0.08) 0%, transparent 60%);
       -webkit-font-smoothing: antialiased;
       letter-spacing: -0.005em;
     }
@@ -55,15 +58,14 @@
       max-width: 420px;
       padding: 48px 40px;
       background: var(--bg-elevated);
-      border: 1px solid var(--border-strong);
+      border: 1px solid var(--border-md);
       border-radius: var(--radius-xl);
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 12px 32px rgba(15, 22, 32, 0.10);
       animation: fadeUp 0.4s ease;
     }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
     @keyframes softFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .logo { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 32px; }
-    .logo img { filter: brightness(1.1); }
     .logo-sub { font-size: 13px; color: var(--text-3); }
     h2 {
       font-size: 18px;
@@ -98,24 +100,24 @@
     .btn-login {
       width: 100%;
       padding: 13px;
-      background: linear-gradient(135deg, var(--accent), #0090ff);
+      background: var(--accent);
       border: none;
       border-radius: var(--radius);
-      color: #0a1a28;
+      color: #FFFFFF;
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 600;
       font-family: inherit;
       cursor: pointer;
-      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
+      box-shadow: 0 4px 16px rgba(23, 122, 139, 0.25);
       transition: all 0.2s var(--ease);
     }
-    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 229, 255, 0.3); }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(23, 122, 139, 0.35); }
     .btn-login:active { transform: translateY(0); }
     .btn-login:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
     .error-msg {
       display: none;
-      background: rgba(255, 92, 92, 0.12);
-      border: 1px solid rgba(255, 92, 92, 0.3);
+      background: rgba(225, 29, 72, 0.10);
+      border: 1px solid rgba(225, 29, 72, 0.30);
       color: var(--red);
       padding: 12px 14px;
       border-radius: var(--radius);
@@ -145,7 +147,7 @@
       transition: all 0.15s var(--ease);
       margin-bottom: 12px;
     }
-    .btn-google:hover { background: #f7f8f8; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+    .btn-google:hover { background: #f7f8f8; box-shadow: 0 2px 8px rgba(15, 22, 32, 0.08); }
     .btn-google:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-google svg { width: 18px; height: 18px; flex-shrink: 0; }
     .email-form { display: none; animation: softFade 0.2s ease; }
@@ -163,13 +165,13 @@
       margin-bottom: 12px;
       font-family: inherit;
     }
-    .toggle-email:hover { color: #00f0ff; }
+    .toggle-email:hover { color: #115F6D; }
   </style>
 </head>
 <body>
   <div class="login-card">
     <div class="logo">
-      <img src="/logo-branddi.svg" alt="Branddi" style="width:160px;height:auto" />
+      <img src="/logo-branddi-dark.svg" alt="Branddi" style="width:160px;height:auto" />
       <div class="logo-sub">Atendimento</div>
     </div>
     <h2>Bem-vindo</h2>
