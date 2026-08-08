@@ -1819,7 +1819,10 @@ function renderConversationList() {
             : '';
 
         // Mockup 07/08/26 — avatar do lead + chip de classificação + AvatarStack
-        const convInitials = name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+        // Só letras (nomes de WA vêm com emoji: "🧙 Miriam" → "M", não "�")
+        const convInitials = name.split(' ')
+            .map(w => (w.match(/\p{L}/u) || [])[0])
+            .filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
         const convCls = lead.classification;
         const clsChip = convCls === 'comercial' ? '<span class="conv-class hit">Comercial</span>'
                       : convCls === 'opec'      ? '<span class="conv-class near">OPEC</span>'
